@@ -1,0 +1,102 @@
+"""Put each bug back, one at a time, in a temporary copy of the kit, and check that a suite catches it.
+
+Run from the repository root:  python -m tests.mutations.run_kit_mutations
+No repository file is changed and no LLM call is made. Each batch starts with a no-op control,
+which must be MISSED: a control that "catches" means the test setup itself is broken.
+"""
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+INIT, LEDGER = "call4agents/__init__.py", "call4agents/ledger.py"
+
+# (name, file, old text, new text, suite)
+MUTATIONS = [
+    # --- K17: one yes = one action, deny enforced
+    ("control (no-op)", LEDGER, "# Each \"yes\" is spent", "# Each \"yes\" is spent", "tests.test_c4a_kit"),
+    ("K17 a yes is never spent", LEDGER, 'self.append(run_id, "approval_used",', 'self.append(run_id, "approval_used_x",', "tests.test_c4a_kit"),
+    ("K17 a no is ignored", LEDGER, 'return max(self._matching(run_id, tool, args, "denial"), default=0)', "return 0", "tests.test_c4a_kit"),
+    ("K17 no deny check when in doubt", INIT, 'if lg.last_denial(run_id, tool, call_args) > spent["seq"]:', "if False:", "tests.test_c4a_kit"),
+    ("K17 no unique index on a use", LEDGER, "CREATE UNIQUE INDEX IF NOT EXISTS one_use", "CREATE INDEX IF NOT EXISTS one_use", "tests.test_c4a_kit"),
+    # --- K18: bugs found by an outside tester
+    ("K18 keys from str() again", LEDGER, "default=_stable)", "default=str)", "tests.test_c4a_kit"),
+    ("K18 tool name = function name", INIT, "tool = name or _tool_name(f)", "tool = name or f.__name__", "tests.test_c4a_kit"),
+    ("K18 silent shared default run", INIT, "    if run_id is None:\n        raise RuntimeError(\"no current run",
+     "    if run_id is None:\n        return \"default\"\n        raise RuntimeError(\"no current run", "tests.test_c4a_kit"),
+    ("K18 wait 2 s after an error", INIT, "failed = err is not None and", "failed = False and", "tests.test_c4a_kit"),
+    ("K18 retry_on ignored", INIT, "if retry_on and isinstance(exc, retry_on):", "if False:", "tests.test_c4a_kit"),
+    ("K18 approve ignores defaults", INIT, "        bound.apply_defaults()\n        args = {k: v",
+     "        args = {k: v", "tests.test_c4a_kit"),
+    ("K18 exception message lost", INIT, "self.tool, self.call_args = tool, args      #", "self.tool, self.args = tool, args      #", "tests.test_c4a_kit"),
+    ("K18 async wait blocks the loop", INIT,
+     "plan = await asyncio.to_thread(contextvars.copy_context().run, check, call_args, explicit)",
+     "plan = check(call_args, explicit)", "tests.test_c4a_kit"),
+    # --- K19: a record cannot make the codec call a function
+    ("K19 codec calls whatever is named", "call4agents/codec.py", "    if not isinstance(obj, type):" + chr(10),
+     "    return obj" + chr(10) + "    if not isinstance(obj, type):" + chr(10), "tests.test_c4a_kit"),
+    ("K19 no model check", "call4agents/codec.py", 'if kind == "model" and not', 'if False and not', "tests.test_c4a_kit"),
+    # --- production checks (P1-P12)
+    ("control (no-op)", LEDGER, "SCHEMA_VERSION = 1", "SCHEMA_VERSION = 1", "tests.test_c4a_production"),
+    ("P1 newer format read anyway", LEDGER, "if found > SCHEMA_VERSION:", "if False:", "tests.test_c4a_production"),
+    ("P2 bad file not explained", LEDGER, "except sqlite3.DatabaseError as exc:", "except ZeroDivisionError as exc:", "tests.test_c4a_production"),
+    ("P3 secret written in place, not linked", LEDGER, "                os.link(tmp, p)", "                os.replace(tmp, p)", "tests.test_c4a_production"),
+    ("P4 old secrets ignored", LEDGER, '[self.secret] + list(getattr(self, "old_secrets", []))', "[self.secret]", "tests.test_c4a_production"),
+    ("P5 network share not detected", LEDGER, "        return True" + chr(10) + "    if sys.platform.startswith", "        return False" + chr(10) + "    if sys.platform.startswith", "tests.test_c4a_production"),
+    ("P6 generators accepted", INIT, "if inspect.isgeneratorfunction(f) or inspect.isasyncgenfunction(f):", "if False:", "tests.test_c4a_production"),
+    ("P7 late result not flagged", INIT, "            if given_up:", "            if False:", "tests.test_c4a_production"),
+    ("P8 not-done keeps it in doubt", "call4agents/ops.py", '{"attempt": max(a["attempts"]), **stamp}', '{"attempt": 0, **stamp}', "tests.test_c4a_production"),
+    ("P9 ops create a missing record", "call4agents/ops.py", "    if not Path(path).is_file():", "    if False:", "tests.test_c4a_production"),
+    ("P10 archive moves runs in doubt", "call4agents/ops.py", "if t < cutoff and r not in open_runs]", "if t < cutoff]", "tests.test_c4a_production"),
+    ("P11 unrecordable result not marked", INIT, '"error": "result could not be recorded"})', '"error": "x"})', "tests.test_c4a_production"),
+    ("P12 one connection shared by threads", LEDGER, "self._local = threading.local()", "self._local = self", "tests.test_c4a_production"),
+    ("P14 any object's str() accepted", LEDGER, "    raise TypeError(f\"{type(o).__name__} is not a type with a stable", "    return str(o)" + chr(10) + "    raise TypeError(f\"{type(o).__name__} is not a type with a stable", "tests.test_c4a_production"),
+    ("P14 deep nesting not caught", LEDGER, "    except RecursionError:", "    except ZeroDivisionError:", "tests.test_c4a_production"),
+    ("P15 damaged row unexplained", LEDGER, "        except ValueError as exc:" + chr(10) + "            raise LedgerError(f\"row", "        except ZeroDivisionError as exc:" + chr(10) + "            raise LedgerError(f\"row", "tests.test_c4a_production"),
+    # --- F: idempotency keys
+    ("control (no-op)", INIT, "# The outside API still remembers", "# The outside API still remembers", "tests.test_idempotency"),
+    ("F no lifetime check", INIT, "if first is not None and time.time() - first <= idempotent_for:", "if True:", "tests.test_idempotency"),
+    ("F key changes per attempt", INIT, 'token = _EFFECT_KEY.set(plan["key"])' + chr(10) + "            try:" + chr(10) + "                result = f(",
+     'token = _EFFECT_KEY.set(plan["key"] + str(time.time()))' + chr(10) + "            try:" + chr(10) + "                result = f(",
+     "tests.test_idempotency"),
+    ("F no same-key retry", INIT, "if idempotent_for is not None and reconcile is None:", "if False:", "tests.test_idempotency"),
+]
+
+
+def copy_tree(dst: Path) -> None:
+    shutil.copytree(ROOT / "call4agents", dst / "call4agents", ignore=shutil.ignore_patterns("__pycache__"))
+    (dst / "tests").mkdir()
+    (dst / "tests" / "__init__.py").write_text("", encoding="utf-8")
+    for f in ("test_c4a_kit.py", "c4a_codec_types.py", "c4a_k18_child.py", "c4a_prove_sample.py", "test_idempotency.py", "test_c4a_production.py"):
+        shutil.copy(ROOT / "tests" / f, dst / "tests" / f)
+
+
+def main() -> int:
+    bad = 0
+    for name, rel, old, new, suite in MUTATIONS:
+        tmp = Path(tempfile.mkdtemp(prefix="c4a-mut-"))
+        try:
+            copy_tree(tmp)
+            path = tmp / rel
+            text = path.read_text(encoding="utf-8")
+            if text.count(old) != 1:
+                print(f"  ??    {name:36} pattern not found once (the code moved: update this script)")
+                bad += 1
+                continue
+            path.write_text(text.replace(old, new), encoding="utf-8")
+            r = subprocess.run([sys.executable, "-m", suite], cwd=tmp, capture_output=True, text=True, timeout=600)
+            fails = [l.split()[1] for l in r.stdout.splitlines() if l.strip().startswith("FAIL")]
+            caught = r.returncode != 0
+            expected = not name.startswith("control")
+            print(f"  {'ok  ' if caught == expected else 'BAD '}  {name:36} {'CATCHES ' + ','.join(fails) if caught else 'MISSES'}")
+            bad += caught != expected
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+    print("\nall mutations behave as expected" if not bad else f"\n{bad} mutation result(s) not as expected")
+    return 1 if bad else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
