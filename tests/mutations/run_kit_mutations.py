@@ -44,7 +44,7 @@ MUTATIONS = [
     ("P2 bad file not explained", LEDGER, "except sqlite3.DatabaseError as exc:", "except ZeroDivisionError as exc:", "tests.test_c4a_production"),
     ("P3 secret written in place, not linked", LEDGER, "                os.link(tmp, p)", "                os.replace(tmp, p)", "tests.test_c4a_production"),
     ("P4 old secrets ignored", LEDGER, '[self.secret] + list(getattr(self, "old_secrets", []))', "[self.secret]", "tests.test_c4a_production"),
-    ("P5 network share not detected", LEDGER, "        return True" + chr(10) + "    if sys.platform.startswith", "        return False" + chr(10) + "    if sys.platform.startswith", "tests.test_c4a_production"),
+    ("P5 network mounts not detected", LEDGER, "    return best[1] in NETWORK_FS", "    return False", "tests.test_c4a_production"),
     ("P6 generators accepted", INIT, "if inspect.isgeneratorfunction(f) or inspect.isasyncgenfunction(f):", "if False:", "tests.test_c4a_production"),
     ("P7 late result not flagged", INIT, "            if given_up:", "            if False:", "tests.test_c4a_production"),
     ("P8 not-done keeps it in doubt", "call4agents/ops.py", '{"attempt": max(a["attempts"]), **stamp}', '{"attempt": 0, **stamp}', "tests.test_c4a_production"),
@@ -53,7 +53,7 @@ MUTATIONS = [
     ("P11 unrecordable result not marked", INIT, '"error": "result could not be recorded"})', '"error": "x"})', "tests.test_c4a_production"),
     ("P12 one connection shared by threads", LEDGER, "self._local = threading.local()", "self._local = self", "tests.test_c4a_production"),
     ("P14 any object's str() accepted", LEDGER, "    raise TypeError(f\"{type(o).__name__} is not a type with a stable", "    return str(o)" + chr(10) + "    raise TypeError(f\"{type(o).__name__} is not a type with a stable", "tests.test_c4a_production"),
-    ("P14 deep nesting not caught", LEDGER, "    except RecursionError:", "    except ZeroDivisionError:", "tests.test_c4a_production"),
+    ("P14 deep nesting not caught", LEDGER, "    if _too_deep(value):", "    if False:", "tests.test_c4a_production"),
     ("P15 damaged row unexplained", LEDGER, "        except ValueError as exc:" + chr(10) + "            raise LedgerError(f\"row", "        except ZeroDivisionError as exc:" + chr(10) + "            raise LedgerError(f\"row", "tests.test_c4a_production"),
     # --- F: idempotency keys
     ("control (no-op)", INIT, "# The outside API still remembers", "# The outside API still remembers", "tests.test_idempotency"),

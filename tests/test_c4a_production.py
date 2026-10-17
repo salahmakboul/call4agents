@@ -102,8 +102,14 @@ def main():
           refused and third is None and paid == [(5, "a")], (refused, third, paid))
 
     # P5 network drives are detected (SQLite locking is not reliable there)
-    check("P5 a Windows network share path is detected; a local temp path is not",
-          _on_network_drive(Path("//fileserver/share/c4a")) and not _on_network_drive(Path(tempfile.gettempdir())))
+    sample = ("/dev/sda1 / ext4 rw 0 0" + chr(10) + "server:/exports /mnt/nfs nfs4 rw 0 0" + chr(10)
+              + "//nas/share /mnt/smb cifs rw 0 0" + chr(10) + "tmpfs /tmp tmpfs rw 0 0")
+    by_mounts = (_on_network_drive(Path("/mnt/nfs/app/c4a"), sample), _on_network_drive(Path("/mnt/smb/x"), sample),
+                 _on_network_drive(Path("/home/app/c4a"), sample), _on_network_drive(Path("/tmp/c4a"), sample))
+    local = _on_network_drive(Path(tempfile.gettempdir()))
+    unc = _on_network_drive(Path("//fileserver/share/c4a")) if sys.platform == "win32" else True
+    check("P5 network drives are detected (Windows share; NFS/SMB mounts by type), local disks are not",
+          by_mounts == (True, True, False, False) and not local and unc, (by_mounts, local, unc))
 
     # P6 unsafe decorations fail at once, with a reason
     def gen(x):
@@ -253,16 +259,20 @@ def main():
         finally:
             sock.close()
         deep = []
-        for _ in range(5000):
+        for _ in range(600):                          # above the kit's 500-level limit, same on every system
             deep = [deep]
         m_deep = raises(TypeError, lambda: echo(d=deep))
+        fine = []
+        for _ in range(100):
+            fine = [fine]
+        m_fine = raises(TypeError, lambda: echo(d=fine))
         import datetime as _dt, decimal as _dec, enum as _enum, uuid as _uuid
         Color = _enum.Enum("Color", "RED BLUE")
         ok_types = raises(Exception, lambda: echo(t=(1, 2), b=b"x", e=Color.RED, d=_dt.date(2026, 1, 1),
                                                   m=_dec.Decimal("1.5"), u=_uuid.UUID(int=1), p=Path("a/b")))
-    check("P14 a socket and a 5000-deep argument are refused clearly; tuple/bytes/enum/date/Decimal/UUID/Path work",
-          m_sock is not None and "stable" in m_sock and m_deep is not None and "nested" in m_deep and ok_types is None,
-          (m_sock, m_deep, ok_types))
+    check("P14 a socket and a 600-deep argument are refused clearly; 100-deep and tuple/bytes/enum/date/Decimal/UUID/Path work",
+          m_sock is not None and "stable" in m_sock and m_deep is not None and "nested" in m_deep and ok_types is None
+          and m_fine is None, (m_sock, m_deep, ok_types, m_fine))
 
     # P15 a damaged row names the record and the row, instead of a bare JSON error
     p15 = tmp()

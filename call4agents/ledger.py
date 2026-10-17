@@ -66,8 +66,28 @@ def _stable(o: Any) -> Any:
                     "or name the action with c4a_key=... (or key=)")
 
 
+MAX_DEPTH = 500
+
+
+def _too_deep(value: Any) -> bool:
+    """Nesting deeper than MAX_DEPTH, checked by the kit itself so every system gives the same answer:
+    Python's own recursion limit differs between Windows and Linux."""
+    stack = [(value, 1)]
+    while stack:
+        v, d = stack.pop()
+        if d > MAX_DEPTH:
+            return True
+        if isinstance(v, dict):
+            stack.extend((x, d + 1) for x in v.values())
+        elif isinstance(v, (list, tuple, set, frozenset)):
+            stack.extend((x, d + 1) for x in v)
+    return False
+
+
 def canonical(value: Any) -> str:
     """Stable text for arguments: key order and spacing never change the hash."""
+    if _too_deep(value):
+        raise TypeError(f"arguments are nested deeper than {MAX_DEPTH} levels; pass c4a_key=... instead")
     try:
         return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=_stable)
     except RecursionError:
@@ -89,23 +109,30 @@ class LedgerError(RuntimeError):
     """The run record cannot be used safely (wrong file, newer format, network drive, bad secret)."""
 
 
-def _on_network_drive(path: Path) -> bool:
+NETWORK_FS = ("nfs", "nfs4", "cifs", "smbfs", "smb3", "9p", "fuse.sshfs", "afpfs")
+
+
+def _on_network_drive(path: Path, mounts: Optional[str] = None) -> bool:
     """SQLite's write-ahead log needs shared memory on ONE machine; on a network drive locking breaks
-    silently and two callers can both run an effect. We refuse those paths (production review)."""
-    p = str(path.resolve())
-    if p.startswith("\\\\") or p.startswith("//"):                 # Windows UNC share
-        return True
-    if sys.platform.startswith("linux"):
+    silently and two callers can both run an effect. We refuse those paths.
+    Windows: UNC shares. Linux: the mount type in /proc/mounts (or `mounts`, for tests).
+    macOS and other systems: not detected."""
+    if mounts is None and sys.platform == "win32":
+        return str(path.resolve()).startswith("\\\\")
+    if mounts is None:
+        if not sys.platform.startswith("linux"):
+            return False
         try:
-            mounts = [l.split() for l in open("/proc/mounts", encoding="utf-8", errors="replace")]
+            with open("/proc/mounts", encoding="utf-8", errors="replace") as f:
+                mounts = f.read()
         except OSError:
             return False
-        best = ("", "")
-        for m in mounts:
-            if len(m) > 2 and (p == m[1] or p.startswith(m[1].rstrip("/") + "/")) and len(m[1]) > len(best[0]):
-                best = (m[1], m[2])
-        return best[1] in ("nfs", "nfs4", "cifs", "smbfs", "smb3", "9p", "fuse.sshfs", "afpfs")
-    return False
+    p = Path(path).as_posix()
+    best = ("", "")
+    for m in (line.split() for line in mounts.splitlines()):
+        if len(m) > 2 and (p == m[1] or p.startswith(m[1].rstrip("/") + "/")) and len(m[1]) > len(best[0]):
+            best = (m[1], m[2])
+    return best[1] in NETWORK_FS
 
 
 class Ledger:

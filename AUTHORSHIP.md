@@ -25,7 +25,7 @@ SHA-256, first 32 hex characters, of each file as committed (line endings as sto
 | call4agents/codec.py | 2fd4f858234820606d6b14a1b15599f2 |
 | call4agents/examples/__init__.py | bb74b22d73d42ec0c9eb6a2555c6635f |
 | call4agents/examples/crash_resume.py | 94d74d7ac7930b4f3747a63287aa26d4 |
-| call4agents/ledger.py | ce0f5e7be2edb8c96687b3c8245ee06c |
+| call4agents/ledger.py | 7e7e061c88e17dd75563541bae7997e8 |
 | call4agents/ops.py | 6d56f243e43fad913eb9a3f035b63e9f |
 | call4agents/proof.py | d50e9c22572433711d56325e05431071 |
 | call4agents/quickstart.py | 6ebba3e3832ad1ebda2f1772882d75b3 |
@@ -48,10 +48,10 @@ SHA-256, first 32 hex characters, of each file as committed (line endings as sto
 | tests/check_release.py | 346458d73deaac8b8e13abba756eeead |
 | tests/framework_kill_langgraph.py | 47d784a9b12ca659fece3393803adaeb |
 | tests/mutations/__init__.py | e3b0c44298fc1c149afbf4c8996fb924 |
-| tests/mutations/run_kit_mutations.py | cee62ac4ff4244ab2b331fcb6a598b73 |
+| tests/mutations/run_kit_mutations.py | fd6bffe557a2b28964015211a6fe526c |
 | tests/sdk_types_replay.py | 76e5ee33547ddae7ab4801b4b3b23774 |
 | tests/secret_scan.py | 6b002f881f2a7eda60d72b66a7bd2c68 |
 | tests/stress_c4a_ledger.py | a450fd25be3270828767f6922c88a98b |
 | tests/test_c4a_kit.py | 3bb8606a51b81d279bbf1c204a3927bd |
-| tests/test_c4a_production.py | ebc92378443b6c5ff07a57adecc70dd2 |
+| tests/test_c4a_production.py | cbe433a6c1190723e7dadda85ea145fa |
 | tests/test_idempotency.py | d265304c5dba91781a3f07ea5343f409 |
