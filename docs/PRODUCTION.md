@@ -67,7 +67,8 @@ outside this machine.
 
 **What the big test does not cover:**
 - **several real machines:** all processes ran on one machine;
-- **operating systems other than Windows 10:** Linux and macOS are not tested (see below);
+- **other systems at full size:** the full-size run above was on Windows 10. On Linux and macOS, CI runs
+  the same test at a smaller size (`--quick`) on every change;
 - **real payment providers:** the API was a fake one;
 - **power loss:** not simulated. We rely on SQLite's full sync, and we did not test a power cut.
 
@@ -75,10 +76,10 @@ outside this machine.
 
 **Where the record lives.** The record is one SQLite file. Put it on a **local disk**, shared by every
 process on that machine that runs the same agents.
-- **Network drives are refused,** because SQLite's locking is not reliable there. A Windows share fails
-  with a clear error (tested). On Linux the kit refuses mount types NFS, SMB/CIFS, sshfs and 9p (the type
-  WSL uses for `/mnt/c`), but that Linux code has not run yet. Pass `allow_network_drive=True` only if
-  you know your drive is safe.
+- **Network drives are refused,** because SQLite's locking is not reliable there. On Windows: a network
+  share. On Linux: mount types NFS, SMB/CIFS, sshfs and 9p, read from `/proc/mounts` (check P5 runs on
+  every change). On macOS, network drives are **not** detected; keep the record on a local disk.
+  Pass `allow_network_drive=True` only if you know your drive is safe.
 - **Several machines need one shared record, and that is not supported yet.** Once-only holds per
   record file. If two machines can run the same action, give each action an explicit `c4a_key`. Make
   sure the outside API honours idempotency keys (`idempotent_for=`), so it drops the duplicate.

@@ -13,7 +13,17 @@ have: LangGraph, Pydantic AI, the OpenAI Agents SDK, or plain Python. It does no
 
 Version 0.1, early. Standard library only, zero dependencies. Apache-2.0.
 
-<!-- TESTED-PLATFORMS -->
+**Tested on every change** ([tests.yml](.github/workflows/tests.yml)). These are the only systems we claim:
+
+| | Python 3.10 | Python 3.11 | Python 3.12 | Python 3.13 |
+|---|---|---|---|---|
+| Linux (GitHub `ubuntu-latest`) | ✓ | ✓ | ✓ | ✓ |
+| macOS (GitHub `macos-latest`) | ✓ | ✓ | ✓ | ✓ |
+| Windows (GitHub `windows-latest`) | ✓ | ✓ | ✓ | ✓ |
+
+With the real frameworks, on all three systems with Python 3.12: LangGraph (+ LangChain), Pydantic AI and
+the OpenAI Agents SDK. CI installs the latest release of each, and each run prints the exact versions
+with `call4agents doctor`.
 
 ## Try it (under a minute, offline, no API keys)
 

@@ -33,12 +33,12 @@ SHA-256, first 32 hex characters, of each file as committed (line endings as sto
 | call4agents/replay.py | 1926c41990e937453b6ff0d34f0973af |
 | CHANGELOG.md | b271b19b7c9a09f261c1a6a944d77153 |
 | docs/IDEMPOTENCY.md | 95a8c30f1e30128ade66f0e5493255e2 |
-| docs/PRODUCTION.md | 2b0216c489c7fdb6f15e490f0f1e080a |
+| docs/PRODUCTION.md | e03fc478430f2b68e9e93ebd6a6cebdc |
 | docs/THREAT_MODEL.md | f82fd29868e25d2189efe5adc500de60 |
 | LICENSE | cfc7749b96f63bd31c3c42b5c471bf75 |
 | NOTICE | 8c02af7443df02b9ce2591d081479cbe |
 | pyproject.toml | 6c972ea6ec14a761324f89fbe84d05c5 |
-| README.md | 16c2b2a4d4ec89a7e561a9e13716c860 |
+| README.md | 0a4cabb4b6c1706b14b2d30eb17e1f78 |
 | tests/__init__.py | e3b0c44298fc1c149afbf4c8996fb924 |
 | tests/bench_c4a.py | dfcee3ee322dfae9be21602bf5478f9c |
 | tests/bigtest_c4a.py | 8cf655f8f2e695329175e25b0cecc037 |
