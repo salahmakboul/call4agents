@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1
+
+Metadata only, no code changes: links to the website and the guides (Homepage, Documentation), more keywords and classifiers on PyPI, and a link to the guides in the README.
+
 ## 0.2.0
 
 **New**

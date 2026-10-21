@@ -18,6 +18,8 @@ replace any of them.
 
 Version 0.2, early. Standard library only, zero dependencies. Apache-2.0.
 
+Guides with runnable code for each framework: [salahmakboul.github.io/call4agents/guides](https://salahmakboul.github.io/call4agents/guides/).
+
 **Tested on every change** ([tests.yml](.github/workflows/tests.yml)). These are the only systems we claim:
 
 | | Python 3.10 | Python 3.11 | Python 3.12 | Python 3.13 |
