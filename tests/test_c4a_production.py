@@ -314,6 +314,22 @@ def main():
     check("P17 no 3.11+/3.12+ syntax or library names in the kit (the scan finds both planted examples)",
           can_see and not found17, (planted, found17))
 
+    # P18 `report` and `doctor` only print: run them with every network connection made impossible
+    no_net = ("import socket, runpy, sys" + chr(10)
+              + "def refuse(*a, **k): raise RuntimeError('NETWORK USED')" + chr(10)
+              + "socket.socket.connect = refuse; socket.create_connection = refuse; socket.getaddrinfo = refuse" + chr(10)
+              + "sys.argv = ['call4agents', sys.argv[1]]" + chr(10)
+              + "runpy.run_module('call4agents', run_name='__main__')")
+    runs18 = [subprocess.run([sys.executable, "-c", no_net, cmd], cwd=ROOT, capture_output=True, text=True, timeout=120)
+              for cmd in ("report", "doctor")]
+    link = [l for l in runs18[0].stdout.splitlines() if l.startswith("https://")]
+    from urllib.parse import parse_qs, urlparse
+    q18 = parse_qs(urlparse(link[0]).query) if link else {}
+    check("P18 report and doctor work with the network blocked (they send nothing); the link pre-fills the issue form",
+          all(r.returncode == 0 and "NETWORK USED" not in r.stderr for r in runs18)
+          and q18.get("template") == ["feedback.yml"] and "python" in (q18.get("doctor") or [""])[0],
+          ([r.returncode for r in runs18], runs18[0].stderr[-200:], list(q18)))
+
     # P13 a forked child does not reuse the parent's database connection (Linux/macOS)
     if not hasattr(os, "fork"):
         print("  skip  P13 no fork() on this platform")

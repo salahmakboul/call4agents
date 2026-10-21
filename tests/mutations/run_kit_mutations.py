@@ -28,8 +28,8 @@ MUTATIONS = [
      "    if run_id is None:\n        return \"default\"\n        raise RuntimeError(\"no current run", "tests.test_c4a_kit"),
     ("K18 wait 2 s after an error", INIT, "failed = err is not None and", "failed = False and", "tests.test_c4a_kit"),
     ("K18 retry_on ignored", INIT, "if retry_on and isinstance(exc, retry_on):", "if False:", "tests.test_c4a_kit"),
-    ("K18 approve ignores defaults", INIT, "        bound.apply_defaults()\n        args = {k: v",
-     "        args = {k: v", "tests.test_c4a_kit"),
+    ("K18 approve ignores defaults", INIT, "        bound.apply_defaults()\n        skip = (",
+     "        skip = (", "tests.test_c4a_kit"),
     ("K18 exception message lost", INIT, "self.tool, self.call_args = tool, args      #", "self.tool, self.args = tool, args      #", "tests.test_c4a_kit"),
     ("K18 async wait blocks the loop", INIT,
      "plan = await asyncio.to_thread(contextvars.copy_context().run, check, call_args, explicit)",
@@ -55,6 +55,20 @@ MUTATIONS = [
     ("P14 any object's str() accepted", LEDGER, "    raise TypeError(f\"{type(o).__name__} is not a type with a stable", "    return str(o)" + chr(10) + "    raise TypeError(f\"{type(o).__name__} is not a type with a stable", "tests.test_c4a_production"),
     ("P14 deep nesting not caught", LEDGER, "    if _too_deep(value):", "    if False:", "tests.test_c4a_production"),
     ("P15 damaged row unexplained", LEDGER, "        except ValueError as exc:" + chr(10) + "            raise LedgerError(f\"row", "        except ZeroDivisionError as exc:" + chr(10) + "            raise LedgerError(f\"row", "tests.test_c4a_production"),
+    # --- K20: framework context left out of the key
+    ("K20 exclude ignored", INIT, "    for name_ in exclude:" + chr(10) + "        out.pop(name_, None)", "    pass", "tests.test_c4a_kit"),
+    ("K20 context only as first parameter", "call4agents/adapters/_common.py", "    for p in params:" + chr(10) + "        ann = p.annotation",
+     "    for p in params[:1]:" + chr(10) + "        ann = p.annotation", "tests.test_c4a_kit"),
+    ("P18 report phones home", "call4agents/__main__.py", '    return ISSUE_FORM + "?"',
+     '    import urllib.request; urllib.request.urlopen("https://example.com", timeout=3)' + chr(10) + '    return ISSUE_FORM + "?"',
+     "tests.test_c4a_production"),
+    # --- U: undo path
+    ("control (no-op)", INIT, "# newest first, like a stack", "# newest first, like a stack", "tests.test_undo"),
+    ("U undo oldest first", INIT, "    for e in reversed(finished):", "    for e in finished:", "tests.test_undo"),
+    ("U undo not once-only", INIT, '                fn(c4a_key=e["key"], **args)', '                fn(c4a_key=e["key"] + str(time.time()), **args)', "tests.test_undo"),
+    ("U no-undo actions skipped silently", INIT, '            out["no_undo"].append(tool)', "            pass", "tests.test_undo"),
+    ("U failed undo ignored", INIT, '            raise UndoFailed(tool, exc, out["undone"]) from exc', "            continue", "tests.test_undo"),
+    ("U async undo accepted", INIT, "            if inspect.iscoroutinefunction(undo):", "            if False:", "tests.test_undo"),
     # --- F: idempotency keys
     ("control (no-op)", INIT, "# The outside API still remembers", "# The outside API still remembers", "tests.test_idempotency"),
     ("F no lifetime check", INIT, "if first is not None and time.time() - first <= idempotent_for:", "if True:", "tests.test_idempotency"),
@@ -69,7 +83,8 @@ def copy_tree(dst: Path) -> None:
     shutil.copytree(ROOT / "call4agents", dst / "call4agents", ignore=shutil.ignore_patterns("__pycache__"))
     (dst / "tests").mkdir()
     (dst / "tests" / "__init__.py").write_text("", encoding="utf-8")
-    for f in ("test_c4a_kit.py", "c4a_codec_types.py", "c4a_k18_child.py", "c4a_prove_sample.py", "test_idempotency.py", "test_c4a_production.py"):
+    for f in ("test_c4a_kit.py", "c4a_codec_types.py", "c4a_k18_child.py", "c4a_prove_sample.py", "test_idempotency.py",
+              "test_c4a_production.py", "test_undo.py", "c4a_undo_child.py", "test_adapters.py"):
         shutil.copy(ROOT / "tests" / f, dst / "tests" / f)
 
 

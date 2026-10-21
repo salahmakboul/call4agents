@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="940" height="324" viewBox="0 0 940 324" role="img"
+ aria-label="call4agents quickstart: an agent crashes right after sending an email, then resumes. Without call4agents 2 emails are sent; with it, 1.">
+<title>call4agents quickstart: without the kit 2 emails, with it 1</title>
+<style>
+text{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:14.5px;white-space:pre}
+.l0{animation:a0 16.0s linear infinite}@keyframes a0{0%,3.8%{opacity:0}5.2%,96%{opacity:1}100%{opacity:0}}.l1{animation:a1 16.0s linear infinite}@keyframes a1{0%,9.4%{opacity:0}10.9%,96%{opacity:1}100%{opacity:0}}.l2{animation:a2 16.0s linear infinite}@keyframes a2{0%,15.0%{opacity:0}16.5%,96%{opacity:1}100%{opacity:0}}.l3{animation:a3 16.0s linear infinite}@keyframes a3{0%,20.6%{opacity:0}22.1%,96%{opacity:1}100%{opacity:0}}.l4{animation:a4 16.0s linear infinite}@keyframes a4{0%,26.2%{opacity:0}27.8%,96%{opacity:1}100%{opacity:0}}.l5{animation:a5 16.0s linear infinite}@keyframes a5{0%,31.9%{opacity:0}33.4%,96%{opacity:1}100%{opacity:0}}.l6{animation:a6 16.0s linear infinite}@keyframes a6{0%,37.5%{opacity:0}39.0%,96%{opacity:1}100%{opacity:0}}.l7{animation:a7 16.0s linear infinite}@keyframes a7{0%,43.1%{opacity:0}44.6%,96%{opacity:1}100%{opacity:0}}.l8{animation:a8 16.0s linear infinite}@keyframes a8{0%,48.8%{opacity:0}50.2%,96%{opacity:1}100%{opacity:0}}.l9{animation:a9 16.0s linear infinite}@keyframes a9{0%,54.4%{opacity:0}55.9%,96%{opacity:1}100%{opacity:0}}.l10{animation:a10 16.0s linear infinite}@keyframes a10{0%,60.0%{opacity:0}61.5%,96%{opacity:1}100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){text{animation:none!important;opacity:1!important}}
+</style>
+<rect width="100%" height="100%" rx="10" fill="#141a20"/>
+<circle cx="22" cy="20" r="6" fill="#ff5f57"/><circle cx="42" cy="20" r="6" fill="#febc2e"/><circle cx="62" cy="20" r="6" fill="#28c840"/>
+<text x="84" y="25" fill="#8b98a5" style="font-size:13px">An agent crashes right after sending an email, then resumes (real output, fake models, no API keys)</text>
+<text class="l0" x="22" y="58" fill="#f2c14e">$ pip install call4agents &amp;&amp; call4agents quickstart</text>
+<text class="l1" x="22" y="80" fill="#d7dde4">Plain Python - crash right after an email is sent, then resume:</text>
+<text class="l2" x="22" y="102" fill="#ff6b6b">  without the run record                        emails sent: 2</text>
+<text class="l3" x="22" y="124" fill="#4cd38a">  with the run record (crash after the tool)    emails sent: 1</text>
+<text class="l4" x="22" y="146" fill="#4cd38a">  with the run record (crash inside the tool)   emails sent: 1 (refused to resend: in doubt)</text>
+<text class="l5" x="22" y="168" fill="#4cd38a">  &quot;yes&quot; to pay(10, alice), call changed to pay(9999, mallory): REFUSED; approved call: PAID; payments: 1</text>
+<text class="l6" x="22" y="190" fill="#d7dde4">Frameworks found: LangGraph, Pydantic AI, OpenAI Agents SDK</text>
+<text class="l7" x="22" y="212" fill="#ff6b6b">  LangGraph          crash after the email, resume:  without call4agents 2 emails,  with call4agents 1</text>
+<text class="l8" x="22" y="234" fill="#ff6b6b">  Pydantic AI        crash after the email, resume:  without call4agents 2 emails,  with call4agents 1</text>
+<text class="l9" x="22" y="256" fill="#ff6b6b">  OpenAI Agents SDK  crash after the email, resume:  without call4agents 2 emails,  with call4agents 1</text>
+<text class="l10" x="22" y="278" fill="#f2c14e">OK in 40.8 s.</text>
+</svg>

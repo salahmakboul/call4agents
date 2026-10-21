@@ -28,8 +28,8 @@ from call4agents.replay import ReplayMismatch, ReplayMissing, diff, recorded  # 
 from call4agents.proof import prove  # noqa: F401  (module named proof: a 'prove' module would be hidden)
 
 __all__ = ["init", "run", "effect", "approve", "deny", "current_ledger", "idempotency_key", "idempotency_headers", "recorded", "diff", "prove",
-           "ReplayMismatch", "ReplayMissing", "ApprovalRequired", "EffectInDoubt", "Ledger"]
-__version__ = "0.1.0"
+           "undo", "UndoFailed", "ReplayMismatch", "ReplayMissing", "ApprovalRequired", "EffectInDoubt", "Ledger"]
+__version__ = "0.2.0"
 
 _LEDGER: Optional[Ledger] = None
 _RUN: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("c4a_run", default=None)
@@ -102,15 +102,17 @@ def deny(tool: Any, **args: Any) -> str:
     return current_ledger().record_denial(current_run(), name, args)
 
 
-def _bound_args(fn: Callable, args: tuple, kwargs: dict) -> Dict[str, Any]:
-    """The call's arguments by name, defaults filled in. `self`/`cls` are left out: an object's address
-    changes per process, so it cannot be part of a key that must survive a restart."""
+def _bound_args(fn: Callable, args: tuple, kwargs: dict, exclude: tuple = ()) -> Dict[str, Any]:
+    """The call's arguments by name, defaults filled in. `self`/`cls` and the `exclude` names are left
+    out: an object's address or a framework context changes per call, so it cannot be part of a key."""
     bound = inspect.signature(fn).bind(*args, **kwargs)
     bound.apply_defaults()
     out = dict(bound.arguments)
     first = next(iter(inspect.signature(fn).parameters), None)
     if first in ("self", "cls"):
         out.pop(first, None)
+    for name_ in exclude:
+        out.pop(name_, None)
     return out
 
 
@@ -127,7 +129,8 @@ def _tool_and_args(tool: Any, args: Dict[str, Any]):
     if fn is not None:          # bind like the call will: defaults filled in, so approve(pay, amount=10, to=x)
         bound = inspect.signature(fn).bind_partial(**args)   # matches pay(10, x) with currency="EUR" by default
         bound.apply_defaults()
-        args = {k: v for k, v in bound.arguments.items() if k not in ("self", "cls")}
+        skip = ("self", "cls") + tuple(getattr(tool, "c4a_exclude", ()))
+        args = {k: v for k, v in bound.arguments.items() if k not in skip}
     return name, args
 
 
@@ -150,7 +153,8 @@ def idempotency_headers(header: str = "Idempotency-Key") -> Dict[str, str]:
 
 def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optional[str] = None,
            reconcile: Optional[Callable[..., Any]] = None, key: Optional[Callable[..., str]] = None,
-           wait: float = 2.0, idempotent_for: Optional[float] = None, retry_on: tuple = ()):
+           wait: float = 2.0, idempotent_for: Optional[float] = None, retry_on: tuple = (),
+           exclude: tuple = (), undo: Optional[Callable[..., Any]] = None):
     """Mark a function that changes the outside world.
 
     - Once-only per (run, tool, exact arguments): a repeat returns the recorded result.
@@ -177,6 +181,10 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
       the action again.
     - The tool name is module + qualified name; for methods, `self` is not part of the key (pass
       c4a_key= to tell two objects apart). Arguments without a stable text form raise TypeError.
+    - exclude=("ctx",): parameters left out of the key (a framework's context object, which changes
+      on every call). The framework adapters set this for you.
+    - undo=fn: how to reverse this action. fn gets the same arguments (and `result=` if it accepts
+      it). c4a.undo() runs the undo of each finished action in a run, newest first, each once only.
     """
     def wrap(f: Callable) -> Callable:
         if inspect.isgeneratorfunction(f) or inspect.isasyncgenfunction(f):
@@ -185,6 +193,12 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
         if name is None and getattr(f, "__name__", "") == "<lambda>":
             raise TypeError("@c4a.effect on a lambda needs name=...: two lambdas in one place would share one key")
         tool = name or _tool_name(f)
+        if undo is not None:
+            if tool.endswith(".undo"):
+                raise TypeError("an undo action cannot have its own undo")
+            if inspect.iscoroutinefunction(undo):
+                raise TypeError("undo= must be a normal (not async) function: c4a.undo() calls it directly")
+            _UNDO[tool] = effect(undo, name=tool + ".undo")
 
         def base_key(run_id: str, call_args: Dict[str, Any], explicit: Optional[str]) -> str:
             if explicit is None and key is not None:
@@ -281,7 +295,7 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 import asyncio
                 explicit = kwargs.pop("c4a_key", None)
-                call_args = _bound_args(f, args, kwargs)
+                call_args = _bound_args(f, args, kwargs, exclude)
                 # in a worker thread: waiting for another caller must not block the event loop
                 plan = await asyncio.to_thread(contextvars.copy_context().run, check, call_args, explicit)
                 if "replay" in plan:
@@ -296,13 +310,13 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
                     _EFFECT_KEY.reset(token)
                 record_result(plan, result)
                 return result
-            async_wrapper.c4a_name, async_wrapper.c4a_fn = tool, f
+            async_wrapper.c4a_name, async_wrapper.c4a_fn, async_wrapper.c4a_exclude = tool, f, tuple(exclude)
             return async_wrapper
 
         @functools.wraps(f)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             explicit = kwargs.pop("c4a_key", None)
-            call_args = _bound_args(f, args, kwargs)
+            call_args = _bound_args(f, args, kwargs, exclude)
             plan = check(call_args, explicit)
             if "replay" in plan:
                 return plan["replay"]
@@ -316,7 +330,61 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
                 _EFFECT_KEY.reset(token)
             record_result(plan, result)
             return result
-        wrapper.c4a_name, wrapper.c4a_fn = tool, f
+        wrapper.c4a_name, wrapper.c4a_fn, wrapper.c4a_exclude = tool, f, tuple(exclude)
         return wrapper
 
     return wrap(fn) if fn is not None else wrap
+
+
+_UNDO: Dict[str, Callable] = {}      # tool name -> its undo, itself a once-only effect named "<tool>.undo"
+
+
+class UndoFailed(Exception):
+    """An undo raised. Undos already done stay done; this one is in doubt (it may have run), and
+    the older actions were NOT undone. Resolve it (`call4agents doubt` / `resolve`), then call undo again."""
+
+    def __init__(self, tool: str, error: BaseException, undone: list) -> None:
+        super().__init__(f"undo of {tool} failed ({error!r}); {len(undone)} newer action(s) were undone before it, "
+                         "older ones were not touched")
+        self.tool, self.error, self.undone = tool, error, undone
+
+
+def undo(run_id: Optional[str] = None) -> Dict[str, list]:
+    """Reverse the finished actions of a run, newest first, with the undo= each one registered.
+
+    Each undo is itself a once-only action (keyed by the action it reverses), so calling undo() again
+    after a crash continues where it stopped and never reverses the same action twice. Actions with no
+    undo= are listed in "no_undo", not silently skipped. The tools' modules must be imported (their
+    decorators register the undo functions). Returns {"undone": [...], "no_undo": [...]}, newest first."""
+    lg = current_ledger()
+    rid = run_id or current_run()
+    rows = lg.entries(rid)
+    intents: Dict[str, Dict[str, Any]] = {}
+    for e in rows:
+        if e["kind"] == "tool_intent":
+            intents.setdefault(e["key"].rsplit("#", 1)[0], e["payload"] or {})
+    finished, seen = [], set()
+    for e in rows:
+        if e["kind"] == "tool_done" and e["key"] in intents and e["key"] not in seen:
+            seen.add(e["key"])
+            finished.append(e)
+    out: Dict[str, list] = {"undone": [], "no_undo": []}
+    for e in reversed(finished):                   # newest first, like a stack
+        tool = intents[e["key"]].get("tool", "")
+        if tool.endswith(".undo"):
+            continue
+        fn = _UNDO.get(tool)
+        if fn is None:
+            out["no_undo"].append(tool)
+            continue
+        args = dict(intents[e["key"]].get("args") or {})
+        params = inspect.signature(fn.c4a_fn).parameters
+        if "result" in params:
+            args["result"] = _codec.decode(e["payload"]["result"])
+        try:
+            with run(rid):
+                fn(c4a_key=e["key"], **args)
+        except BaseException as exc:
+            raise UndoFailed(tool, exc, out["undone"]) from exc
+        out["undone"].append(tool)
+    return out

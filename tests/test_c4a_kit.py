@@ -493,6 +493,33 @@ def main():
     check("K19 crafted records naming a function or a non-model are refused; nothing is called; real types still load",
           refused19 == len(crafted) and _ct.CALLED == [] and ok_dc, (refused19, _ct.CALLED, ok_dc))
 
+    # K20 exclude= leaves a framework context out of the key; the adapters find that parameter anywhere
+    from call4agents.adapters._common import context_param, wrap_tool
+    fresh()
+    sent20 = []
+
+    class FakeCtx:                                     # like a framework context: no stable text form
+        def __init__(self, conv):
+            self.conversation_id = conv
+
+    def tool20(ctx, to):
+        sent20.append(to)
+        return "sent"
+    t20 = wrap_tool(tool20, ("FakeCtx",), lambda c: c.conversation_id, "test", {"name": "k20.send"})
+    try:
+        t20(FakeCtx("conv-1"), "bob")
+        t20(FakeCtx("conv-1"), "bob")                  # a NEW context object, same conversation: no resend
+        t20(FakeCtx("conv-2"), "bob")                  # another conversation: a new action
+        err20 = None
+    except Exception as exc:  # noqa: BLE001 - reported as a FAIL, not a crash
+        err20 = repr(exc)[:120]
+
+    def late(title: str, mcp_context: "Context") -> str:   # MCP style: the context is the LAST parameter
+        return title
+    found20 = context_param(late, ("Context",))
+    check("K20 a context parameter is left out of the key; the run id comes from it; found anywhere in the signature",
+          err20 is None and sent20 == ["bob", "bob"] and found20 == "mcp_context", (err20, sent20, found20))
+
     # K15 async effects and async recorded model calls behave like the sync ones
     import asyncio as _aio
     fresh()

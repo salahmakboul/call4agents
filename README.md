@@ -1,17 +1,22 @@
 # Call4Agents
 
 Call4Agents makes the actions of a Python agent safe to retry. You add it to the agent you already
-have: LangGraph, Pydantic AI, the OpenAI Agents SDK, or plain Python. It does not replace any of them.
+have: LangGraph, Pydantic AI, the OpenAI Agents SDK, an MCP server, or plain Python. It does not
+replace any of them.
+
+![call4agents quickstart: an agent crashes right after sending an email, then resumes. Without call4agents 2 emails are sent; with it, 1.](docs/demo.svg)
 
 - **Once-only actions.** A crash, a retry or a resume does not send the same email or payment twice.
 - **Approvals bound to exact arguments.** A "yes" to `pay(10, alice)` cannot run `pay(9999, mallory)`.
   A "yes" covers one action, and a later "no" is enforced.
+- **Undo.** Register how to reverse an action (`undo=`), and `c4a.undo()` reverses a run newest first,
+  each undo once only, even across crashes.
 - **Idempotency keys for outside APIs.** The same key across crashes and resumes, so the payment API
   itself can drop the duplicate.
 - **Record, replay, diff.** Rerun a recorded run offline with zero model calls, and find the step where
   two runs (for example two models) begin to differ.
 
-Version 0.1, early. Standard library only, zero dependencies. Apache-2.0.
+Version 0.2, early. Standard library only, zero dependencies. Apache-2.0.
 
 **Tested on every change** ([tests.yml](.github/workflows/tests.yml)). These are the only systems we claim:
 
@@ -21,9 +26,9 @@ Version 0.1, early. Standard library only, zero dependencies. Apache-2.0.
 | macOS (GitHub `macos-latest`) | ✓ | ✓ | ✓ | ✓ |
 | Windows (GitHub `windows-latest`) | ✓ | ✓ | ✓ | ✓ |
 
-With the real frameworks, on all three systems with Python 3.12: LangGraph (+ LangChain), Pydantic AI and
-the OpenAI Agents SDK. CI installs the latest release of each, and each run prints the exact versions
-with `call4agents doctor`.
+With the real frameworks, on all three systems with Python 3.12: LangGraph (+ LangChain), Pydantic AI,
+the OpenAI Agents SDK and the MCP Python SDK. CI installs the latest release of each, and each run prints
+the exact versions with `call4agents doctor`.
 
 ## Try it (under a minute, offline, no API keys)
 
@@ -57,8 +62,9 @@ openai-agents` (about 75 seconds in a fresh virtual environment).
 `call4agents selftest` checks the demo results. Run it from the root of a repository checkout to run the
 full offline suites instead (kit, production, stress and idempotency checks).
 
-Found a problem, or something missing? `call4agents doctor` prints your system and framework versions
-(it sends nothing). Paste it into an [issue](https://github.com/salahmakboul/call4agents/issues/new/choose).
+Found a problem, or something missing? `call4agents report` prints your system and framework versions
+and a link to the [issue form](https://github.com/salahmakboul/call4agents/issues/new/choose) with them
+filled in. It sends nothing and opens nothing: you read it and decide. There is no tracking of any kind.
 
 ## When you need it
 
@@ -121,9 +127,56 @@ Rules worth knowing before you start:
 - Call `c4a_lg.approve(tool, config, **shown_args)` when an interrupt is answered, or `c4a_lg.deny(...)`.
 - The thread id becomes the run id.
 
-**Pydantic AI, the OpenAI Agents SDK, plain Python.** Decorate the tool function with `@c4a.effect` and
-wrap the run in `c4a.run(<your session or conversation id>)`. You can see working code for each framework
-in [call4agents/examples/crash_resume.py](call4agents/examples/crash_resume.py).
+**Pydantic AI, the OpenAI Agents SDK, MCP.** Each has an adapter. It leaves the framework's context
+argument (`RunContext`, `RunContextWrapper`, MCP's `Context`) out of the key, because that object
+changes on every call and plain `@c4a.effect` refuses it. It also finds the run id for you. The
+framework's own decorator goes on top:
+
+```python
+from call4agents.adapters import pydantic_ai as c4a_pai      # run id: the run's conversation_id
+@agent.tool
+@c4a_pai.effect
+def send_email(ctx: RunContext[Deps], to: str, body: str) -> str: ...
+
+from call4agents.adapters import openai_agents as c4a_oa     # run id: c4a.run(...) or your context's session_id
+@function_tool
+@c4a_oa.effect
+def send_email(ctx: RunContextWrapper[dict], to: str, body: str) -> str: ...
+
+from call4agents.adapters import mcp as c4a_mcp              # run id: the Mcp-Session-Id, or run=lambda ctx: ...
+@server.tool()
+@c4a_mcp.effect
+def create_ticket(title: str, ctx: Context) -> str: ...
+```
+
+Each has a copy-and-run example (fake model, no key), tested in CI with the real framework. Each one
+prints 1 where the same code without the kit prints 2:
+
+```bash
+python -m call4agents.examples.pydantic_ai_tool     # pip install pydantic-ai
+python -m call4agents.examples.openai_agents_tool   # pip install openai-agents
+python -m call4agents.examples.mcp_tool             # pip install mcp
+```
+
+**Plain Python.** Decorate the function with `@c4a.effect` and wrap the work in `c4a.run(<id>)`.
+
+**Undo a run.** Register how to reverse each action, then reverse a whole run, newest first:
+
+```python
+@c4a.effect(undo=lambda amount, to, result: refunds.create(charge=result["id"]))
+def charge(amount, to): ...
+
+@c4a.effect(undo=lambda day: hotel.cancel(day))
+def book(day): ...
+
+with c4a.run("trip-42"):
+    c4a.undo()          # cancel the booking, then refund the charge; each undo runs once only
+```
+
+Each undo is itself a once-only action. If the process dies half-way, calling `c4a.undo()` again
+continues where it stopped. An undo that crashed or raised is "in doubt": undo stops there, and
+nothing older is touched until a person checks and runs `call4agents resolve`. Actions without
+`undo=` are listed in the result, never skipped silently.
 
 ## How it works
 
@@ -155,6 +208,7 @@ added to it, never changed or deleted.
 | `call4agents demo` | the plain-Python demo only |
 | `call4agents selftest` | the kit's checks (in a repository checkout, the full offline suites) |
 | `call4agents doctor` | system and framework versions for a bug report; prints only, sends nothing |
+| `call4agents report` | the same, plus a link to the issue form with it filled in; prints only, sends nothing |
 | `call4agents status <record>` | rows, actions, actions in doubt, integrity |
 | `call4agents doubt <record> [--fail-if-any]` | every action that may or may not have happened (exit 3 if any, for alerts) |
 | `call4agents resolve <record> <key> done\|not-done "note"` | decide one in-doubt action; stored as a new row with your note |

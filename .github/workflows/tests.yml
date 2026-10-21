@@ -32,6 +32,7 @@ jobs:
       - run: python -m tests.test_c4a_kit
       - run: python -m tests.test_c4a_production
       - run: python -m tests.test_idempotency
+      - run: python -m tests.test_undo
       - run: python -m tests.stress_c4a_ledger
       - name: big test (quick size)
         run: python -m tests.bigtest_c4a --quick
@@ -51,7 +52,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: install the kit and the real frameworks
-        run: python -m pip install . langgraph langgraph-checkpoint-sqlite langchain pydantic-ai openai-agents openai pydantic
+        run: python -m pip install . langgraph langgraph-checkpoint-sqlite langchain pydantic-ai openai-agents openai pydantic mcp
       - run: call4agents doctor
       - name: quickstart must find and pass all three frameworks
         shell: bash
@@ -62,6 +63,12 @@ jobs:
       - run: python -m tests.framework_kill_langgraph
       - run: python -m tests.sdk_types_replay
       - run: python -m tests.test_c4a_kit
+      - name: adapters with the real frameworks (Pydantic AI, OpenAI Agents SDK, MCP)
+        run: python -m tests.test_adapters
+      - name: the copy-and-run examples
+        shell: bash
+        run: |
+          for m in pydantic_ai_tool openai_agents_tool mcp_tool; do python -m call4agents.examples.$m; done
 
   mutations:
     name: bug re-insertion checks

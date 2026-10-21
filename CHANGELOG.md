@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.0
+
+**New**
+- **Adapters for Pydantic AI, the OpenAI Agents SDK and MCP** (`call4agents.adapters.pydantic_ai`, `.openai_agents`, `.mcp`). They leave the framework's context argument out of the key; plain `@c4a.effect` refuses it, because it changes on every call. They also take the run id from the framework: the conversation id, the run context or the MCP session id. Each has a copy-and-run example that CI runs against the real framework on Linux, macOS and Windows.
+- **Undo:** `@c4a.effect(undo=...)` and `c4a.undo()` reverse a run's finished actions, newest first. Each undo runs once only, a crash half-way continues where it stopped, and a failed undo stops the walk and is "in doubt" until a person resolves it. Developers asked for this in Pydantic AI issues #9141, #4679 and #7247.
+- **`exclude=`** on `@c4a.effect`: parameters left out of the key.
+- **`call4agents report`:** prints your versions and a link to the issue form with them filled in. It sends nothing.
+- **An animated 30-second demo** at the top of the README (`docs/demo.svg`), built from a real `quickstart` run.
+
+**Checks added:** K20, P18, U1–U6, the adapter checks, and mutations for each (`python -m tests.mutations.run_kit_mutations`).
+
 ## 0.1.0 (first public release)
 
 **Licence: Apache-2.0.** Companies can use, change and ship it, with a patent grant. The NOTICE file must be kept, so we stay credited, and section 6 gives no right to use the project's name.

@@ -149,6 +149,16 @@ def doctor() -> str:
     return "\n".join(lines)
 
 
+ISSUE_FORM = "https://github.com/salahmakboul/call4agents/issues/new"
+
+
+def report_link() -> str:
+    """A link to the issue form with the `doctor` field filled in. Printed only: nothing is sent,
+    nothing is opened; you read it and decide."""
+    from urllib.parse import urlencode
+    return ISSUE_FORM + "?" + urlencode({"template": "feedback.yml", "doctor": doctor()})
+
+
 def selftest() -> int:
     """The full offline checks from a repository checkout: kit, production, stress and idempotency suites."""
     root = Path(__file__).resolve().parents[1]
@@ -185,6 +195,12 @@ def main() -> int:
         print(doctor())
         print("\nPaste this into your issue. call4agents sent nothing; it never sends anything.")
         return 0
+    if len(sys.argv) > 1 and sys.argv[1] == "report":
+        print("Tell us what happened (nothing is sent from here; this only prints a link).")
+        print("The link opens the issue form with your `call4agents doctor` output filled in, so check it first:\n")
+        print(doctor())
+        print("\n" + report_link())
+        return 0
     if len(sys.argv) > 1 and sys.argv[1] in ("status", "doubt", "resolve", "archive", "verify"):
         from call4agents.ops import main as ops_main
         return ops_main(sys.argv[1:])
@@ -196,7 +212,7 @@ def main() -> int:
         print(json.dumps(diff(sys.argv[2], sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else None), indent=1))
         return 0
     if len(sys.argv) < 2 or sys.argv[1] != "demo":
-        print("usage: python -m call4agents quickstart | demo | selftest | doctor | status|doubt|verify <record> | "
+        print("usage: python -m call4agents quickstart | demo | selftest | doctor | report | status|doubt|verify <record> | "
               "resolve <record> <key> done|not-done [note] | archive <record> <archive> <days> | "
               "prove <spec.json> | diff <a.sqlite> <b.sqlite> [run_id]")
         return 2
