@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Idempotency keys for AI agent tool calls | Call4Agents</title>
+<meta name="description" content="Give an agent&#x27;s API calls an idempotency key that stays the same across crashes and retries, so Stripe-style APIs drop the duplicate.">
+<link rel="canonical" href="https://salahmakboul.github.io/call4agents/guides/idempotency-keys-for-ai-agents/">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Call4Agents">
+<meta property="og:title" content="Idempotency keys for AI agent tool calls">
+<meta property="og:description" content="Give an agent&#x27;s API calls an idempotency key that stays the same across crashes and retries, so Stripe-style APIs drop the duplicate.">
+<meta property="og:url" content="https://salahmakboul.github.io/call4agents/guides/idempotency-keys-for-ai-agents/">
+<meta property="og:image" content="https://salahmakboul.github.io/call4agents/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Call4Agents: without it, 2 emails after a crash; with it, 1.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="https://salahmakboul.github.io/call4agents/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://salahmakboul.github.io/call4agents/assets/site.css">
+<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "Idempotency keys for AI agent tool calls", "description": "Give an agent's API calls an idempotency key that stays the same across crashes and retries, so Stripe-style APIs drop the duplicate.", "url": "https://salahmakboul.github.io/call4agents/guides/idempotency-keys-for-ai-agents/", "dateModified": "2026-10-21", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Guides", "item": "https://salahmakboul.github.io/call4agents/guides/"}, {"@type": "ListItem", "position": 3, "name": "Idempotency keys for AI agent tool calls", "item": "https://salahmakboul.github.io/call4agents/guides/idempotency-keys-for-ai-agents/"}]}]</script>
+</head>
+<body>
+<header class="container">
+<nav>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/"><strong>Call4Agents</strong></a></li></ul>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/guides/">Guides</a></li><li><a href="https://github.com/salahmakboul/call4agents">GitHub</a></li><li><a href="https://pypi.org/project/call4agents/">PyPI</a></li></ul>
+</nav>
+</header>
+<main class="container">
+<nav aria-label="breadcrumb" class="crumbs"><ul><li><a href="https://salahmakboul.github.io/call4agents/">Home</a></li><li><a href="https://salahmakboul.github.io/call4agents/guides/">Guides</a></li><li>Idempotency keys for AI agent tool calls</li></ul></nav>
+<article><h1>Idempotency keys for AI agent tool calls</h1><p><em>Give an agent&#x27;s API calls an idempotency key that stays the same across crashes and retries, so Stripe-style APIs drop the duplicate.</em></p>
+<h2>Why the key must survive a crash</h2>
+<p>An idempotency key only helps if the retry sends the <em>same</em> key. A key generated fresh on each attempt
+(or by the model) changes after a crash, and the API sees a new request. The key should come from the run and the
+action: the same order and the same arguments give the same key.</p>
+
+<h2>Keys expire</h2>
+<p>APIs keep keys for a limited time. Stripe documents that keys are kept for at least 24 hours. A retry after the
+key is forgotten is a new request again. So "retry with the same key" is only safe within the key's lifetime;
+after that, check the outside system first.</p>
+
+<h2>A stable key from a run record</h2>
+<pre><code>import call4agents as c4a
+c4a.init()
+
+@c4a.effect(idempotent_for=24 * 3600)      # the API remembers keys for 24 h
+def charge(amount: int, to: str) -&gt; dict:
+    return requests.post(STRIPE_URL, data={&quot;amount&quot;: amount, &quot;customer&quot;: to},
+                         headers=c4a.idempotency_headers()).json()
+
+with c4a.run(&quot;order-42&quot;):
+    charge(10, &quot;cus_123&quot;)</code></pre>
+<p>If the process died during the call, the next call resends it with the same key while the first attempt is
+younger than <code>idempotent_for</code>, and the API returns the original charge. After that it raises
+<code>EffectInDoubt</code> instead of risking a second charge. For PayPal, pass
+<code>c4a.idempotency_headers("PayPal-Request-Id")</code>.</p>
+<pre><code>pip install call4agents
+call4agents quickstart   # offline, no API keys: 2 emails without the kit, 1 with it</code></pre>
+</article>
+<section><h2>Related guides</h2><ul><li><a href="https://salahmakboul.github.io/call4agents/guides/agent-sent-email-twice/">Why did my AI agent send the email twice?</a></li><li><a href="https://salahmakboul.github.io/call4agents/guides/mcp-idempotent-tool-calls/">MCP servers: handle duplicate tool calls from client retries</a></li></ul></section>
+</main>
+<footer class="container"><hr><p><small>Call4Agents · Apache-2.0 · Copyright 2026 Salah Eddine Makboul ·
+<a href="https://github.com/salahmakboul/call4agents">Source on GitHub</a> · <a href="https://pypi.org/project/call4agents/">PyPI</a> · Site layout: Pico CSS (MIT).</small></p></footer>
+</body>
+</html>

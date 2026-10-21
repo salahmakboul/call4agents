@@ -1,0 +1,19 @@
+# Call4Agents
+
+> Python library (standard library only) that makes AI agent tool calls safe to retry: once-only actions across crashes, retries and resumes; human approvals bound to exact arguments; idempotency keys; undo. Adapters for LangGraph, Pydantic AI, the OpenAI Agents SDK and MCP. Install: pip install call4agents. Apache-2.0.
+
+## Guides
+- [Why did my AI agent send the email twice?](https://salahmakboul.github.io/call4agents/guides/agent-sent-email-twice/): An agent crashes, retries or resumes right after a tool ran, and the tool runs again. Why it happens, and three honest ways to fix it in Python.
+- [LangGraph: idempotent tool calls after interrupt, resume and crashes](https://salahmakboul.github.io/call4agents/guides/langgraph-idempotent-tool-calls/): LangGraph restarts a node when it resumes after interrupt(), and a crash can repeat work done after the last checkpoint. How to stop repeats.
+- [OpenAI Agents SDK: stop a tool from running twice on retry or resume](https://salahmakboul.github.io/call4agents/guides/openai-agents-sdk-tool-runs-twice/): How to make function tools in the OpenAI Agents SDK once-only across retries, resumed runs and approvals, with a runnable example.
+- [Pydantic AI: crash-safe tools and deferred tool approvals](https://salahmakboul.github.io/call4agents/guides/pydantic-ai-deferred-tools-crash-safe/): Pydantic AI continues an approved run as a new run with the saved message history. How to keep the tool from acting twice if the process stops in between.
+- [MCP servers: handle duplicate tool calls from client retries](https://salahmakboul.github.io/call4agents/guides/mcp-idempotent-tool-calls/): An MCP client that loses a response may send the same tools/call again. How an MCP server in Python can return the first result instead of acting twice.
+- [Human approval that binds to the exact arguments](https://salahmakboul.github.io/call4agents/guides/human-approval-bound-to-arguments/): A "yes" to pay(10, alice) must not run pay(9999, mallory), and one "yes" should cover one action. How to bind an approval to what was shown.
+- [Idempotency keys for AI agent tool calls](https://salahmakboul.github.io/call4agents/guides/idempotency-keys-for-ai-agents/): Give an agent's API calls an idempotency key that stays the same across crashes and retries, so Stripe-style APIs drop the duplicate.
+
+## Project
+- [Source and README](https://github.com/salahmakboul/call4agents)
+- [PyPI package](https://pypi.org/project/call4agents/)
+- [Production guide](https://github.com/salahmakboul/call4agents/blob/main/docs/PRODUCTION.md)
+- [Threat model](https://github.com/salahmakboul/call4agents/blob/main/docs/THREAT_MODEL.md)
+- [Idempotency keys](https://github.com/salahmakboul/call4agents/blob/main/docs/IDEMPOTENCY.md)

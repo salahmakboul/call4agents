@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Why your AI agent sent the email twice, and how to stop it</title>
+<meta name="description" content="An agent crashes, retries or resumes right after a tool ran, and the tool runs again. Why it happens, and three honest ways to fix it in Python.">
+<link rel="canonical" href="https://salahmakboul.github.io/call4agents/guides/agent-sent-email-twice/">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Call4Agents">
+<meta property="og:title" content="Why your AI agent sent the email twice, and how to stop it">
+<meta property="og:description" content="An agent crashes, retries or resumes right after a tool ran, and the tool runs again. Why it happens, and three honest ways to fix it in Python.">
+<meta property="og:url" content="https://salahmakboul.github.io/call4agents/guides/agent-sent-email-twice/">
+<meta property="og:image" content="https://salahmakboul.github.io/call4agents/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Call4Agents: without it, 2 emails after a crash; with it, 1.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="https://salahmakboul.github.io/call4agents/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://salahmakboul.github.io/call4agents/assets/site.css">
+<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "Why your AI agent sent the email twice, and how to stop it", "description": "An agent crashes, retries or resumes right after a tool ran, and the tool runs again. Why it happens, and three honest ways to fix it in Python.", "url": "https://salahmakboul.github.io/call4agents/guides/agent-sent-email-twice/", "dateModified": "2026-10-21", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Guides", "item": "https://salahmakboul.github.io/call4agents/guides/"}, {"@type": "ListItem", "position": 3, "name": "Why your AI agent sent the email twice, and how to stop it", "item": "https://salahmakboul.github.io/call4agents/guides/agent-sent-email-twice/"}]}]</script>
+</head>
+<body>
+<header class="container">
+<nav>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/"><strong>Call4Agents</strong></a></li></ul>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/guides/">Guides</a></li><li><a href="https://github.com/salahmakboul/call4agents">GitHub</a></li><li><a href="https://pypi.org/project/call4agents/">PyPI</a></li></ul>
+</nav>
+</header>
+<main class="container">
+<nav aria-label="breadcrumb" class="crumbs"><ul><li><a href="https://salahmakboul.github.io/call4agents/">Home</a></li><li><a href="https://salahmakboul.github.io/call4agents/guides/">Guides</a></li><li>Why your AI agent sent the email twice, and how to stop it</li></ul></nav>
+<article><h1>Why did my AI agent send the email twice?</h1><p><em>An agent crashes, retries or resumes right after a tool ran, and the tool runs again. Why it happens, and three honest ways to fix it in Python.</em></p>
+<h2>What happened</h2>
+<p>Your agent called a tool that changes the outside world: it sent an email, charged a card, created a ticket.
+Then something interrupted it before it recorded that the tool had finished: the process crashed, a worker was
+redeployed, a request timed out, or a queue delivered the same job again. When the agent ran again, it saw no
+record of the email, so it sent it again.</p>
+<p>This is not a model mistake. It is the normal behaviour of any system that retries work: it delivers
+<strong>at least once</strong>. Agent frameworks save their progress (a checkpoint, a message history, a run state) at
+certain moments. A tool that ran <em>between</em> two saves runs again on resume.</p>
+
+<h2>The three moments that matter</h2>
+<ol>
+<li><strong>Crash after the tool, before the save.</strong> The email went out; the framework never stored the result. On resume it runs again.</li>
+<li><strong>Crash during the tool.</strong> Nobody knows whether the email went out. Running it again might send a second one; not running it might send none.</li>
+<li><strong>Retry after a timeout.</strong> The tool succeeded but the answer was lost, so the caller retries it.</li>
+</ol>
+
+<h2>Three ways to fix it</h2>
+<h3>1. Make the outside system drop the duplicate (idempotency keys)</h3>
+<p>Many payment and messaging APIs accept an <code>Idempotency-Key</code> header: the same key twice gives one action.
+The key must stay the <em>same</em> across crashes and retries, so it cannot be random per attempt. Derive it from the
+run and the action.</p>
+<h3>2. Write down the intent before acting, and the result after</h3>
+<p>Keep a small log: write "about to send email to bob" before the call and "done, result X" after. On resume, a
+finished action returns the stored result instead of running. An action with an intent but no result is <em>in
+doubt</em>: check the outside system (or ask a person) instead of guessing.</p>
+<h3>3. Move the side effect to a place that does not re-run</h3>
+<p>Some frameworks re-run specific code on resume (for example, LangGraph restarts the node that called
+<code>interrupt()</code>). Putting the side effect after that point avoids one of the causes, but not crashes.</p>
+
+<h2>With Call4Agents (Python, standard library only)</h2>
+<p>Call4Agents does the second fix for you, and passes a stable key for the first one:</p>
+<pre><code>import call4agents as c4a
+
+c4a.init()                                  # a local SQLite run record
+
+@c4a.effect                                 # runs once per (run, tool, exact arguments)
+def send_email(to, body):
+    return mailer.send(to=to, body=body)
+
+with c4a.run(&quot;ticket-1234&quot;):                # the id your agent resumes with
+    send_email(&quot;bob@example.com&quot;, &quot;Your refund is on its way&quot;)
+    send_email(&quot;bob@example.com&quot;, &quot;Your refund is on its way&quot;)   # a retry: returns the recorded result</code></pre>
+<p>If the process died <em>during</em> the send, the next call raises <code>EffectInDoubt</code> instead of sending again;
+<code>call4agents doubt</code> lists those actions and <code>call4agents resolve</code> records what a person found.</p>
+<pre><code>pip install call4agents
+call4agents quickstart   # offline, no API keys: 2 emails without the kit, 1 with it</code></pre>
+</article>
+<section><h2>Related guides</h2><ul><li><a href="https://salahmakboul.github.io/call4agents/guides/idempotency-keys-for-ai-agents/">Idempotency keys for AI agent tool calls</a></li><li><a href="https://salahmakboul.github.io/call4agents/guides/langgraph-idempotent-tool-calls/">LangGraph: idempotent tool calls after interrupt, resume and crashes</a></li><li><a href="https://salahmakboul.github.io/call4agents/guides/openai-agents-sdk-tool-runs-twice/">OpenAI Agents SDK: stop a tool from running twice on retry or resume</a></li></ul></section>
+</main>
+<footer class="container"><hr><p><small>Call4Agents · Apache-2.0 · Copyright 2026 Salah Eddine Makboul ·
+<a href="https://github.com/salahmakboul/call4agents">Source on GitHub</a> · <a href="https://pypi.org/project/call4agents/">PyPI</a> · Site layout: Pico CSS (MIT).</small></p></footer>
+</body>
+</html>

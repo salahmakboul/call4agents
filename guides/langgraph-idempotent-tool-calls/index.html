@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LangGraph idempotent tool calls after interrupt and crash</title>
+<meta name="description" content="LangGraph restarts a node when it resumes after interrupt(), and a crash can repeat work done after the last checkpoint. How to stop repeats.">
+<link rel="canonical" href="https://salahmakboul.github.io/call4agents/guides/langgraph-idempotent-tool-calls/">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Call4Agents">
+<meta property="og:title" content="LangGraph idempotent tool calls after interrupt and crash">
+<meta property="og:description" content="LangGraph restarts a node when it resumes after interrupt(), and a crash can repeat work done after the last checkpoint. How to stop repeats.">
+<meta property="og:url" content="https://salahmakboul.github.io/call4agents/guides/langgraph-idempotent-tool-calls/">
+<meta property="og:image" content="https://salahmakboul.github.io/call4agents/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Call4Agents: without it, 2 emails after a crash; with it, 1.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="https://salahmakboul.github.io/call4agents/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://salahmakboul.github.io/call4agents/assets/site.css">
+<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "LangGraph idempotent tool calls after interrupt and crash", "description": "LangGraph restarts a node when it resumes after interrupt(), and a crash can repeat work done after the last checkpoint. How to stop repeats.", "url": "https://salahmakboul.github.io/call4agents/guides/langgraph-idempotent-tool-calls/", "dateModified": "2026-10-21", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Guides", "item": "https://salahmakboul.github.io/call4agents/guides/"}, {"@type": "ListItem", "position": 3, "name": "LangGraph idempotent tool calls after interrupt and crash", "item": "https://salahmakboul.github.io/call4agents/guides/langgraph-idempotent-tool-calls/"}]}]</script>
+</head>
+<body>
+<header class="container">
+<nav>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/"><strong>Call4Agents</strong></a></li></ul>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/guides/">Guides</a></li><li><a href="https://github.com/salahmakboul/call4agents">GitHub</a></li><li><a href="https://pypi.org/project/call4agents/">PyPI</a></li></ul>
+</nav>
+</header>
+<main class="container">
+<nav aria-label="breadcrumb" class="crumbs"><ul><li><a href="https://salahmakboul.github.io/call4agents/">Home</a></li><li><a href="https://salahmakboul.github.io/call4agents/guides/">Guides</a></li><li>LangGraph idempotent tool calls after interrupt and crash</li></ul></nav>
+<article><h1>LangGraph: idempotent tool calls after interrupt, resume and crashes</h1><p><em>LangGraph restarts a node when it resumes after interrupt(), and a crash can repeat work done after the last checkpoint. How to stop repeats.</em></p>
+<h2>What LangGraph does on resume</h2>
+<p>LangGraph's own documentation on interrupts says that when a graph resumes, "the runtime restarts the entire
+node from the beginning", so code that ran before <code>interrupt()</code> runs again. Its advice: side effects
+placed before an interrupt should be idempotent, or placed after it. The same idea applies to crashes: work
+done after the last checkpoint is done again when the thread resumes.</p>
+
+<h2>Option 1: put side effects after <code>interrupt()</code></h2>
+<pre><code>def approve_and_pay(state):
+    decision = interrupt({&quot;pay&quot;: state[&quot;amount&quot;]})   # resumes here with the human&#x27;s answer
+    if decision == &quot;yes&quot;:
+        pay(state[&quot;amount&quot;], state[&quot;to&quot;])            # side effect AFTER the interrupt</code></pre>
+<p>This avoids the re-run on resume after an interrupt. It does not help if the process crashes after
+<code>pay</code> and before LangGraph saves the node's result.</p>
+
+<h2>Option 2: make the tool itself once-only</h2>
+<p>Call4Agents has a LangGraph adapter: the thread id becomes the run id, so a resumed thread finds the actions
+it already did.</p>
+<pre><code>from call4agents.adapters import langgraph as c4a_lg
+import call4agents as c4a
+
+c4a.init()
+
+@c4a_lg.effect                         # inside any node or tool
+def send_email(to: str, body: str) -&gt; str:
+    return mailer.send(to=to, body=body)
+
+# a human approval bound to the exact arguments they saw:
+@c4a_lg.effect(approval=True)
+def pay(amount: int, to: str) -&gt; str:
+    return payments.charge(amount=amount, to=to)
+
+# when the interrupt is answered:
+c4a_lg.approve(pay, config, amount=10, to=&quot;alice&quot;)
+graph.invoke(Command(resume=&quot;yes&quot;), config)</code></pre>
+<p>A repeat of the same action in the same thread returns the recorded result. If the arguments in the saved
+state were changed after the "yes" (for example to <code>pay(9999, "mallory")</code>), the call is refused.</p>
+<pre><code>pip install call4agents
+call4agents quickstart   # offline, no API keys: 2 emails without the kit, 1 with it</code></pre>
+</article>
+<section><h2>Related guides</h2><ul><li><a href="https://salahmakboul.github.io/call4agents/guides/agent-sent-email-twice/">Why did my AI agent send the email twice?</a></li><li><a href="https://salahmakboul.github.io/call4agents/guides/human-approval-bound-to-arguments/">Human approval that binds to the exact arguments</a></li><li><a href="https://salahmakboul.github.io/call4agents/guides/idempotency-keys-for-ai-agents/">Idempotency keys for AI agent tool calls</a></li></ul></section>
+</main>
+<footer class="container"><hr><p><small>Call4Agents · Apache-2.0 · Copyright 2026 Salah Eddine Makboul ·
+<a href="https://github.com/salahmakboul/call4agents">Source on GitHub</a> · <a href="https://pypi.org/project/call4agents/">PyPI</a> · Site layout: Pico CSS (MIT).</small></p></footer>
+</body>
+</html>

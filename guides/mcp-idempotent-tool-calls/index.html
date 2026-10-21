@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MCP server: handle duplicate tool calls from retries</title>
+<meta name="description" content="An MCP client that loses a response may send the same tools/call again. How an MCP server in Python can return the first result instead of acting twice.">
+<link rel="canonical" href="https://salahmakboul.github.io/call4agents/guides/mcp-idempotent-tool-calls/">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Call4Agents">
+<meta property="og:title" content="MCP server: handle duplicate tool calls from retries">
+<meta property="og:description" content="An MCP client that loses a response may send the same tools/call again. How an MCP server in Python can return the first result instead of acting twice.">
+<meta property="og:url" content="https://salahmakboul.github.io/call4agents/guides/mcp-idempotent-tool-calls/">
+<meta property="og:image" content="https://salahmakboul.github.io/call4agents/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Call4Agents: without it, 2 emails after a crash; with it, 1.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="https://salahmakboul.github.io/call4agents/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://salahmakboul.github.io/call4agents/assets/site.css">
+<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "MCP server: handle duplicate tool calls from retries", "description": "An MCP client that loses a response may send the same tools/call again. How an MCP server in Python can return the first result instead of acting twice.", "url": "https://salahmakboul.github.io/call4agents/guides/mcp-idempotent-tool-calls/", "dateModified": "2026-10-21", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Guides", "item": "https://salahmakboul.github.io/call4agents/guides/"}, {"@type": "ListItem", "position": 3, "name": "MCP server: handle duplicate tool calls from retries", "item": "https://salahmakboul.github.io/call4agents/guides/mcp-idempotent-tool-calls/"}]}]</script>
+</head>
+<body>
+<header class="container">
+<nav>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/"><strong>Call4Agents</strong></a></li></ul>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/guides/">Guides</a></li><li><a href="https://github.com/salahmakboul/call4agents">GitHub</a></li><li><a href="https://pypi.org/project/call4agents/">PyPI</a></li></ul>
+</nav>
+</header>
+<main class="container">
+<nav aria-label="breadcrumb" class="crumbs"><ul><li><a href="https://salahmakboul.github.io/call4agents/">Home</a></li><li><a href="https://salahmakboul.github.io/call4agents/guides/">Guides</a></li><li>MCP server: handle duplicate tool calls from retries</li></ul></nav>
+<article><h1>MCP servers: handle duplicate tool calls from client retries</h1><p><em>An MCP client that loses a response may send the same tools/call again. How an MCP server in Python can return the first result instead of acting twice.</em></p>
+<h2>Why an MCP server sees the same call twice</h2>
+<p>A client that loses the response to <code>tools/call</code> (a dropped connection, a timeout) cannot know whether
+the tool ran. Some clients send the call again. Tools can declare an <code>idempotentHint</code> annotation, but that
+is a hint the tool gives about itself, not a mechanism that removes duplicates. A tool that creates a ticket or
+sends a message has to handle the repeat itself.</p>
+
+<h2>Once-only tools in an MCP server (Python SDK)</h2>
+<p>The Call4Agents MCP adapter records each call. A repeat in the same session returns the first answer. The
+<code>Context</code> parameter is left out of the key, and the run id is the <code>Mcp-Session-Id</code> of a
+streamable-HTTP session. On stdio there is no session id, so name the run yourself:</p>
+<pre><code>from mcp.server.mcpserver import MCPServer, Context
+import call4agents as c4a
+from call4agents.adapters import mcp as c4a_mcp
+
+c4a.init()
+server = MCPServer(&quot;helpdesk&quot;)
+
+@server.tool()
+@c4a_mcp.effect(run=lambda ctx: &quot;client-7&quot;)      # stdio: name the client yourself
+def create_ticket(title: str, ctx: Context) -&gt; str:
+    return tickets.create(title)</code></pre>
+<pre><code>pip install call4agents mcp
+python -m call4agents.examples.mcp_tool   # prints {&#x27;tickets_created&#x27;: 1, &#x27;same_answer&#x27;: True}</code></pre>
+<p>The same tool can also pass a stable idempotency key to the API behind it with
+<code>c4a.idempotency_headers()</code>.</p>
+</article>
+<section><h2>Related guides</h2><ul><li><a href="https://salahmakboul.github.io/call4agents/guides/idempotency-keys-for-ai-agents/">Idempotency keys for AI agent tool calls</a></li><li><a href="https://salahmakboul.github.io/call4agents/guides/agent-sent-email-twice/">Why did my AI agent send the email twice?</a></li></ul></section>
+</main>
+<footer class="container"><hr><p><small>Call4Agents · Apache-2.0 · Copyright 2026 Salah Eddine Makboul ·
+<a href="https://github.com/salahmakboul/call4agents">Source on GitHub</a> · <a href="https://pypi.org/project/call4agents/">PyPI</a> · Site layout: Pico CSS (MIT).</small></p></footer>
+</body>
+</html>

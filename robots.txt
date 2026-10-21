@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://salahmakboul.github.io/call4agents/sitemap.xml

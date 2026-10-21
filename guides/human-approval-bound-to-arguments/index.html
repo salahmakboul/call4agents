@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Human approval bound to exact tool arguments (Python)</title>
+<meta name="description" content="A &quot;yes&quot; to pay(10, alice) must not run pay(9999, mallory), and one &quot;yes&quot; should cover one action. How to bind an approval to what was shown.">
+<link rel="canonical" href="https://salahmakboul.github.io/call4agents/guides/human-approval-bound-to-arguments/">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Call4Agents">
+<meta property="og:title" content="Human approval bound to exact tool arguments (Python)">
+<meta property="og:description" content="A &quot;yes&quot; to pay(10, alice) must not run pay(9999, mallory), and one &quot;yes&quot; should cover one action. How to bind an approval to what was shown.">
+<meta property="og:url" content="https://salahmakboul.github.io/call4agents/guides/human-approval-bound-to-arguments/">
+<meta property="og:image" content="https://salahmakboul.github.io/call4agents/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Call4Agents: without it, 2 emails after a crash; with it, 1.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="https://salahmakboul.github.io/call4agents/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://salahmakboul.github.io/call4agents/assets/site.css">
+<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "Human approval bound to exact tool arguments (Python)", "description": "A \"yes\" to pay(10, alice) must not run pay(9999, mallory), and one \"yes\" should cover one action. How to bind an approval to what was shown.", "url": "https://salahmakboul.github.io/call4agents/guides/human-approval-bound-to-arguments/", "dateModified": "2026-10-21", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Guides", "item": "https://salahmakboul.github.io/call4agents/guides/"}, {"@type": "ListItem", "position": 3, "name": "Human approval bound to exact tool arguments (Python)", "item": "https://salahmakboul.github.io/call4agents/guides/human-approval-bound-to-arguments/"}]}]</script>
+</head>
+<body>
+<header class="container">
+<nav>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/"><strong>Call4Agents</strong></a></li></ul>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/guides/">Guides</a></li><li><a href="https://github.com/salahmakboul/call4agents">GitHub</a></li><li><a href="https://pypi.org/project/call4agents/">PyPI</a></li></ul>
+</nav>
+</header>
+<main class="container">
+<nav aria-label="breadcrumb" class="crumbs"><ul><li><a href="https://salahmakboul.github.io/call4agents/">Home</a></li><li><a href="https://salahmakboul.github.io/call4agents/guides/">Guides</a></li><li>Human approval bound to exact tool arguments (Python)</li></ul></nav>
+<article><h1>Human approval that binds to the exact arguments</h1><p><em>A &quot;yes&quot; to pay(10, alice) must not run pay(9999, mallory), and one &quot;yes&quot; should cover one action. How to bind an approval to what was shown.</em></p>
+<h2>The gap</h2>
+<p>Human-in-the-loop flows usually work like this: the agent proposes a call, the run pauses, a person approves,
+and the run continues from saved state. Two things can go wrong:</p>
+<ul>
+<li><strong>The arguments change after the "yes".</strong> The saved state can be edited (by a bug, a migration, or
+anyone with write access), or the model can be asked again after a restart and propose different arguments.</li>
+<li><strong>One "yes" runs twice.</strong> A double click, two workers picking up the same task, or a resume after a
+crash can run the approved action again.</li>
+</ul>
+
+<h2>Bind the "yes" to the call, and spend it once</h2>
+<pre><code>import call4agents as c4a
+c4a.init()                     # the approval secret lives in .c4a/secret
+
+@c4a.effect(approval=True)
+def pay(amount: int, to: str) -&gt; str:
+    return payments.charge(amount=amount, to=to)
+
+with c4a.run(&quot;order-42&quot;):
+    c4a.approve(pay, amount=10, to=&quot;alice&quot;)   # what the person SAW
+    pay(amount=10, to=&quot;alice&quot;)                # runs once
+    pay(amount=9999, to=&quot;mallory&quot;)            # ApprovalRequired: not what was approved
+    c4a.deny(pay, amount=10, to=&quot;alice&quot;)      # a later &quot;no&quot; is enforced</code></pre>
+<p>The approval is an HMAC over the tool name and the exact arguments, scoped to the run, made with a local secret.
+Each approval can be spent by one action. Many callers racing on one "yes": exactly one runs.</p>
+<p>What it does not protect against: someone who can read the secret file, and a person approving the wrong thing.</p>
+<pre><code>pip install call4agents
+call4agents quickstart   # offline, no API keys: 2 emails without the kit, 1 with it</code></pre>
+</article>
+<section><h2>Related guides</h2><ul><li><a href="https://salahmakboul.github.io/call4agents/guides/langgraph-idempotent-tool-calls/">LangGraph: idempotent tool calls after interrupt, resume and crashes</a></li><li><a href="https://salahmakboul.github.io/call4agents/guides/openai-agents-sdk-tool-runs-twice/">OpenAI Agents SDK: stop a tool from running twice on retry or resume</a></li><li><a href="https://salahmakboul.github.io/call4agents/guides/pydantic-ai-deferred-tools-crash-safe/">Pydantic AI: crash-safe tools and deferred tool approvals</a></li></ul></section>
+</main>
+<footer class="container"><hr><p><small>Call4Agents · Apache-2.0 · Copyright 2026 Salah Eddine Makboul ·
+<a href="https://github.com/salahmakboul/call4agents">Source on GitHub</a> · <a href="https://pypi.org/project/call4agents/">PyPI</a> · Site layout: Pico CSS (MIT).</small></p></footer>
+</body>
+</html>
