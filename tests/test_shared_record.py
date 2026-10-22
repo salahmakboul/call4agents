@@ -106,7 +106,11 @@ def server_dsn():
     if os.environ.get("C4A_TEST_PG_DSN"):
         return os.environ["C4A_TEST_PG_DSN"], None
     import pgserver
-    srv = pgserver.get_server(tempfile.mkdtemp(prefix="c4a-pg-"), cleanup_mode="stop")
+    # Not mkdtemp: on Windows it makes an owner-only folder, and PostgreSQL drops admin rights when it starts
+    # under an admin account (CI), after which it cannot open that folder.
+    data = Path(tempfile.gettempdir()) / f"c4a-pg-{uuid.uuid4().hex[:8]}"
+    data.mkdir()
+    srv = pgserver.get_server(str(data), cleanup_mode="stop")
     return srv.get_uri(), srv
 
 
