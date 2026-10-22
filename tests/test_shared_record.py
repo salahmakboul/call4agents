@@ -12,7 +12,12 @@ S4 a "yes" given on machine A counts on machine B for exactly those arguments, n
    and not on a machine that has a different secret.
 S5 a shared record without a secret is refused (a local secret file would differ per machine).
 S6 the password in the connection string never appears in an error message.
-S7 keys with NUL (approval keys use it as a separator) are stored without NUL and come back unchanged."""
+S7 keys with NUL (approval keys use it as a separator) are stored without NUL and come back unchanged.
+S8 `call4agents doubt` and `resolve` work on a shared record (postgresql:// address).
+S9 `call4agents verify` works on it and says that the storage check is left to PostgreSQL.
+S10 an address whose database has no run record is refused, and the commands create nothing there.
+S11 `call4agents archive` copies finished runs to a SQLite file and removes them; runs in doubt stay."""
+import json
 import os
 import subprocess
 import sys
@@ -120,6 +125,7 @@ def main():
 
     # S1
     work, run_id = new()
+    s1_run = run_id
     procs = [start("race", dsn, work, run_id) for _ in range(8)]
     outs = [result(p) for p in procs]
     check("S1 8 machines, one effect: it ran once", side_lines(work) == ["send bob"], side_lines(work))
@@ -141,6 +147,7 @@ def main():
 
     # S3
     work, run_id = new()
+    s3_run = run_id
     first = start("crash", dsn, work, run_id)
     first.communicate(timeout=60)
     b = result(start("crash", dsn, work, run_id))
@@ -175,6 +182,47 @@ def main():
         check("S6 the password is not shown in errors", False, "no error")
     except LedgerError as exc:
         check("S6 the password is not shown in errors", "TOPSECRETPW" not in str(exc), str(exc))
+
+    # S8-S11: the on-call commands on a shared record
+    def cli(*args):
+        r = subprocess.run([sys.executable, "-m", "call4agents", *args], capture_output=True, text=True, timeout=120)
+        return r.returncode, r.stdout, r.stderr
+
+    archive_file = Path(tempfile.mkdtemp(prefix="c4a-arch-")) / "archive.sqlite"
+    code, out, err = cli("archive", dsn, str(archive_file), "0")
+    import sqlite3 as _sq
+    arch_runs = {r[0] for r in _sq.connect(archive_file).execute("SELECT DISTINCT run_id FROM entries")}
+    from call4agents.stores.postgres import PostgresLedger as _PL
+    left = {e["run_id"] for e in _PL(dsn, secret=b"x" * 16).entries()}
+    check("S11 archive moves a finished run out of the shared record", code == 0 and s1_run in arch_runs
+          and s1_run not in left, (code, out, err[-300:]))
+    check("S11 archive keeps a run with an action in doubt", s3_run in left and s3_run not in arch_runs)
+
+    code, out, err = cli("doubt", dsn, "--json")
+    rows = [r for r in (json.loads(out) if code == 0 else []) if r["run_id"] == s3_run]
+    check("S8 doubt lists the action in doubt on a shared record", len(rows) == 1 and rows[0]["tool"] == "s.crash",
+          (code, out[-300:], err[-300:]))
+    if rows:
+        code, out, err = cli("resolve", dsn, rows[0]["key"][:16], "done", "checked by hand")
+        after = [r for r in json.loads(cli("doubt", dsn, "--json")[1]) if r["run_id"] == s3_run]
+        check("S8 resolve on a shared record takes it out of doubt", code == 0 and after == [], (code, err[-300:]))
+
+    code, out, err = cli("verify", dsn)
+    v = json.loads(out) if code == 0 else {}
+    check("S9 verify works on a shared record and says what it did not check",
+          code == 0 and v.get("format") == 1 and "not checked" in v.get("integrity", ""), (code, out, err[-300:]))
+
+    import psycopg
+    from urllib.parse import urlsplit
+    empty = "c4a_empty_" + uuid.uuid4().hex[:6]
+    with psycopg.connect(dsn, autocommit=True) as c:
+        c.execute(f"CREATE DATABASE {empty}")
+    empty_dsn = urlsplit(dsn)._replace(path="/" + empty).geturl()
+    code, out, err = cli("doubt", empty_dsn)
+    with psycopg.connect(empty_dsn) as c:
+        created = c.execute("SELECT to_regclass('entries')").fetchone()[0]
+    check("S10 an address with no run record is refused, and nothing is created",
+          code == 1 and "no Call4Agents run record" in err and created is None, (code, err[-300:], created))
 
     # S7
     from call4agents.stores.postgres import _pg_in, _pg_out

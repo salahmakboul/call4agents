@@ -84,6 +84,12 @@ MUTATIONS = [
     ("S NUL not escaped for PostgreSQL", PG, "    return v.replace(", "    return v" + chr(10) + "    return v.replace(", "tests.test_shared_record"),
     ("S shared record without a secret", PG, "        if not secret:" + chr(10) + "            raise LedgerError(\"a shared run record",
      "        if False:" + chr(10) + "            raise LedgerError(\"a shared run record", "tests.test_shared_record"),
+    ("S10 commands create a missing shared record", "call4agents/ops.py", "secret=_NO_SIGNING, create=False)",
+     "secret=_NO_SIGNING, create=True)", "tests.test_shared_record"),
+    ("S11 archive moves runs in doubt (shared)", "call4agents/ops.py", "if t < cutoff and r not in open_runs]", "if t < cutoff]",
+     "tests.test_shared_record"),
+    ("S9 verify on a shared record not handled", "call4agents/ops.py", "integrity = PG_INTEGRITY if _is_pg(path) else",
+     "integrity = \"?\" if _is_pg(path) else", "tests.test_shared_record"),
 ]
 
 

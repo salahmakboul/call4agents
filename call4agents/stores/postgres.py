@@ -90,7 +90,11 @@ class PostgresLedger(Ledger):
     (secret= or C4A_SECRET): approvals signed on one machine are checked on another, so there is no
     local secret file here."""
 
-    def __init__(self, dsn: str, secret: Optional[bytes] = None, old_secrets: Optional[List[bytes]] = None) -> None:
+    def __init__(self, dsn: str, secret: Optional[bytes] = None, old_secrets: Optional[List[bytes]] = None,
+                 create: bool = True) -> None:
+        """create=False (the on-call commands): refuse a database that has no run record yet, so a typo in
+        the address cannot create a new empty record that then looks healthy."""
+        self._create = create
         try:
             import psycopg
         except ImportError:
@@ -117,6 +121,8 @@ class PostgresLedger(Ledger):
     def _setup(self) -> None:
         with self._conn() as conn:
             conn.execute("SELECT pg_advisory_xact_lock(4243)")   # machines starting together create the tables once
+            if not self._create and conn.execute("SELECT to_regclass('entries')").fetchone()[0] is None:
+                raise LedgerError(f"{self.path} has no Call4Agents run record; give the address of an existing one")
             conn.execute("CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT NOT NULL)")
             conn.execute("INSERT INTO meta (k, v) VALUES ('schema_version', ?) ON CONFLICT (k) DO NOTHING",
                          (str(SCHEMA_VERSION),))

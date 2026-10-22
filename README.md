@@ -219,7 +219,7 @@ added to it, never changed or deleted.
 | `call4agents diff a.sqlite b.sqlite [run_id]` | the step where two recorded runs start to differ |
 | `call4agents prove spec.json` | puts each bug back and checks that your guard catches it |
 
-`python -m call4agents ...` works the same way.
+`python -m call4agents ...` works the same way. `<record>` is a file, or a `postgresql://` address for a shared record.
 
 ## In production
 
@@ -230,7 +230,10 @@ added to it, never changed or deleted.
 - secret rotation, archiving, what the record stores, every error message and what to do;
 - a guide for whoever is on call.
 
-## Several machines (new in 0.3)
+## Several machines (beta, new in 0.3)
+
+**Beta.** Tested with separate processes and one local PostgreSQL server on Linux, macOS and Windows.
+Not yet used on real networks or in production; the options may still change.
 
 When workers or replicas on different machines can pick up the same run, they need one shared record.
 Point every machine at the same PostgreSQL database and give them the same secret:
@@ -245,7 +248,10 @@ machines. This covers the case in [langgraph#7417](https://github.com/langchain-
 where a long tool call is sent to a second worker while the first is still running it. The second worker gets
 `EffectInDoubt` instead of running the call again, and a later caller gets the recorded result.
 The secret has to be passed in, because a local secret file would be different on each machine.
-The `call4agents` commands (`list`, `resolve`, `verify`, `archive`) work on SQLite files only for now.
+The on-call commands take the address instead of a file: `call4agents doubt postgresql://db-host/agents`.
+Put the password in `PGPASSWORD`, not in the address, because command lines can be seen by other users.
+`archive` copies finished runs to a SQLite file and then removes them from the database. A crash between the
+two steps leaves those runs in both places; nothing is lost.
 
 ## Measured in each framework
 

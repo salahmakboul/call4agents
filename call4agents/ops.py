@@ -11,6 +11,7 @@
 
 Every change is a NEW entry ("resolved by operator", with your note); nothing is edited in place,
 except `archive`, which moves whole finished runs to another file in one transaction.
+<record> is a run-record file or a postgresql:// address (a shared record; archive copies to a SQLite file).
 """
 
 import json
@@ -26,9 +27,21 @@ from call4agents.ledger import SCHEMA, Ledger, LedgerError
 _NO_SIGNING = b"ops-commands-never-sign-approvals"     # ops never sign: no secret file is created
 
 
+PG_INTEGRITY = "not checked here (PostgreSQL checks its own storage)"
+
+
+def _is_pg(path: str) -> bool:
+    return str(path).startswith(("postgresql://", "postgres://"))
+
+
 def open_record(path: str) -> Ledger:
-    """An EXISTING run record. A typo must not create a new empty record that then looks healthy."""
+    """An EXISTING run record. A typo must not create a new empty record that then looks healthy.
+    A postgresql:// address works too (put the password in PGPASSWORD, not in the address: command lines
+    can be seen by other users of the machine)."""
     from pathlib import Path
+    if _is_pg(path):
+        from call4agents.stores.postgres import PostgresLedger
+        return PostgresLedger(path, secret=_NO_SIGNING, create=False)
     if not Path(path).is_file():
         raise LedgerError(f"{path} does not exist; give the path of an existing run record")
     return Ledger(path, secret=_NO_SIGNING)
@@ -103,7 +116,7 @@ def resolve(lg: Ledger, prefix: str, outcome: str, note: str = "", result: Any =
 def verify(path: str) -> Dict[str, Any]:
     lg = open_record(path)
     with lg._conn() as conn:
-        integrity = conn.execute("PRAGMA integrity_check").fetchone()[0]
+        integrity = PG_INTEGRITY if _is_pg(path) else conn.execute("PRAGMA integrity_check").fetchone()[0]
         version = conn.execute("SELECT v FROM meta WHERE k = 'schema_version'").fetchone()[0]
         rows = conn.execute("SELECT COUNT(*) FROM entries").fetchone()[0]
     acts = actions(lg)
@@ -125,7 +138,24 @@ def archive(path: str, dest: str, older_than_days: float) -> Dict[str, int]:
         newest = dict(conn.execute("SELECT run_id, MAX(t) FROM entries GROUP BY run_id").fetchall())
     runs = [r for r, t in newest.items() if t < cutoff and r not in open_runs]
     moved = 0
-    if runs:
+    if runs and _is_pg(path):
+        # Two databases, so two steps: copy into the archive file first, then delete from PostgreSQL.
+        # A crash between them leaves the runs in both places (nothing is lost); running archive again
+        # copies them again, so the archive may then hold them twice.
+        marks = ",".join("?" * len(runs))
+        with lg._conn() as conn:
+            rows = conn.execute(f"SELECT run_id, kind, key, payload, t FROM entries WHERE run_id IN ({marks}) "
+                                f"ORDER BY seq", runs).fetchall()
+        dst = sqlite3.connect(dest)
+        try:
+            with dst:
+                dst.executemany("INSERT INTO entries (run_id, kind, key, payload, t) VALUES (?, ?, ?, ?, ?)", rows)
+        finally:
+            dst.close()
+        with lg._conn() as conn:
+            conn.execute(f"DELETE FROM entries WHERE run_id IN ({marks})", runs)
+        moved = len(rows)
+    elif runs:
         conn = lg._conn()
         conn.execute("ATTACH DATABASE ? AS arch", (str(dest),))
         try:
@@ -153,11 +183,11 @@ def main(argv: List[str]) -> int:
         if cmd == "status":
             v = verify(rest[0])
             print(json.dumps(v, indent=1))
-            return 0 if v["integrity"] == "ok" else 1
+            return 0 if v["integrity"] in ("ok", PG_INTEGRITY) else 1
         if cmd == "verify":
             v = verify(rest[0])
             print(json.dumps(v, indent=1))
-            return 0 if v["integrity"] == "ok" and not v["late_results"] else 1
+            return 0 if v["integrity"] in ("ok", PG_INTEGRITY) and not v["late_results"] else 1
         if cmd == "doubt":
             rows = in_doubt(open_record(rest[0]))
             if "--json" in rest:
