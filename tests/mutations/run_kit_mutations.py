@@ -12,6 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 INIT, LEDGER = "call4agents/__init__.py", "call4agents/ledger.py"
+PG = "call4agents/stores/postgres.py"
 
 # (name, file, old text, new text, suite)
 MUTATIONS = [
@@ -76,6 +77,13 @@ MUTATIONS = [
      'token = _EFFECT_KEY.set(plan["key"] + str(time.time()))' + chr(10) + "            try:" + chr(10) + "                result = f(",
      "tests.test_idempotency"),
     ("F no same-key retry", INIT, "if idempotent_for is not None and reconcile is None:", "if False:", "tests.test_idempotency"),
+    # --- S: one run record shared by several machines (PostgreSQL)
+    ("control (no-op)", PG, "One run record shared by several machines", "One run record shared by several machines", "tests.test_shared_record"),
+    ("S no unique intent across machines", LEDGER, "CREATE UNIQUE INDEX IF NOT EXISTS one_intent",
+     "CREATE INDEX IF NOT EXISTS one_intent", "tests.test_shared_record"),
+    ("S NUL not escaped for PostgreSQL", PG, "    return v.replace(", "    return v" + chr(10) + "    return v.replace(", "tests.test_shared_record"),
+    ("S shared record without a secret", PG, "        if not secret:" + chr(10) + "            raise LedgerError(\"a shared run record",
+     "        if False:" + chr(10) + "            raise LedgerError(\"a shared run record", "tests.test_shared_record"),
 ]
 
 
@@ -84,7 +92,8 @@ def copy_tree(dst: Path) -> None:
     (dst / "tests").mkdir()
     (dst / "tests" / "__init__.py").write_text("", encoding="utf-8")
     for f in ("test_c4a_kit.py", "c4a_codec_types.py", "c4a_k18_child.py", "c4a_prove_sample.py", "test_idempotency.py",
-              "test_c4a_production.py", "test_undo.py", "c4a_undo_child.py", "test_adapters.py"):
+              "test_c4a_production.py", "test_undo.py", "c4a_undo_child.py", "test_adapters.py",
+              "test_shared_record.py"):
         shutil.copy(ROOT / "tests" / f, dst / "tests" / f)
 
 

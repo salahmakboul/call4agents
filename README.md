@@ -16,7 +16,7 @@ replace any of them.
 - **Record, replay, diff.** Rerun a recorded run offline with zero model calls, and find the step where
   two runs (for example two models) begin to differ.
 
-Version 0.2, early. Standard library only, zero dependencies. Apache-2.0.
+Version 0.3, early. Standard library only, zero dependencies (PostgreSQL for several machines is an optional extra). Apache-2.0.
 
 Guides with runnable code for each framework: [salahmakboul.github.io/call4agents/guides](https://salahmakboul.github.io/call4agents/guides/).
 
@@ -230,6 +230,23 @@ added to it, never changed or deleted.
 - secret rotation, archiving, what the record stores, every error message and what to do;
 - a guide for whoever is on call.
 
+## Several machines (new in 0.3)
+
+When workers or replicas on different machines can pick up the same run, they need one shared record.
+Point every machine at the same PostgreSQL database and give them the same secret:
+
+```python
+# pip install "call4agents[postgres]"
+c4a.init("postgresql://user:password@db-host/agents", secret=os.environ["C4A_SECRET"].encode())
+```
+
+The table and the UNIQUE indexes are the same as in the SQLite file, so the same guarantees hold across
+machines. This covers the case in [langgraph#7417](https://github.com/langchain-ai/langgraph/issues/7417),
+where a long tool call is sent to a second worker while the first is still running it. The second worker gets
+`EffectInDoubt` instead of running the call again, and a later caller gets the recorded result.
+The secret has to be passed in, because a local secret file would be different on each machine.
+The `call4agents` commands (`list`, `resolve`, `verify`, `archive`) work on SQLite files only for now.
+
 ## Measured in each framework
 
 You can rerun every number in this table. The tests use fake models, fake tools and real process kills.
@@ -258,7 +275,11 @@ A dash means the case was not tested in that framework.
 - 5 kills during writes left the file intact;
 - a crash after a payment API charged, then a resume with the idempotency key: 1 charge, and the
   original charge is returned;
-- replay returns the same types, including real Pydantic and OpenAI SDK objects.
+- replay returns the same types, including real Pydantic and OpenAI SDK objects;
+- a shared PostgreSQL record (`python -m tests.test_shared_record`), with each machine played by a separate
+  process: 8 machines call one action at once and it runs once; a long action still running on one machine
+  is not started again by a second one; after a crash on one machine, the next raises `EffectInDoubt`;
+  a "yes" given on one machine counts on another, only for the same arguments and the same secret.
 
 Each guard is mutation-tested: when its bug is put back, its check fails. A no-op control is run
 next to every batch of mutations. Rerun them with `python -m tests.mutations.run_kit_mutations`.
@@ -266,7 +287,8 @@ next to every batch of mutations. Rerun them with `python -m tests.mutations.run
 **Not proven:**
 - real payment or email systems, and production traffic;
 - systems and Python versions not listed at the top of this page;
-- several machines sharing one run record (once-only holds for processes that share the file);
+- several real machines on a real network sharing one PostgreSQL record (the tests use separate processes
+  and one local PostgreSQL server), and managed platforms such as LangGraph Cloud;
 - an independent code review;
 - adapters other than LangGraph (the decorator itself works in any framework).
 

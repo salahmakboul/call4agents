@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.0
+
+**New**
+- **One run record shared by several machines.** `c4a.init("postgresql://...")` keeps the record in PostgreSQL
+  (`pip install "call4agents[postgres]"`), with the same table, UNIQUE indexes and format check as the SQLite file.
+  A long action that is still running on one worker is not started again by another (the case in langgraph#7417).
+  Every machine must pass the same secret; there is no local secret file for a shared record.
+- Checks S1-S7 (`python -m tests.test_shared_record`) with a separate process per machine, and mutations for them.
+  CI runs them on Linux, macOS and Windows against a throwaway local PostgreSQL.
+
+**Fixed while building it**
+- Approval keys contain a NUL separator, which PostgreSQL text cannot store. The PostgreSQL store escapes it
+  reversibly (S7); SQLite records are unchanged.
+
 ## 0.2.1
 
 Metadata only, no code changes: links to the website and the guides (Homepage, Documentation), more keywords and classifiers on PyPI, and a link to the guides in the README.

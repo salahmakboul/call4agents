@@ -29,7 +29,7 @@ from call4agents.proof import prove  # noqa: F401  (module named proof: a 'prove
 
 __all__ = ["init", "run", "effect", "approve", "deny", "current_ledger", "idempotency_key", "idempotency_headers", "recorded", "diff", "prove",
            "undo", "UndoFailed", "ReplayMismatch", "ReplayMissing", "ApprovalRequired", "EffectInDoubt", "Ledger"]
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 
 _LEDGER: Optional[Ledger] = None
 _RUN: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("c4a_run", default=None)
@@ -67,9 +67,15 @@ def init(path: str = ".c4a/ledger.sqlite", secret: Optional[bytes] = None,
          replay_from: Optional[str] = None, old_secrets: Optional[list] = None,
          allow_network_drive: bool = False) -> Ledger:
     """replay_from: a recorded run record. Model calls and effects then come from it (offline).
-    old_secrets: secrets you rotated away from; approvals they signed still count (C4A_OLD_SECRETS works too)."""
+    old_secrets: secrets you rotated away from; approvals they signed still count (C4A_OLD_SECRETS works too).
+    path "postgresql://...": one run record shared by several machines (needs call4agents[postgres] and the
+    same secret on every machine)."""
     global _LEDGER
-    _LEDGER = Ledger(path, secret, old_secrets=old_secrets, allow_network_drive=allow_network_drive)
+    if str(path).startswith(("postgresql://", "postgres://")):
+        from call4agents.stores.postgres import PostgresLedger
+        _LEDGER = PostgresLedger(path, secret, old_secrets=old_secrets)
+    else:
+        _LEDGER = Ledger(path, secret, old_secrets=old_secrets, allow_network_drive=allow_network_drive)
     _replay.set_source(replay_from)
     return _LEDGER
 

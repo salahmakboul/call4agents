@@ -70,6 +70,23 @@ jobs:
         run: |
           for m in pydantic_ai_tool openai_agents_tool mcp_tool; do python -m call4agents.examples.$m; done
 
+  shared-record:
+    name: shared record (PostgreSQL) ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: install the kit with the postgres extra, and a throwaway local PostgreSQL (pgserver)
+        run: python -m pip install ".[postgres]" pgserver
+      - run: python -m tests.test_shared_record
+
   mutations:
     name: bug re-insertion checks
     runs-on: ubuntu-latest
@@ -79,6 +96,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: what the shared-record checks need (psycopg and a local PostgreSQL)
+        run: python -m pip install "psycopg[binary]" pgserver
       - run: python -m tests.mutations.run_kit_mutations
 
   leaks:

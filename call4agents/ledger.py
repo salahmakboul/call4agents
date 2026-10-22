@@ -136,6 +136,8 @@ def _on_network_drive(path: Path, mounts: Optional[str] = None) -> bool:
 
 
 class Ledger:
+    _DUPLICATE: Any = sqlite3.IntegrityError     # what the store raises when a UNIQUE index refuses a row
+
     def __init__(self, path: str = ".c4a/ledger.sqlite", secret: Optional[bytes] = None,
                  old_secrets: Optional[List[bytes]] = None, allow_network_drive: bool = False) -> None:
         self.path = Path(path)
@@ -164,17 +166,21 @@ class Ledger:
         with self._conn() as conn:
             conn.execute("CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT NOT NULL)")
             conn.execute("INSERT OR IGNORE INTO meta (k, v) VALUES ('schema_version', ?)", (str(SCHEMA_VERSION),))
-            found = int(conn.execute("SELECT v FROM meta WHERE k = 'schema_version'").fetchone()[0])
-            if found > SCHEMA_VERSION:
-                raise LedgerError(f"{self.path} was written by a newer Call4Agents (format {found}, this kit "
-                                  f"reads up to {SCHEMA_VERSION}). Upgrade call4agents; never downgrade a run record.")
-            conn.execute(SCHEMA)
-            conn.execute("CREATE INDEX IF NOT EXISTS by_key ON entries(kind, key)")
-            # Only ONE intent per (effect, attempt): two callers can never both start the same
-            # effect (without it, 14 simultaneous callers sent 13 emails in our stress test).
-            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS one_intent ON entries(key) WHERE kind = 'tool_intent'")
-            # Each "yes" is spent by ONE action (K17): a deliberate second identical action needs a new "yes".
-            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS one_use ON entries(key) WHERE kind = 'approval_used'")
+            self._tables(conn, SCHEMA)
+
+    def _tables(self, conn: Any, schema: str) -> None:
+        """Format check, table and indexes: the same for every store, so the guarantees are the same."""
+        found = int(conn.execute("SELECT v FROM meta WHERE k = 'schema_version'").fetchone()[0])
+        if found > SCHEMA_VERSION:
+            raise LedgerError(f"{self.path} was written by a newer Call4Agents (format {found}, this kit "
+                              f"reads up to {SCHEMA_VERSION}). Upgrade call4agents; never downgrade a run record.")
+        conn.execute(schema)
+        conn.execute("CREATE INDEX IF NOT EXISTS by_key ON entries(kind, key)")
+        # Only ONE intent per (effect, attempt): two callers can never both start the same
+        # effect (without it, 14 simultaneous callers sent 13 emails in our stress test).
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS one_intent ON entries(key) WHERE kind = 'tool_intent'")
+        # Each "yes" is spent by ONE action (K17): a deliberate second identical action needs a new "yes".
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS one_use ON entries(key) WHERE kind = 'approval_used'")
 
     def _conn(self) -> sqlite3.Connection:
         """One connection per thread and process, reused (opening one per call cost ~3.6 ms of the 22 ms of
@@ -227,7 +233,7 @@ class Ledger:
         try:
             self.append(run_id, "tool_intent", key, payload)
             return True
-        except sqlite3.IntegrityError:
+        except self._DUPLICATE:
             return False
 
     def first_intent_time(self, base_key: str) -> Optional[float]:
@@ -319,8 +325,9 @@ class Ledger:
                 continue
             try:
                 self.append(run_id, "approval_used", f"{run_id}\x00{tool}\x00{seq}", {"effect": effect})
-            except sqlite3.IntegrityError:
+            except self._DUPLICATE:
                 continue                                  # someone already spent this one
             self.append(run_id, "effect_approved", effect, {"approval": seq})
             return True
         return False
+
