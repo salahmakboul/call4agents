@@ -19,7 +19,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="https://salahmakboul.github.io/call4agents/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="https://salahmakboul.github.io/call4agents/assets/site.css">
-<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "Human approval bound to exact tool arguments (Python)", "description": "A \"yes\" to pay(10, alice) must not run pay(9999, mallory), and one \"yes\" should cover one action. How to bind an approval to what was shown.", "url": "https://salahmakboul.github.io/call4agents/guides/human-approval-bound-to-arguments/", "dateModified": "2026-10-22", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Guides", "item": "https://salahmakboul.github.io/call4agents/guides/"}, {"@type": "ListItem", "position": 3, "name": "Human approval bound to exact tool arguments (Python)", "item": "https://salahmakboul.github.io/call4agents/guides/human-approval-bound-to-arguments/"}]}]</script>
+<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "Human approval bound to exact tool arguments (Python)", "description": "A \"yes\" to pay(10, alice) must not run pay(9999, mallory), and one \"yes\" should cover one action. How to bind an approval to what was shown.", "url": "https://salahmakboul.github.io/call4agents/guides/human-approval-bound-to-arguments/", "dateModified": "2026-10-23", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Guides", "item": "https://salahmakboul.github.io/call4agents/guides/"}, {"@type": "ListItem", "position": 3, "name": "Human approval bound to exact tool arguments (Python)", "item": "https://salahmakboul.github.io/call4agents/guides/human-approval-bound-to-arguments/"}]}]</script>
 </head>
 <body>
 <header class="container">
@@ -57,6 +57,20 @@ with c4a.run(&quot;order-42&quot;):
 <p>The approval is an HMAC over the tool name and the exact arguments, scoped to the run, made with a local secret.
 Each approval can be spent by one action. Many callers racing on one "yes": exactly one runs.</p>
 <p>What it does not protect against: someone who can read the secret file, and a person approving the wrong thing.</p>
+
+<h2>When the approval comes back through a UI: tickets (experimental, 0.4)</h2>
+<p>If the "yes" travels through a web UI, a queue or a saved state, you also want to know that it answers a pause
+your server really made. <code>c4a.pause</code> records the pause and returns a ticket that holds no arguments,
+only a random id and a signature. <code>c4a.decide</code> reads the call from the record, so nothing the client
+sends back can change what runs. A ticket the record did not issue, or one that was changed, expired or already
+decided, is refused, and the decision is stored with who made it.</p>
+<pre><code>with c4a.run(&quot;order-42&quot;):
+    ticket = c4a.pause(pay, amount=10, to=&quot;alice&quot;)   # show the ticket with the call
+c4a.decide(ticket, &quot;approve&quot;, by=&quot;sam&quot;)              # later, from any process on the same record</code></pre>
+<p>These are the cases discussed in <a href="https://github.com/pydantic/pydantic-ai/issues/6452">pydantic-ai #6452</a>
+(where an approval comes from) and <a href="https://github.com/pydantic/pydantic-ai/issues/6968">#6968</a> (the
+approver sees other arguments than the ones that run). The checks run with the real Pydantic AI, including a client
+that edits the call in the message history before resuming. Experimental: no real user has tried it yet.</p>
 <pre><code>pip install call4agents
 call4agents quickstart   # offline, no API keys: 2 emails without the kit, 1 with it</code></pre>
 </article>
