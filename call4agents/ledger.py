@@ -109,6 +109,10 @@ class LedgerError(RuntimeError):
     """The run record cannot be used safely (wrong file, newer format, network drive, bad secret)."""
 
 
+class TicketRefused(Exception):
+    """A decision came with a ticket this record did not issue, or one that was edited, expired or already used."""
+
+
 NETWORK_FS = ("nfs", "nfs4", "cifs", "smbfs", "smb3", "9p", "fuse.sshfs", "afpfs")
 
 
@@ -181,6 +185,8 @@ class Ledger:
         conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS one_intent ON entries(key) WHERE kind = 'tool_intent'")
         # Each "yes" is spent by ONE action (K17): a deliberate second identical action needs a new "yes".
         conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS one_use ON entries(key) WHERE kind = 'approval_used'")
+        # Each approval ticket is decided ONCE (T5): a second "approve" or a late "deny" is refused.
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS one_decision ON entries(key) WHERE kind = 'ticket_decided'")
 
     def _conn(self) -> sqlite3.Connection:
         """One connection per thread and process, reused (opening one per call cost ~3.6 ms of the 22 ms of
@@ -331,3 +337,47 @@ class Ledger:
             return True
         return False
 
+    # ------------------------------------------------------------ approval tickets (experimental)
+    def _ticket_mac(self, key: bytes, nonce: str, run_id: str, tool: str, approval_mac: str, exp: float) -> str:
+        msg = "\x00".join(["ticket", nonce, run_id, tool, approval_mac, repr(exp)])
+        return hmac.new(key, msg.encode(), hashlib.sha256).hexdigest()
+
+    def issue_ticket(self, run_id: str, tool: str, args: Dict[str, Any], ttl: float,
+                     extra: Optional[Dict[str, Any]] = None) -> str:
+        """Record a pause for a person to decide on exactly (tool, args), and return a ticket to show them.
+        The ticket holds no arguments: only a random id and a MAC. What may run is read from THIS record
+        when the decision comes back, never from what the client sends."""
+        nonce = secrets.token_hex(12)
+        approval_mac = self.sign(tool, args)
+        exp = round(time.time() + ttl, 3)
+        self.append(run_id, "pause", f"ticket\x00{nonce}",
+                    {"tool": tool, "args": args, "mac": approval_mac, "exp": exp, **(extra or {})})
+        return f"c4a1.{nonce}.{self._ticket_mac(self.secret, nonce, run_id, tool, approval_mac, exp)}"
+
+    def decide_ticket(self, ticket: str, decision: str, by: str = "") -> Dict[str, Any]:
+        """Turn a person's decision into a recorded "yes" or "no" for the exact call the ticket was issued for."""
+        if decision not in ("approve", "deny"):
+            raise ValueError("decision must be 'approve' or 'deny'")
+        parts = ticket.split(".") if isinstance(ticket, str) else []
+        if len(parts) != 3 or parts[0] != "c4a1":
+            raise TicketRefused("this is not a Call4Agents ticket")
+        _, nonce, mac = parts
+        row = self.latest("pause", f"ticket\x00{nonce}")
+        if row is None:
+            raise TicketRefused("this record never issued that ticket")
+        p = row["payload"]
+        keys = [self.secret, *getattr(self, "old_secrets", [])]
+        if not any(hmac.compare_digest(mac, self._ticket_mac(k, nonce, row["run_id"], p["tool"], p["mac"], p["exp"]))
+                   for k in keys):
+            raise TicketRefused("the ticket or its recorded pause was changed (the signature does not match)")
+        if time.time() > p["exp"]:
+            raise TicketRefused("the ticket expired; pause again to ask the person again")
+        try:
+            self.append(row["run_id"], "ticket_decided", nonce, {"decision": decision, "by": by})
+        except self._DUPLICATE:
+            raise TicketRefused("this ticket was already decided") from None
+        kind = "approval" if decision == "approve" else "denial"
+        self.append(row["run_id"], kind, f"{row['run_id']}\x00{p['tool']}",
+                    {"mac": p["mac"], "args": p["args"], "ticket": nonce, "by": by})
+        extra = {k: v for k, v in p.items() if k not in ("tool", "args", "mac", "exp")}
+        return {"run_id": row["run_id"], "tool": p["tool"], "args": p["args"], "decision": decision, "by": by, **extra}

@@ -16,7 +16,8 @@ S7 keys with NUL (approval keys use it as a separator) are stored without NUL an
 S8 `call4agents doubt` and `resolve` work on a shared record (postgresql:// address).
 S9 `call4agents verify` works on it and says that the storage check is left to PostgreSQL.
 S10 an address whose database has no run record is refused, and the commands create nothing there.
-S11 `call4agents archive` copies finished runs to a SQLite file and removes them; runs in doubt stay."""
+S11 `call4agents archive` copies finished runs to a SQLite file and removes them; runs in doubt stay.
+S12 an approval ticket issued on one machine is decided on another, and only once."""
 import json
 import os
 import subprocess
@@ -223,6 +224,20 @@ def main():
         created = c.execute("SELECT to_regclass('entries')").fetchone()[0]
     check("S10 an address with no run record is refused, and nothing is created",
           code == 1 and "no Call4Agents run record" in err and created is None, (code, err[-300:], created))
+
+    # S12
+    from call4agents.ledger import TicketRefused
+    a_machine, b_machine = _PL(dsn, secret=b"k" * 16), _PL(dsn, secret=b"k" * 16)
+    ticket = a_machine.issue_ticket("run-s12", "s.pay", {"amount": 10, "to": "alice"}, 60)
+    info = b_machine.decide_ticket(ticket, "approve", by="sam")
+    try:
+        a_machine.decide_ticket(ticket, "deny")
+        again = "accepted"
+    except TicketRefused as exc:
+        again = str(exc)
+    check("S12 a ticket issued on one machine is decided on another, once",
+          info["args"] == {"amount": 10, "to": "alice"} and "already decided" in again
+          and b_machine.approved("run-s12", "s.pay", {"amount": 10, "to": "alice"}), (info, again))
 
     # S7
     from call4agents.stores.postgres import _pg_in, _pg_out

@@ -23,13 +23,14 @@ from typing import Any, Callable, Dict, Optional
 
 from call4agents import codec as _codec
 from call4agents import replay as _replay
-from call4agents.ledger import Ledger, canonical, effect_key, intent_key
+from call4agents.ledger import Ledger, TicketRefused, canonical, effect_key, intent_key
 from call4agents.replay import ReplayMismatch, ReplayMissing, diff, recorded  # noqa: F401
 from call4agents.proof import prove  # noqa: F401  (module named proof: a 'prove' module would be hidden)
 
 __all__ = ["init", "run", "effect", "approve", "deny", "current_ledger", "idempotency_key", "idempotency_headers", "recorded", "diff", "prove",
-           "undo", "UndoFailed", "ReplayMismatch", "ReplayMissing", "ApprovalRequired", "EffectInDoubt", "Ledger"]
-__version__ = "0.3.0"
+           "undo", "UndoFailed", "ReplayMismatch", "ReplayMissing", "ApprovalRequired", "EffectInDoubt", "Ledger",
+           "pause", "decide", "TicketRefused"]
+__version__ = "0.4.0"
 
 _LEDGER: Optional[Ledger] = None
 _RUN: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("c4a_run", default=None)
@@ -106,6 +107,21 @@ def deny(tool: Any, **args: Any) -> str:
     """Record a "no" for this tool with exactly these arguments: earlier "yes" answers no longer count."""
     name, args = _tool_and_args(tool, args)
     return current_ledger().record_denial(current_run(), name, args)
+
+
+def pause(tool: Any, *, ttl: float = 86400.0, **args: Any) -> str:
+    """Experimental. Record that the current run waits for a person to decide on exactly this call, and
+    return a ticket to show them with the call. Only c4a.decide(ticket, ...) turns it into a "yes" or "no",
+    and only for these arguments: the ticket holds none, so nothing the client sends back can change them."""
+    name, args = _tool_and_args(tool, args)
+    return current_ledger().issue_ticket(current_run(), name, args, ttl)
+
+
+def decide(ticket: str, decision: str, *, by: str = "") -> Dict[str, Any]:
+    """Experimental. "approve" or "deny" the call a ticket was issued for, recording who decided.
+    Refused (TicketRefused) if this record did not issue the ticket, or it was changed, expired or already
+    decided. Returns the run, tool and arguments that were decided."""
+    return current_ledger().decide_ticket(ticket, decision, by=by)
 
 
 def _bound_args(fn: Callable, args: tuple, kwargs: dict, exclude: tuple = ()) -> Dict[str, Any]:

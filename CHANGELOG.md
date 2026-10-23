@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.4.0
+
+**New (experimental)**
+- **Approval tickets.** `c4a.pause(tool, **args)` records that a run waits for a person and returns a ticket;
+  `c4a.decide(ticket, "approve" | "deny", by=...)` records the decision for exactly that call. The ticket holds
+  no arguments (a random id and a MAC), so what may run is read from the record, never from the client. A ticket
+  the record did not issue, or one that was changed, expired or already decided, raises `TicketRefused`.
+  Pydantic AI bridge: `c4a_pai.tickets(result, tools)` and `c4a_pai.results(decisions)`. Checks T1-T10 (with the
+  real Pydantic AI in CI) and five mutations. Chosen because human approval is the most-asked-for area in the
+  agent frameworks' issues; the cases come from langchain#40491, pydantic-ai#6452 and pydantic-ai#6968.
+
+**Improved**
+- The on-call commands (`status`, `doubt`, `resolve`, `verify`, `archive`) take a `postgresql://` address too.
+  They refuse an address with no run record instead of creating one. `archive` copies finished runs to a SQLite
+  file, then removes them. Checks S8-S12.
+- The multi-machine record is labelled beta in the README.
+- README: a 15-line first example with its real output, and a "When something goes wrong" table.
+
 ## 0.3.0
 
 **New**

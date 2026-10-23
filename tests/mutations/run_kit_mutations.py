@@ -88,6 +88,17 @@ MUTATIONS = [
      "secret=_NO_SIGNING, create=True)", "tests.test_shared_record"),
     ("S11 archive moves runs in doubt (shared)", "call4agents/ops.py", "if t < cutoff and r not in open_runs]", "if t < cutoff]",
      "tests.test_shared_record"),
+    # --- T: approval tickets (experimental)
+    ("control (no-op)", LEDGER, "approval tickets (experimental)", "approval tickets (experimental)", "tests.test_tickets"),
+    ("T ticket signature not checked", LEDGER, "        if not any(hmac.compare_digest(mac, self._ticket_mac(",
+     "        if False and not any(hmac.compare_digest(mac, self._ticket_mac(", "tests.test_tickets"),
+    ("T a ticket decided twice", LEDGER, "CREATE UNIQUE INDEX IF NOT EXISTS one_decision", "CREATE INDEX IF NOT EXISTS one_decision",
+     "tests.test_tickets"),
+    ("T expiry ignored", LEDGER, 'if time.time() > p["exp"]:', "if False:", "tests.test_tickets"),
+    ("T deny recorded as a yes", LEDGER, 'kind = "approval" if decision == "approve" else "denial"', 'kind = "approval"',
+     "tests.test_tickets"),
+    ("T approval not checked when it runs", INIT, "elif not lg.use_approval(run_id, tool, call_args, k):", "elif False:",
+     "tests.test_tickets"),
     ("S9 verify on a shared record not handled", "call4agents/ops.py", "integrity = PG_INTEGRITY if _is_pg(path) else",
      "integrity = \"?\" if _is_pg(path) else", "tests.test_shared_record"),
 ]
@@ -99,7 +110,7 @@ def copy_tree(dst: Path) -> None:
     (dst / "tests" / "__init__.py").write_text("", encoding="utf-8")
     for f in ("test_c4a_kit.py", "c4a_codec_types.py", "c4a_k18_child.py", "c4a_prove_sample.py", "test_idempotency.py",
               "test_c4a_production.py", "test_undo.py", "c4a_undo_child.py", "test_adapters.py",
-              "test_shared_record.py"):
+              "test_shared_record.py", "test_tickets.py"):
         shutil.copy(ROOT / "tests" / f, dst / "tests" / f)
 
 
