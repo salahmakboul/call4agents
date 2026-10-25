@@ -120,7 +120,7 @@ should not approve actions.
 
 | Error | Meaning | What to do |
 |---|---|---|
-| `EffectInDoubt ... (crash during the effect)` | the process died while the action ran | `call4agents doubt`, check the outside system, `resolve` |
+| `EffectInDoubt ... (crash during the effect)` | the process died while the action ran | `call4agents doubt`, get an authoritative answer from the provider (a read that finds nothing can lag), `resolve` |
 | `EffectInDoubt ... (it raised TimeoutError(...))` | the function raised; the action may or may not have happened | same; or list errors that prove "nothing happened" in `retry_on=` |
 | `ApprovalRequired` | no unused "yes" for exactly these arguments in this run | ask the person again |
 | `RuntimeError: no current run` | called outside `with c4a.run(...)`, or in a thread that lost it | enter `c4a.run` in that thread |

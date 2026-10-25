@@ -16,7 +16,7 @@ replace any of them.
 - **Record, replay, diff.** Rerun a recorded run offline with zero model calls, and find the step where
   two runs (for example two models) begin to differ.
 
-Version 0.4, early. Standard library only, zero dependencies (PostgreSQL for several machines is an optional extra). Apache-2.0.
+Version 0.5, early. Standard library only, zero dependencies (PostgreSQL for several machines is an optional extra). Apache-2.0.
 
 ```python
 # pip install call4agents
@@ -257,7 +257,7 @@ added to it, never changed or deleted.
 - secret rotation, archiving, what the record stores, every error message and what to do;
 - a guide for whoever is on call.
 
-## Approval tickets (experimental, new in 0.4)
+## Approval tickets (experimental, new in 0.4; all three frameworks in 0.5)
 
 When your agent pauses for a person and resumes later, the approval travels through a UI, a queue or a saved
 state. Tickets make sure the "yes" that comes back belongs to a pause your server really made, for the exact
@@ -291,18 +291,48 @@ agent.run_sync(message_history=result.all_messages(), deferred_tool_results=resu
                conversation_id="order-42")
 ```
 
-Checks T1-T10 (`python -m tests.test_tickets`) cover a forged or edited ticket, a pause edited in the record, a
-ticket from another record, a second decision, expiry, a denied call that the framework runs anyway, a call with
-other arguments than the approved ones, and, with the real Pydantic AI, a client that edits the call in the
-message history before resuming. **Experimental:** no real user has tried it yet, and the API may change.
-Bridges for the OpenAI Agents SDK and LangGraph are not written yet.
+With the OpenAI Agents SDK (`needs_approval=True` tools):
+
+```python
+from call4agents.adapters import openai_agents as c4a_oa
+
+pay_fn = c4a_oa.effect(pay, approval=True)                  # keep this one: tickets() needs it
+agent = Agent(name="payer", tools=[function_tool(pay_fn, needs_approval=True)], ...)
+
+result = await Runner.run(agent, "pay alice 10", context={"session_id": "order-42"})
+tickets = c4a_oa.tickets(result, [pay_fn])                  # {call_id: ticket}
+state = c4a_oa.apply(result.to_state(), {ticket: "approve"}, by="sam")   # state.approve / state.reject
+await Runner.run(agent, state)
+```
+
+With LangGraph (the ticket goes in the interrupt; a node that re-runs on resume gets the same ticket back):
+
+```python
+from call4agents.adapters import langgraph as c4a_lg
+
+def ask(state, config):
+    ticket = c4a_lg.pause(pay, config, **state["call"])
+    interrupt({"call": state["call"], "ticket": ticket})
+
+# when the person answers:
+c4a.decide(ticket, "approve", by="sam")
+graph.invoke(Command(resume="decided"), config)
+```
+
+Checks T1-T13 (`python -m tests.test_tickets`) cover a forged or edited ticket, a pause edited in the record, a
+ticket from another record, a second decision, expiry, a denied call that the framework runs anyway, and a call
+with other arguments than the approved ones. With the real frameworks they cover, for each of Pydantic AI, the
+OpenAI Agents SDK and LangGraph: the approved call runs once, a denied call does not run, and a call that the
+client or the saved state changed after the pause does not run. (In the OpenAI Agents SDK, changed arguments
+under the same call id are already refused by the SDK itself; the check also covers a call replaced with a new
+id, which only the ticket catches.) **Experimental:** no real user has tried it yet, and the API may change.
 
 ## When something goes wrong
 
 | You see | What it means | What to do |
 |---|---|---|
 | `ApprovalRequired` | no unused "yes" for exactly these arguments (or a later "no") | ask the person, then `c4a.approve(...)` or `c4a.decide(ticket, ...)` |
-| `EffectInDoubt` | the process stopped during the action; nobody knows if it happened | check the outside system, then `call4agents resolve <record> <key> done\|not-done "what you checked"` |
+| `EffectInDoubt` | the process stopped during the action; nobody knows if it happened | get an authoritative answer from the provider (a read that finds nothing can lag), then `call4agents resolve <record> <key> done\|not-done "what you checked"` |
 | `TicketRefused` | the ticket was not issued here, or was changed, expired or already decided | pause again to ask the person again |
 | `LedgerError` | the record cannot be used safely (wrong file, newer format, network drive, missing secret) | the message says which; [docs/PRODUCTION.md](docs/PRODUCTION.md) lists every message |
 
@@ -376,8 +406,7 @@ next to every batch of mutations. Rerun them with `python -m tests.mutations.run
 - an independent code review;
 - frameworks other than the four with adapters (LangGraph, Pydantic AI, the OpenAI Agents SDK, MCP); the
   decorator itself works in any framework;
-- approval tickets with real users and real approval UIs (experimental), and ticket bridges for the OpenAI
-  Agents SDK and LangGraph (not written yet).
+- approval tickets with real users and real approval UIs (experimental: tested with fake models only).
 
 ## Costs and limits
 
@@ -397,7 +426,11 @@ next to every batch of mutations. Rerun them with `python -m tests.mutations.run
 - [docs/PRODUCTION.md](docs/PRODUCTION.md): costs, the big test, running it on call, every error message
 - [docs/IDEMPOTENCY.md](docs/IDEMPOTENCY.md): idempotency keys and the exact retry rule
 - [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md): what the approval secret protects, and what it does not
-- [CHANGELOG.md](CHANGELOG.md)
+- [CHANGELOG.md](CHANGELOG.md) and [ROADMAP.md](ROADMAP.md)
+- [CONTRIBUTING.md](CONTRIBUTING.md): how to run the checks and send a change
+- [SECURITY.md](SECURITY.md): report a vulnerability privately (we acknowledge within 7 days)
+- [docs/RELEASING.md](docs/RELEASING.md): how a release is made, and how a bad one is rolled back
+- Questions and ideas: [Discussions](https://github.com/salahmakboul/call4agents/discussions)
 
 ## Licence
 

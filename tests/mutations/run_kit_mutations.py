@@ -99,6 +99,10 @@ MUTATIONS = [
      "tests.test_tickets"),
     ("T approval not checked when it runs", INIT, "elif not lg.use_approval(run_id, tool, call_args, k):", "elif False:",
      "tests.test_tickets"),
+    ("T an open ticket is not reused", LEDGER,
+     'if decided is None or (decided["payload"]["decision"] == "approve" and unused):', "if False:", "tests.test_tickets"),
+    ("T OpenAI bridge approves whatever waits", "call4agents/adapters/openai_agents.py",
+     'item = waiting.get(info["call_id"])', "item = next(iter(waiting.values()), None)", "tests.test_tickets"),
     ("S9 verify on a shared record not handled", "call4agents/ops.py", "integrity = PG_INTEGRITY if _is_pg(path) else",
      "integrity = \"?\" if _is_pg(path) else", "tests.test_shared_record"),
 ]

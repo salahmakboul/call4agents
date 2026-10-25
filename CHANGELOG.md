@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.0
+
+**New (experimental)**
+- **Approval tickets for the OpenAI Agents SDK** (`c4a_oa.tickets(result, tools)`, `c4a_oa.apply(state, decisions)`)
+  **and LangGraph** (`c4a_lg.pause(tool, config, **args)`; the ticket goes in the `interrupt()` payload). Checks
+  T12 and T13 run them against the real frameworks.
+- **One open ticket per call.** Pausing the same call again while its ticket is open (not decided yet, or approved
+  and not used) returns the same ticket, so a LangGraph node that re-runs on resume does not leave a second request.
+  After the action ran, or after a "no", a new pause asks again (T11).
+
+**Project**
+- SECURITY.md (private reporting, acknowledged within 7 days), CONTRIBUTING.md, CODE_OF_CONDUCT.md, ROADMAP.md,
+  docs/RELEASING.md (how a release is made and how a bad one is rolled back), issue and pull-request templates.
+  GitHub Discussions and private vulnerability reporting are on.
+- Docs: "check the outside system" replaced by "get an authoritative answer from the provider": a read that finds
+  nothing can lag, so it is not proof that an action did not happen (thanks to the discussion in
+  openai-agents-python#5409).
+
 ## 0.4.0
 
 **New (experimental)**

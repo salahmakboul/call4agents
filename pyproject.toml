@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "call4agents"
-version = "0.4.0"
+version = "0.5.0"
 description = "Once-only actions, approvals bound to exact arguments, and record/replay for Python AI agents"
 requires-python = ">=3.10"
 readme = "README.md"

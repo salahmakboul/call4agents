@@ -30,7 +30,7 @@ from call4agents.proof import prove  # noqa: F401  (module named proof: a 'prove
 __all__ = ["init", "run", "effect", "approve", "deny", "current_ledger", "idempotency_key", "idempotency_headers", "recorded", "diff", "prove",
            "undo", "UndoFailed", "ReplayMismatch", "ReplayMissing", "ApprovalRequired", "EffectInDoubt", "Ledger",
            "pause", "decide", "TicketRefused"]
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 _LEDGER: Optional[Ledger] = None
 _RUN: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("c4a_run", default=None)

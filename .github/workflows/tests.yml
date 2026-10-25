@@ -99,8 +99,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: what the shared-record checks need (psycopg and a local PostgreSQL)
-        run: python -m pip install "psycopg[binary]" pgserver
+      - name: what the shared-record and ticket checks need (PostgreSQL, and the real frameworks)
+        run: python -m pip install "psycopg[binary]" pgserver pydantic-ai openai-agents openai langgraph langgraph-checkpoint-sqlite
       - run: python -m tests.mutations.run_kit_mutations
 
   leaks:

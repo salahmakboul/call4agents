@@ -59,3 +59,16 @@ def deny(tool: Any, config: Dict[str, Any], **args: Any) -> str:
     """Record the human's no for exactly these arguments, in this thread (cancels an earlier yes)."""
     with c4a.run(thread_id(config)):
         return c4a.deny(tool, **args)
+
+
+def pause(tool: Any, config: Optional[Dict[str, Any]] = None, *, ttl: float = 86400.0, **args: Any) -> str:
+    """Experimental. An approval ticket for exactly this call, in this thread. Put it in the interrupt
+    payload; the person's answer goes to c4a.decide(ticket, "approve" | "deny") before you resume. When the
+    node runs again on resume, the same undecided ticket comes back, so one decision answers it.
+
+        def ask(state, config):
+            ticket = c4a_lg.pause(pay, config, **state["call"])
+            interrupt({"call": state["call"], "ticket": ticket})
+    """
+    with c4a.run(thread_id(config)):
+        return c4a.pause(tool, ttl=ttl, **args)

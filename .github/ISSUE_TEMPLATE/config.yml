@@ -1,1 +1,8 @@
 blank_issues_enabled: true
+contact_links:
+  - name: Ask a question or share an idea
+    url: https://github.com/salahmakboul/call4agents/discussions
+    about: Questions, ideas and "how do I ..." are welcome in Discussions.
+  - name: Report a security problem privately
+    url: https://github.com/salahmakboul/call4agents/security/advisories/new
+    about: Please do not open a public issue for a vulnerability (see SECURITY.md).

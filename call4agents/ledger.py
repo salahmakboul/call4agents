@@ -347,8 +347,24 @@ class Ledger:
         """Record a pause for a person to decide on exactly (tool, args), and return a ticket to show them.
         The ticket holds no arguments: only a random id and a MAC. What may run is read from THIS record
         when the decision comes back, never from what the client sends."""
-        nonce = secrets.token_hex(12)
         approval_mac = self.sign(tool, args)
+        # The same call paused again while its ticket is still open (a LangGraph node re-runs from the top on
+        # resume): give back the same ticket, so one person's decision answers it (T11). Open = not decided
+        # yet, or approved and the action has not used the "yes". After a "no", or once the action ran, a new
+        # pause asks again with a new ticket.
+        rows = self.entries(run_id)
+        for e in rows:
+            p = e["payload"] or {}
+            if (e["kind"] == "pause" and p.get("tool") == tool and p.get("mac") == approval_mac
+                    and p.get("exp", 0) > time.time()
+                    and {k: v for k, v in p.items() if k not in ("tool", "args", "mac", "exp")} == (extra or {})):
+                old = e["key"].split("\x00", 1)[1]
+                decided = self.latest("ticket_decided", old)
+                yes = [r["seq"] for r in rows if r["kind"] == "approval" and (r["payload"] or {}).get("ticket") == old]
+                unused = yes and not self.count("approval_used", f"{run_id}\x00{tool}\x00{yes[0]}")
+                if decided is None or (decided["payload"]["decision"] == "approve" and unused):
+                    return f"c4a1.{old}.{self._ticket_mac(self.secret, old, run_id, tool, approval_mac, p['exp'])}"
+        nonce = secrets.token_hex(12)
         exp = round(time.time() + ttl, 3)
         self.append(run_id, "pause", f"ticket\x00{nonce}",
                     {"tool": tool, "args": args, "mac": approval_mac, "exp": exp, **(extra or {})})
