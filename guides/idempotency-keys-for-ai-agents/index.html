@@ -19,7 +19,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="https://salahmakboul.github.io/call4agents/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="https://salahmakboul.github.io/call4agents/assets/site.css">
-<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "Idempotency keys for AI agent tool calls", "description": "Give an agent's API calls an idempotency key that stays the same across crashes and retries, so Stripe-style APIs drop the duplicate.", "url": "https://salahmakboul.github.io/call4agents/guides/idempotency-keys-for-ai-agents/", "dateModified": "2026-10-23", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Guides", "item": "https://salahmakboul.github.io/call4agents/guides/"}, {"@type": "ListItem", "position": 3, "name": "Idempotency keys for AI agent tool calls", "item": "https://salahmakboul.github.io/call4agents/guides/idempotency-keys-for-ai-agents/"}]}]</script>
+<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "Idempotency keys for AI agent tool calls", "description": "Give an agent's API calls an idempotency key that stays the same across crashes and retries, so Stripe-style APIs drop the duplicate.", "url": "https://salahmakboul.github.io/call4agents/guides/idempotency-keys-for-ai-agents/", "dateModified": "2026-10-25", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Guides", "item": "https://salahmakboul.github.io/call4agents/guides/"}, {"@type": "ListItem", "position": 3, "name": "Idempotency keys for AI agent tool calls", "item": "https://salahmakboul.github.io/call4agents/guides/idempotency-keys-for-ai-agents/"}]}]</script>
 </head>
 <body>
 <header class="container">
@@ -39,7 +39,7 @@ action: the same order and the same arguments give the same key.</p>
 <h2>Keys expire</h2>
 <p>APIs keep keys for a limited time. Stripe documents that keys are kept for at least 24 hours. A retry after the
 key is forgotten is a new request again. So "retry with the same key" is only safe within the key's lifetime;
-after that, check the outside system first.</p>
+after that, the outcome is unknown: get an authoritative answer from the provider, or ask a person.</p>
 
 <h2>A stable key from a run record</h2>
 <pre><code>import call4agents as c4a

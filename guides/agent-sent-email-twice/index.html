@@ -19,7 +19,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="https://salahmakboul.github.io/call4agents/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="https://salahmakboul.github.io/call4agents/assets/site.css">
-<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "Why your AI agent sent the email twice, and how to stop it", "description": "An agent crashes, retries or resumes right after a tool ran, and the tool runs again. Why it happens, and three honest ways to fix it in Python.", "url": "https://salahmakboul.github.io/call4agents/guides/agent-sent-email-twice/", "dateModified": "2026-10-23", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Guides", "item": "https://salahmakboul.github.io/call4agents/guides/"}, {"@type": "ListItem", "position": 3, "name": "Why your AI agent sent the email twice, and how to stop it", "item": "https://salahmakboul.github.io/call4agents/guides/agent-sent-email-twice/"}]}]</script>
+<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "Why your AI agent sent the email twice, and how to stop it", "description": "An agent crashes, retries or resumes right after a tool ran, and the tool runs again. Why it happens, and three honest ways to fix it in Python.", "url": "https://salahmakboul.github.io/call4agents/guides/agent-sent-email-twice/", "dateModified": "2026-10-25", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Guides", "item": "https://salahmakboul.github.io/call4agents/guides/"}, {"@type": "ListItem", "position": 3, "name": "Why your AI agent sent the email twice, and how to stop it", "item": "https://salahmakboul.github.io/call4agents/guides/agent-sent-email-twice/"}]}]</script>
 </head>
 <body>
 <header class="container">
@@ -55,7 +55,8 @@ run and the action.</p>
 <h3>2. Write down the intent before acting, and the result after</h3>
 <p>Keep a small log: write "about to send email to bob" before the call and "done, result X" after. On resume, a
 finished action returns the stored result instead of running. An action with an intent but no result is <em>in
-doubt</em>: check the outside system (or ask a person) instead of guessing.</p>
+doubt</em>: do not run it again automatically. Ask the provider for an authoritative answer (or ask a person);
+a read that finds nothing is not proof, because it can lag and the first request can still settle.</p>
 <h3>3. Move the side effect to a place that does not re-run</h3>
 <p>Some frameworks re-run specific code on resume (for example, LangGraph restarts the node that called
 <code>interrupt()</code>). Putting the side effect after that point avoids one of the causes, but not crashes.</p>

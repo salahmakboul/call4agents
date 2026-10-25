@@ -19,7 +19,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="https://salahmakboul.github.io/call4agents/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="https://salahmakboul.github.io/call4agents/assets/site.css">
-<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "Pydantic AI: crash-safe tools and deferred approvals", "description": "Pydantic AI continues an approved run as a new run with the saved message history. How to keep the tool from acting twice if the process stops in between.", "url": "https://salahmakboul.github.io/call4agents/guides/pydantic-ai-deferred-tools-crash-safe/", "dateModified": "2026-10-23", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Guides", "item": "https://salahmakboul.github.io/call4agents/guides/"}, {"@type": "ListItem", "position": 3, "name": "Pydantic AI: crash-safe tools and deferred approvals", "item": "https://salahmakboul.github.io/call4agents/guides/pydantic-ai-deferred-tools-crash-safe/"}]}]</script>
+<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "Pydantic AI: crash-safe tools and deferred approvals", "description": "Pydantic AI continues an approved run as a new run with the saved message history. How to keep the tool from acting twice if the process stops in between.", "url": "https://salahmakboul.github.io/call4agents/guides/pydantic-ai-deferred-tools-crash-safe/", "dateModified": "2026-10-25", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Guides", "item": "https://salahmakboul.github.io/call4agents/guides/"}, {"@type": "ListItem", "position": 3, "name": "Pydantic AI: crash-safe tools and deferred approvals", "item": "https://salahmakboul.github.io/call4agents/guides/pydantic-ai-deferred-tools-crash-safe/"}]}]</script>
 </head>
 <body>
 <header class="container">
@@ -59,8 +59,10 @@ agent.run_sync(&quot;email bob&quot;, conversation_id=&quot;order-42&quot;)   # 
 <pre><code>pip install call4agents pydantic-ai
 python -m call4agents.examples.pydantic_ai_tool   # prints {&#x27;emails_sent&#x27;: 1}</code></pre>
 <h2>Without a library</h2>
-<p>Store the new message history <em>before</em> doing anything else after the run, make the tool check the
-outside system first ("does this order already have a charge?"), or pass an idempotency key to the API.</p>
+<p>Store the new message history <em>before</em> doing anything else after the run, and pass an idempotency key
+that the provider enforces. Without one, treat an approved call that may have run as unknown, not as safe to
+replay: a check that finds no charge is not proof, because reads can lag and the first request can still settle
+(thanks to the discussion in <a href="https://github.com/openai/openai-agents-python/issues/5409">openai-agents-python #5409</a>).</p>
 <p>A good key is already there: on resume the tool gets the same <code>ctx.tool_call_id</code> as the first time,
 also when Pydantic AI generated the id itself. Passed as the idempotency key to an API that drops repeated keys,
 it stopped the second payment in each of our 3 runs (pydantic-ai 2.59.0). The tool body itself still ran twice,
