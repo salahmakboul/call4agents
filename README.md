@@ -334,6 +334,7 @@ id, which only the ticket catches.) **Experimental:** no real user has tried it 
 | `ApprovalRequired` | no unused "yes" for exactly these arguments (or a later "no") | ask the person, then `c4a.approve(...)` or `c4a.decide(ticket, ...)` |
 | `EffectInDoubt` | the process stopped during the action; nobody knows if it happened | get an authoritative answer from the provider (a read that finds nothing can lag), then `call4agents resolve <record> <key> done\|not-done "what you checked"` |
 | `TicketRefused` | the ticket was not issued here, or was changed, expired or already decided | pause again to ask the person again |
+| `KeyConflict` | a `c4a_key` (or `key=`) that already names one call was used with arguments that mean something else; nothing ran | use a new key for a different action |
 | `LedgerError` | the record cannot be used safely (wrong file, newer format, network drive, missing secret) | the message says which; [docs/PRODUCTION.md](docs/PRODUCTION.md) lists every message |
 
 Still stuck? `call4agents report` prints your versions and a link to the issue form. It sends nothing.
@@ -417,7 +418,8 @@ next to every batch of mutations. Rerun them with `python -m tests.mutations.run
 - Replaying a recorded run that contains approval-gated actions needs the approvals again in the
   new run record (`c4a.approve(...)` before the replayed call).
 - If the model rewrites the arguments on a retry (`10` becomes `10.00`), the call is treated as a new
-  action. Pass `c4a_key=` (for example, an order id) when that can happen.
+  action. Pass `c4a_key=` (for example, an order id) when that can happen. A key names one action: calling it again with arguments that mean something else raises `KeyConflict`
+  and nothing runs (numbers are compared by value, so 10, 10.0 and Decimal("10.00") are the same amount).
 - The secret in `.c4a/secret` protects approvals from anyone who cannot read that file. It does not
   protect them from someone who can (see [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md)).
 

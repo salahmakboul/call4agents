@@ -17,6 +17,7 @@ import contextlib
 import contextvars
 import functools
 import inspect
+import json
 import time
 import warnings
 from typing import Any, Callable, Dict, Optional
@@ -29,7 +30,7 @@ from call4agents.proof import prove  # noqa: F401  (module named proof: a 'prove
 
 __all__ = ["init", "run", "effect", "approve", "deny", "current_ledger", "idempotency_key", "idempotency_headers", "recorded", "diff", "prove",
            "undo", "UndoFailed", "ReplayMismatch", "ReplayMissing", "ApprovalRequired", "EffectInDoubt", "Ledger",
-           "pause", "decide", "TicketRefused"]
+           "pause", "decide", "TicketRefused", "KeyConflict"]
 __version__ = "0.5.0"
 
 _LEDGER: Optional[Ledger] = None
@@ -62,6 +63,45 @@ class EffectInDoubt(Exception):
         super().__init__(f"{tool}{canonical(args)} may already have run ({why}); "
                          "pass reconcile= to check the outside world, or resolve it by hand")
         self.tool, self.call_args = tool, args
+
+
+class KeyConflict(ValueError):
+    """A named action (c4a_key= or key=) was called again with arguments that mean something else.
+    Nothing ran: an explicit key names ONE action, like an idempotency key at a payment API."""
+
+    def __init__(self, tool: str, name: str, recorded: Any, new: Dict[str, Any]) -> None:
+        super().__init__(f"{tool}: the key {name!r} already names the call {canonical(recorded)}, not "
+                         f"{canonical(new)}. Nothing ran. Use a new key for a different action.")
+        self.tool, self.key, self.recorded, self.call_args = tool, name, recorded, new
+
+
+def _number(v: Any) -> Any:
+    """A number's value, from an int, a float, or the text a Decimal is recorded as; None if not a number."""
+    import decimal
+    if isinstance(v, bool):
+        return None
+    if isinstance(v, (int, float)):
+        return decimal.Decimal(str(v))
+    if isinstance(v, str):
+        try:
+            d = decimal.Decimal(v.strip())
+        except decimal.InvalidOperation:
+            return None
+        return d if d.is_finite() else None
+    return None
+
+
+def _same_args(a: Any, b: Any) -> bool:
+    """Same meaning: equal, with numbers compared by value (10, 10.0 and Decimal("10.00") are the same amount),
+    which is the case c4a_key exists for: a model that rewrites 10 as 10.00 on a retry."""
+    if isinstance(a, dict) and isinstance(b, dict):
+        return a.keys() == b.keys() and all(_same_args(a[x], b[x]) for x in a)
+    if isinstance(a, list) and isinstance(b, list):
+        return len(a) == len(b) and all(_same_args(x, y) for x, y in zip(a, b))
+    na, nb = _number(a), _number(b)
+    if na is not None and nb is not None and (not isinstance(a, str) or not isinstance(b, str)):
+        return na == nb
+    return a == b
 
 
 def init(path: str = ".c4a/ledger.sqlite", secret: Optional[bytes] = None,
@@ -232,6 +272,13 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
         def check(call_args: Dict[str, Any], explicit: Optional[str]) -> Dict[str, Any]:
             lg, run_id = current_ledger(), current_run()
             k = base_key(run_id, call_args, explicit)
+            if (explicit is not None or key is not None) and _replay.SOURCE is None:
+                # A named action (c4a_key= or key=) reused with arguments that mean something else is a
+                # conflict, not a cache hit: the caller must not get another call's result (K21, issue #1).
+                first = lg.latest("tool_intent", intent_key(k, 1))
+                if first is not None and not _same_args(first["payload"]["args"], json.loads(canonical(call_args))):
+                    named = explicit if explicit is not None else str(key(**call_args))
+                    raise KeyConflict(tool, named, first["payload"]["args"], call_args)
             if approval and _replay.SOURCE is not None:
                 if not lg.approved(run_id, tool, call_args):
                     raise ApprovalRequired(tool, call_args)

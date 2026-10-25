@@ -574,6 +574,39 @@ def main():
     check("K6b demo: changed payment refused, approved one paid once",
           a["changed_payment"].startswith("REFUSED") and a["approved_payment"].startswith("PAID") and a["payments"] == 1, a)
 
+    # K21 a named action (c4a_key= or key=) reused with other arguments is a conflict, not a cache hit (issue #1)
+    import decimal
+    fresh()
+    k21 = []
+
+    @c4a.effect(name="k21.pay")
+    def k21_pay(amount):
+        k21.append(amount)
+        return f"paid {amount}"
+
+    @c4a.effect(name="k21.charge", key=lambda order, amount: order)
+    def k21_charge(order, amount):
+        k21.append((order, amount))
+        return f"charged {amount}"
+
+    def conflict(fn, *args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except c4a.KeyConflict as exc:
+            return f"conflict: {exc}"
+
+    with c4a.run("k21"):
+        first = k21_pay(10, c4a_key="order-7")
+        same = [conflict(k21_pay, v, c4a_key="order-7") for v in (10, 10.0, decimal.Decimal("10.00"))]
+        other = conflict(k21_pay, 20, c4a_key="order-7")
+        k21_charge("o-9", 5)
+        other_fn = conflict(k21_charge, "o-9", 6)
+    check("K21 the same key with the same amount (10, 10.0, Decimal 10.00) returns the recorded result",
+          first == "paid 10" and same == ["paid 10"] * 3, same)
+    check("K21 the same key with another amount is a conflict and nothing runs",
+          other.startswith("conflict:") and "order-7" in other and k21.count(10) == 1 and 20 not in k21, (other, k21))
+    check("K21 the same for a key= function", other_fn.startswith("conflict:") and ("o-9", 6) not in k21, other_fn)
+
     # K7 the core imports only the standard library
     import ast
     std = set(sys.stdlib_module_names)

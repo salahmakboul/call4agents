@@ -35,6 +35,11 @@ MUTATIONS = [
     ("K18 async wait blocks the loop", INIT,
      "plan = await asyncio.to_thread(contextvars.copy_context().run, check, call_args, explicit)",
      "plan = check(call_args, explicit)", "tests.test_c4a_kit"),
+    # --- K21: a named action reused with other arguments is a conflict (issue #1)
+    ("K21 a reused key returns another call's result", INIT,
+     "if first is not None and not _same_args(first", "if False and first is not None and not _same_args(first",
+     "tests.test_c4a_kit"),
+    ("K21 numbers compared as text", INIT, "        return na == nb" + chr(10), "        return a == b" + chr(10), "tests.test_c4a_kit"),
     # --- K19: a record cannot make the codec call a function
     ("K19 codec calls whatever is named", "call4agents/codec.py", "    if not isinstance(obj, type):" + chr(10),
      "    return obj" + chr(10) + "    if not isinstance(obj, type):" + chr(10), "tests.test_c4a_kit"),

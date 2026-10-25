@@ -10,6 +10,13 @@
   and not used) returns the same ticket, so a LangGraph node that re-runs on resume does not leave a second request.
   After the action ran, or after a "no", a new pause asks again (T11).
 
+**Fixed**
+- **A named action reused with other arguments is a conflict** (issue #1, reported by @krivonosoff161). Calling an
+  effect again with the same `c4a_key` (or `key=`) but arguments that mean something else returned the first call's
+  result silently: nothing ran twice, but the caller was told the new call succeeded. It now raises `KeyConflict`
+  and nothing runs. The same key with the same arguments still returns the recorded result; numbers are compared
+  by value (10, 10.0 and Decimal("10.00") are the same amount). Check K21 and two mutations.
+
 **Project**
 - SECURITY.md (private reporting, acknowledged within 7 days), CONTRIBUTING.md, CODE_OF_CONDUCT.md, ROADMAP.md,
   docs/RELEASING.md (how a release is made and how a bad one is rolled back), issue and pull-request templates.

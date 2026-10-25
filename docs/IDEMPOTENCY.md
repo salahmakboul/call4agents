@@ -33,6 +33,8 @@ with c4a.run("order-42"):                      # the id your framework resumes w
   the same run gives the same key. A different amount, a different recipient or a different run gives a
   different key.
 - With `c4a_key="..."` at call time (or `key=` on the decorator), you choose the key yourself.
+  A key names one action: calling it again with arguments that mean something else raises `KeyConflict`
+  and nothing runs (numbers are compared by value, so 10, 10.0 and Decimal("10.00") are the same amount).
 
 ## The exact rule
 
