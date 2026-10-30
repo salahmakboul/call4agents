@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="940" height="456" viewBox="0 0 940 456" role="img"
+ aria-label="call4agents incident: a double payment, a changed call and an ignored no. Without call4agents they all happen; with it, none do.">
+<title>call4agents incident: three approval incidents</title>
+<style>
+text{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:14.5px;white-space:pre}
+.l0{animation:a0 22.0s linear infinite}@keyframes a0{0%,2.7%{opacity:0}4.2%,96%{opacity:1}100%{opacity:0}}.l1{animation:a1 22.0s linear infinite}@keyframes a1{0%,6.8%{opacity:0}8.3%,96%{opacity:1}100%{opacity:0}}.l2{animation:a2 22.0s linear infinite}@keyframes a2{0%,10.9%{opacity:0}12.4%,96%{opacity:1}100%{opacity:0}}.l3{animation:a3 22.0s linear infinite}@keyframes a3{0%,15.0%{opacity:0}16.5%,96%{opacity:1}100%{opacity:0}}.l4{animation:a4 22.0s linear infinite}@keyframes a4{0%,19.1%{opacity:0}20.6%,96%{opacity:1}100%{opacity:0}}.l5{animation:a5 22.0s linear infinite}@keyframes a5{0%,23.2%{opacity:0}24.7%,96%{opacity:1}100%{opacity:0}}.l6{animation:a6 22.0s linear infinite}@keyframes a6{0%,27.3%{opacity:0}28.8%,96%{opacity:1}100%{opacity:0}}.l7{animation:a7 22.0s linear infinite}@keyframes a7{0%,31.4%{opacity:0}32.9%,96%{opacity:1}100%{opacity:0}}.l8{animation:a8 22.0s linear infinite}@keyframes a8{0%,35.5%{opacity:0}37.0%,96%{opacity:1}100%{opacity:0}}.l9{animation:a9 22.0s linear infinite}@keyframes a9{0%,39.5%{opacity:0}41.0%,96%{opacity:1}100%{opacity:0}}.l10{animation:a10 22.0s linear infinite}@keyframes a10{0%,43.6%{opacity:0}45.1%,96%{opacity:1}100%{opacity:0}}.l11{animation:a11 22.0s linear infinite}@keyframes a11{0%,47.7%{opacity:0}49.2%,96%{opacity:1}100%{opacity:0}}.l12{animation:a12 22.0s linear infinite}@keyframes a12{0%,51.8%{opacity:0}53.3%,96%{opacity:1}100%{opacity:0}}.l13{animation:a13 22.0s linear infinite}@keyframes a13{0%,55.9%{opacity:0}57.4%,96%{opacity:1}100%{opacity:0}}.l14{animation:a14 22.0s linear infinite}@keyframes a14{0%,60.0%{opacity:0}61.5%,96%{opacity:1}100%{opacity:0}}.l15{animation:a15 22.0s linear infinite}@keyframes a15{0%,64.1%{opacity:0}65.6%,96%{opacity:1}100%{opacity:0}}.l16{animation:a16 22.0s linear infinite}@keyframes a16{0%,68.2%{opacity:0}69.7%,96%{opacity:1}100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){text{animation:none!important;opacity:1!important}}
+</style>
+<rect width="100%" height="100%" rx="10" fill="#141a20"/>
+<circle cx="22" cy="20" r="6" fill="#ff5f57"/><circle cx="42" cy="20" r="6" fill="#febc2e"/><circle cx="62" cy="20" r="6" fill="#28c840"/>
+<text x="84" y="25" fill="#8b98a5" style="font-size:13px">Three approval incidents, without and with Call4Agents (real output, no API keys)</text>
+<text class="l0" x="22" y="58" fill="#f2c14e">$ call4agents incident</text>
+<text class="l1" x="22" y="80" fill="#f2c14e">Incident 1. The double payment</text>
+<text class="l2" x="22" y="102" fill="#d7dde4">  A person approves pay(10, alice). The bank charges. The process dies before saving. It resumes.</text>
+<text class="l3" x="22" y="124" fill="#ff6b6b">  without Call4Agents    charges: 2  paid: 10 to alice, 10 to alice</text>
+<text class="l4" x="22" y="146" fill="#4cd38a">  with Call4Agents       charges: 1  paid: 10 to alice</text>
+<text class="l5" x="22" y="168" fill="#d7dde4">  The same, but the process dies inside the call, so nobody knows if it finished:</text>
+<text class="l6" x="22" y="190" fill="#ff6b6b">  without Call4Agents    charges: 2  paid: 10 to alice, 10 to alice</text>
+<text class="l7" x="22" y="212" fill="#4cd38a">  with Call4Agents       charges: 1  paid: 10 to alice (stopped: in doubt, a person must check)</text>
+<text class="l8" x="22" y="234" fill="#f2c14e">Incident 2. The changed call</text>
+<text class="l9" x="22" y="256" fill="#d7dde4">  A person approves pay(10, alice). The saved call is changed to pay(9999, mallory) before it runs.</text>
+<text class="l10" x="22" y="278" fill="#ff6b6b">  without Call4Agents    charges: 1  paid: 9999 to mallory</text>
+<text class="l11" x="22" y="300" fill="#4cd38a">  with Call4Agents       charges: 0  paid: nothing (refused: no yes for this exact call)</text>
+<text class="l12" x="22" y="322" fill="#f2c14e">Incident 3. The ignored no</text>
+<text class="l13" x="22" y="344" fill="#d7dde4">  A person says no to pay(10, alice). A bug in the agent loop runs the call anyway.</text>
+<text class="l14" x="22" y="366" fill="#ff6b6b">  without Call4Agents    charges: 1  paid: 10 to alice</text>
+<text class="l15" x="22" y="388" fill="#4cd38a">  with Call4Agents       charges: 0  paid: nothing (refused: no yes for this exact call)</text>
+<text class="l16" x="22" y="410" fill="#d7dde4">The processes and crashes are real; the bank and the agent loop are small local stand-ins.</text>
+</svg>

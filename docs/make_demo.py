@@ -9,11 +9,17 @@ import html
 import sys
 from pathlib import Path
 
-CYCLE = 16.0             # seconds per loop
+CYCLE = 22.0             # seconds per loop
 STEP = 0.9               # seconds between lines
 
 
 def colour(line: str) -> str:
+    if line.lstrip().startswith("without Call4Agents"):
+        return "#ff6b6b"
+    if line.lstrip().startswith("with Call4Agents"):
+        return "#4cd38a"
+    if line.startswith("Incident"):
+        return "#f2c14e"
     if "without" in line and ("emails sent: 2" in line or "2 emails" in line):
         return "#ff6b6b"
     if "REFUSED" in line or "with call4agents 1" in line or "emails sent: 1" in line:
@@ -54,6 +60,15 @@ if __name__ == "__main__":
     raw = Path(sys.argv[1]).read_text(encoding="utf-8").splitlines()
     keep = [l.rstrip() for l in raw if l.strip() and not l.startswith("call4agents quickstart")]
     keep = [l.split("  Next:")[0] for l in keep]
-    out = Path(__file__).with_name("demo.svg")
-    out.write_text(build(keep), encoding="utf-8")
+    incident = len(sys.argv) > 2 and sys.argv[2] == "--incident"
+    out = Path(__file__).with_name("incident.svg" if incident else "demo.svg")
+    svg = build(keep)
+    if incident:              # the same terminal, for `call4agents incident`
+        CAPTION = "An agent crashes right after sending an email, then resumes (real output, fake models, no API keys)"
+        svg = (svg.replace("$ pip install call4agents &amp;&amp; call4agents quickstart", "$ call4agents incident")
+               .replace(CAPTION, "Three approval incidents, without and with Call4Agents (real output, no API keys)")
+               .replace("call4agents quickstart: an agent crashes right after sending an email, then resumes. Without call4agents 2 emails are sent; with it, 1.",
+                        "call4agents incident: a double payment, a changed call and an ignored no. Without call4agents they all happen; with it, none do.")
+               .replace("call4agents quickstart: without the kit 2 emails, with it 1", "call4agents incident: three approval incidents"))
+    out.write_text(svg, encoding="utf-8")
     print(f"wrote {out} ({len(keep)} lines)")

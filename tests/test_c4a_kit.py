@@ -686,6 +686,16 @@ def main():
     check("K22 two threads without approval: one runs, the other gets a conflict, not the winner's result",
           out == {"a": "KeyConflict", "b": "sent 2"} and k22 == [("send", 2)], (out, k22))
 
+    # K23 `call4agents incident`: the numbers shown to people come from a real run
+    from call4agents.examples.approval_incident import run_all
+    inc = run_all()
+    charges = {name: (len(r["without"]["charges"]), len(r["with"]["charges"])) for name, r in inc.items()}
+    check("K23 incident demo: 2 charges without, 1 with; a changed call or a no pays nothing with the kit",
+          charges == {"double_payment": (2, 1), "crash_inside": (2, 1), "changed_call": (1, 0), "ignored_no": (1, 0)}
+          and inc["changed_call"]["without"]["charges"] == ["9999 mallory"]
+          and inc["crash_inside"]["with"]["stopped"] == "EffectInDoubt"
+          and inc["ignored_no"]["with"]["stopped"] == "ApprovalRequired", charges)
+
     # K7 the core imports only the standard library
     import ast
     std = set(sys.stdlib_module_names)

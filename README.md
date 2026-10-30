@@ -59,6 +59,18 @@ With the real frameworks, on all three systems with Python 3.12: LangGraph (+ La
 the OpenAI Agents SDK and the MCP Python SDK. CI installs the latest release of each, and each run prints
 the exact versions with `call4agents doctor`.
 
+## See three incidents in five seconds
+
+```bash
+pip install call4agents
+call4agents incident
+```
+
+![call4agents incident: a double payment, a changed call and an ignored no. Without Call4Agents they all happen; with it, none do.](docs/incident.svg)
+
+Each incident runs in real processes with real crashes, once without the kit and once with it. The bank and the
+agent loop are small local stand-ins; `call4agents quickstart` below shows the crash in the real frameworks.
+
 ## Try it (under a minute, offline, no API keys)
 
 ```bash
@@ -234,6 +246,7 @@ added to it, never changed or deleted.
 | Command | What it does |
 |---|---|
 | `call4agents quickstart` | the demo plus a crash and resume in each installed framework |
+| `call4agents incident` | three approval incidents, without and with the kit |
 | `call4agents demo` | the plain-Python demo only |
 | `call4agents selftest` | the kit's checks (in a repository checkout, the full offline suites) |
 | `call4agents doctor` | system and framework versions for a bug report; prints only, sends nothing |

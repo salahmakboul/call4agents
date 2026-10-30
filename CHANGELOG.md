@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.3
+
+**New**
+- `call4agents incident`: three approval incidents in a few seconds, each without and with the kit: a double
+  payment, a changed call, and a "no" that a buggy agent loop ignores. Real processes and real crashes; the bank and
+  the agent loop are small local stand-ins. Animated in the README. Check K23 keeps its numbers honest.
+
 ## 0.5.2
 
 **Fixed**
