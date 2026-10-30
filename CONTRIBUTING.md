@@ -21,6 +21,7 @@ python -m tests.test_c4a_production
 python -m tests.test_idempotency
 python -m tests.test_undo
 python -m tests.test_tickets
+python -m tests.test_crash_matrix      # kills a real process at every write (several minutes)
 ```
 
 Optional suites need more:

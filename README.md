@@ -397,6 +397,8 @@ A dash means the case was not tested in that framework.
   300 orders through a payment API that drops and delays answers. The result is 0 double charges.
   Without the kit, the same run charges 244 of 300 orders twice or more;
 - an action resumed in 3 new processes, as a method with a set argument, runs once;
+- a real process killed before and after every write to the record and inside the action, then the recovery
+  killed too (`python -m tests.test_crash_matrix`, 412 crashes): no double charge and no unapproved payment;
 - 14 simultaneous callers of one action: it runs once;
 - 8 simultaneous actions on one "yes": exactly one runs;
 - 3,000 of 3,000 records from 20 parallel writers;

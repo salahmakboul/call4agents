@@ -89,6 +89,8 @@ jobs:
       - name: install the kit with the postgres extra, and a throwaway local PostgreSQL (pgserver)
         run: python -m pip install ".[postgres]" pgserver
       - run: python -m tests.test_shared_record
+      - name: crash at every write, and crash the recovery too
+        run: python -m tests.test_crash_matrix
 
   mutations:
     name: bug re-insertion checks
