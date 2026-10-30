@@ -19,7 +19,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="https://salahmakboul.github.io/call4agents/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="https://salahmakboul.github.io/call4agents/assets/site.css">
-<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "Pydantic AI: crash-safe tools and deferred approvals", "description": "Pydantic AI continues an approved run as a new run with the saved message history. How to keep the tool from acting twice if the process stops in between.", "url": "https://salahmakboul.github.io/call4agents/guides/pydantic-ai-deferred-tools-crash-safe/", "dateModified": "2026-10-25", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Guides", "item": "https://salahmakboul.github.io/call4agents/guides/"}, {"@type": "ListItem", "position": 3, "name": "Pydantic AI: crash-safe tools and deferred approvals", "item": "https://salahmakboul.github.io/call4agents/guides/pydantic-ai-deferred-tools-crash-safe/"}]}]</script>
+<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "Pydantic AI: crash-safe tools and deferred approvals", "description": "Pydantic AI continues an approved run as a new run with the saved message history. How to keep the tool from acting twice if the process stops in between.", "url": "https://salahmakboul.github.io/call4agents/guides/pydantic-ai-deferred-tools-crash-safe/", "dateModified": "2026-10-30", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Guides", "item": "https://salahmakboul.github.io/call4agents/guides/"}, {"@type": "ListItem", "position": 3, "name": "Pydantic AI: crash-safe tools and deferred approvals", "item": "https://salahmakboul.github.io/call4agents/guides/pydantic-ai-deferred-tools-crash-safe/"}]}]</script>
 </head>
 <body>
 <header class="container">
@@ -66,12 +66,16 @@ replay: a check that finds no charge is not proof, because reads can lag and the
 <p>A good key is already there: on resume the tool gets the same <code>ctx.tool_call_id</code> as the first time,
 also when Pydantic AI generated the id itself. Passed as the idempotency key to an API that drops repeated keys,
 it stopped the second payment in each of our 3 runs (pydantic-ai 2.59.0). The tool body itself still ran twice,
-so anything in it that the key does not cover, such as an email, still happens twice. Thanks to
-@sattyamj-attri, who pointed this out in
+so anything in it that the key does not cover, such as an email, still happens twice.</p>
+<p>Scope the key to your own operation. A tool call id alone is not a global key: when two operations used the
+same id against one shared sink, the second was wrongly dropped as a duplicate. Create an operation id before the
+first attempt, store it, and pass the same one on every resume, for example through <code>deps</code>. Thanks to
+@sattyamj-attri and @potatohoney-p, who worked this out in
 <a href="https://github.com/pydantic/pydantic-ai/issues/10926">pydantic-ai issue #10926</a>.</p>
 <pre><code>@agent.tool(requires_approval=True)
 def pay(ctx: RunContext[None], amount: int, to: str) -&gt; str:
-    return payments.charge(amount, to, idempotency_key=ctx.tool_call_id)</code></pre>
+    key = sha256(json.dumps([ctx.deps.operation_id, ctx.tool_name, ctx.tool_call_id]).encode()).hexdigest()
+    return payments.charge(amount, to, idempotency_key=key)</code></pre>
 </article>
 <section><h2>Related guides</h2><ul><li><a href="https://salahmakboul.github.io/call4agents/guides/human-approval-bound-to-arguments/">Human approval that binds to the exact arguments</a></li><li><a href="https://salahmakboul.github.io/call4agents/guides/idempotency-keys-for-ai-agents/">Idempotency keys for AI agent tool calls</a></li><li><a href="https://salahmakboul.github.io/call4agents/guides/agent-sent-email-twice/">Why did my AI agent send the email twice?</a></li></ul></section>
 </main>
