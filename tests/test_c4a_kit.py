@@ -607,6 +607,85 @@ def main():
           other.startswith("conflict:") and "order-7" in other and k21.count(10) == 1 and 20 not in k21, (other, k21))
     check("K21 the same for a key= function", other_fn.startswith("conflict:") and ("o-9", 6) not in k21, other_fn)
 
+    # K22 a "yes" spent under a named key covers only the arguments it was given for (issue #1)
+    import threading
+    k22 = []
+
+    @c4a.effect(name="k22.pay", approval=True)
+    def k22_pay(amount):
+        k22.append(amount)
+        return f"paid {amount}"
+
+    @c4a.effect(name="k22.send")
+    def k22_send(amount):
+        k22.append(("send", amount))
+        return f"sent {amount}"
+
+    def outcome(fn, *args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except (c4a.ApprovalRequired, c4a.KeyConflict) as exc:
+            return type(exc).__name__
+
+    # the process dies after the "yes" is spent and before the intent is recorded
+    lg = fresh()
+    claim = lg.claim
+
+    def dies(*a, **k):
+        raise KeyboardInterrupt
+
+    lg.claim = dies
+    with c4a.run("k22"):
+        c4a.approve(k22_pay, amount=10)
+        try:
+            k22_pay(10, c4a_key="order-1")
+        except KeyboardInterrupt:
+            pass
+    lg.claim = claim
+    with c4a.run("k22"):
+        other = outcome(k22_pay, 20, c4a_key="order-1")
+        again = outcome(k22_pay, 10, c4a_key="order-1")
+    check("K22 after a crash, a spent yes does not cover other arguments under the same key",
+          other == "ApprovalRequired" and 20 not in k22, (other, k22))
+    check("K22 the approved call can still finish after that crash", again == "paid 10" and k22 == [10], (again, k22))
+
+    def race(fn, slow_args, a_args, b_args, setup=None):
+        """Call A has passed its checks and waits just before recording its intent while B runs."""
+        lg = fresh()
+        k22.clear()
+        claim, ready, go, out = lg.claim, threading.Event(), threading.Event(), {}
+
+        def slow(run_id, key, payload=None):
+            if payload and payload["args"] == slow_args:
+                ready.set()
+                go.wait(10)
+            return claim(run_id, key, payload)
+
+        lg.claim = slow
+        with c4a.run("k22"):
+            if setup:
+                setup()
+
+        def first():
+            with c4a.run("k22"):
+                out["a"] = outcome(fn, *a_args, c4a_key="order-2")
+
+        t = threading.Thread(target=first)
+        t.start()
+        ready.wait(10)
+        with c4a.run("k22"):
+            out["b"] = outcome(fn, *b_args, c4a_key="order-2")
+        go.set()
+        t.join()
+        return out
+
+    out = race(k22_pay, {"amount": 10}, (10,), (20,), lambda: c4a.approve(k22_pay, amount=10))
+    check("K22 two threads: the unapproved amount is refused and the approved one is paid",
+          out == {"a": "paid 10", "b": "ApprovalRequired"} and k22 == [10], (out, k22))
+    out = race(k22_send, {"amount": 1}, (1,), (2,))
+    check("K22 two threads without approval: one runs, the other gets a conflict, not the winner's result",
+          out == {"a": "KeyConflict", "b": "sent 2"} and k22 == [("send", 2)], (out, k22))
+
     # K7 the core imports only the standard library
     import ast
     std = set(sys.stdlib_module_names)

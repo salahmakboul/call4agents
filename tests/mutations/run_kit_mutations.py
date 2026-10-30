@@ -20,7 +20,7 @@ MUTATIONS = [
     ("control (no-op)", LEDGER, "# Each \"yes\" is spent", "# Each \"yes\" is spent", "tests.test_c4a_kit"),
     ("K17 a yes is never spent", LEDGER, 'self.append(run_id, "approval_used",', 'self.append(run_id, "approval_used_x",', "tests.test_c4a_kit"),
     ("K17 a no is ignored", LEDGER, 'return max(self._matching(run_id, tool, args, "denial"), default=0)', "return 0", "tests.test_c4a_kit"),
-    ("K17 no deny check when in doubt", INIT, 'if lg.last_denial(run_id, tool, call_args) > spent["seq"]:', "if False:", "tests.test_c4a_kit"),
+    ("K17 no deny check when in doubt", INIT, 'if (lg.last_denial(run_id, tool, call_args) > spent["seq"]', "if (False", "tests.test_c4a_kit"),
     ("K17 no unique index on a use", LEDGER, "CREATE UNIQUE INDEX IF NOT EXISTS one_use", "CREATE INDEX IF NOT EXISTS one_use", "tests.test_c4a_kit"),
     # --- K18: bugs found by an outside tester
     ("K18 keys from str() again", LEDGER, "default=_stable)", "default=str)", "tests.test_c4a_kit"),
@@ -40,6 +40,10 @@ MUTATIONS = [
      "if first is not None and not _same_args(first", "if False and first is not None and not _same_args(first",
      "tests.test_c4a_kit"),
     ("K21 numbers compared as text", INIT, "        return na == nb" + chr(10), "        return a == b" + chr(10), "tests.test_c4a_kit"),
+    # --- K22: a spent "yes" covers only its own arguments; a losing caller gets a conflict
+    ("K22 a spent yes covers other arguments", INIT,
+     'or spent["payload"]["approval"] not in lg.matching_approvals(run_id, tool, call_args)):', "or False):", "tests.test_c4a_kit"),
+    ("K22 the race loser gets the winner's result", INIT, 'if "replay" in plan:                # a caller', "if False:                # a caller", "tests.test_c4a_kit"),
     # --- K19: a record cannot make the codec call a function
     ("K19 codec calls whatever is named", "call4agents/codec.py", "    if not isinstance(obj, type):" + chr(10),
      "    return obj" + chr(10) + "    if not isinstance(obj, type):" + chr(10), "tests.test_c4a_kit"),

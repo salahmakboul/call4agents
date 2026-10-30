@@ -31,7 +31,7 @@ from call4agents.proof import prove  # noqa: F401  (module named proof: a 'prove
 __all__ = ["init", "run", "effect", "approve", "deny", "current_ledger", "idempotency_key", "idempotency_headers", "recorded", "diff", "prove",
            "undo", "UndoFailed", "ReplayMismatch", "ReplayMissing", "ApprovalRequired", "EffectInDoubt", "Ledger",
            "pause", "decide", "TicketRefused", "KeyConflict"]
-__version__ = "0.5.0"
+__version__ = "0.5.1"
 
 _LEDGER: Optional[Ledger] = None
 _RUN: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("c4a_run", default=None)
@@ -269,24 +269,36 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
                 return effect_key(run_id, tool, {"__c4a_key__": explicit})
             return effect_key(run_id, tool, call_args)
 
+        def refuse_conflict(lg: Any, run_id: str, call_args: Dict[str, Any], explicit: Optional[str]) -> None:
+            # A named action (c4a_key= or key=) reused with arguments that mean something else is a
+            # conflict, not a cache hit: the caller must not get another call's result (K21, issue #1).
+            if (explicit is None and key is None) or _replay.SOURCE is not None:
+                return
+            first = lg.latest("tool_intent", intent_key(base_key(run_id, call_args, explicit), 1))
+            if first is not None and not _same_args(first["payload"]["args"], json.loads(canonical(call_args))):
+                named = explicit if explicit is not None else str(key(**call_args))
+                raise KeyConflict(tool, named, first["payload"]["args"], call_args)
+
         def check(call_args: Dict[str, Any], explicit: Optional[str]) -> Dict[str, Any]:
             lg, run_id = current_ledger(), current_run()
+            refuse_conflict(lg, run_id, call_args, explicit)
+            plan = decide_run(lg, run_id, call_args, explicit)
+            if "replay" in plan:                # a caller that lost the race to another call of this key (K22)
+                refuse_conflict(lg, run_id, call_args, explicit)
+            return plan
+
+        def decide_run(lg: Any, run_id: str, call_args: Dict[str, Any], explicit: Optional[str]) -> Dict[str, Any]:
             k = base_key(run_id, call_args, explicit)
-            if (explicit is not None or key is not None) and _replay.SOURCE is None:
-                # A named action (c4a_key= or key=) reused with arguments that mean something else is a
-                # conflict, not a cache hit: the caller must not get another call's result (K21, issue #1).
-                first = lg.latest("tool_intent", intent_key(k, 1))
-                if first is not None and not _same_args(first["payload"]["args"], json.loads(canonical(call_args))):
-                    named = explicit if explicit is not None else str(key(**call_args))
-                    raise KeyConflict(tool, named, first["payload"]["args"], call_args)
             if approval and _replay.SOURCE is not None:
                 if not lg.approved(run_id, tool, call_args):
                     raise ApprovalRequired(tool, call_args)
             elif approval and lg.latest("tool_done", k) is None:     # it may still run: it needs a live "yes"
                 spent = lg.latest("effect_approved", k)
                 if spent is not None:
-                    # this effect already spent its "yes" (a retry or a resume): a later "no" still stops it
-                    if lg.last_denial(run_id, tool, call_args) > spent["seq"]:
+                    # this effect already spent its "yes" (a retry or a resume): a later "no" still stops it.
+                    # The "yes" must be for THESE arguments: a named key is the same for other arguments (K22).
+                    if (lg.last_denial(run_id, tool, call_args) > spent["seq"]
+                            or spent["payload"]["approval"] not in lg.matching_approvals(run_id, tool, call_args)):
                         raise ApprovalRequired(tool, call_args)
                 elif not lg.use_approval(run_id, tool, call_args, k):
                     # no unused "yes" for exactly these arguments; one "yes" = one action (K17)

@@ -312,6 +312,10 @@ class Ledger:
                                 (kind, f"{run_id}\x00{tool}")).fetchall()
         return [r[0] for r in rows if r[1] and any(hmac.compare_digest(json.loads(r[1]).get("mac", ""), w) for w in wants)]
 
+    def matching_approvals(self, run_id: str, tool: str, args: Dict[str, Any]) -> List[int]:
+        """seq of every "yes" recorded for exactly these arguments, spent or not."""
+        return self._matching(run_id, tool, args, "approval")
+
     def last_denial(self, run_id: str, tool: str, args: Dict[str, Any]) -> int:
         """seq of the latest "no" for these exact arguments, 0 if none."""
         return max(self._matching(run_id, tool, args, "denial"), default=0)

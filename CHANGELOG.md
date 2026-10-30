@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.1
+
+**Security fix: please upgrade**
+- **An approval could be used for other arguments under the same named key** (issue #1, found and reported by
+  @krivonosoff161). With `approval=True` and an explicit `c4a_key` or `key=`: if the process stopped after a "yes"
+  for `pay(10)` was spent and before the intent was recorded, or if a second call arrived in that moment, then
+  `pay(20)` with the same key ran. It now raises `ApprovalRequired`. Calls without an explicit key were not
+  affected, because their key contains the arguments. The bug is in every release since approvals with explicit
+  keys existed (0.1.0 to 0.5.0).
+- **The caller that loses a race on a named key gets `KeyConflict`**, not the winner's result.
+- Check K22 (the crash path, a forced thread order, and the approved call finishing afterwards) and two mutations.
+
 ## 0.5.0
 
 **New (experimental)**
