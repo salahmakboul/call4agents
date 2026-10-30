@@ -355,6 +355,32 @@ def main():
         check("P13 parent and forked child both write through their own connections",
               os.WEXITSTATUS(status) == 0 and lg.count_run_kind("fork", "tool_done") == 3, os.WEXITSTATUS(status))
 
+    # P19 a new record that is busy for a moment while other processes open it is a wait, not a broken record
+    busy = {"left": 2, "calls": 0}
+
+    class Busy(Ledger):
+        def _setup(self):
+            busy["calls"] += 1
+            if busy["left"] != 0:
+                busy["left"] -= 1
+                raise sqlite3.OperationalError("database is locked")
+            super()._setup()
+
+    folder = Path(tempfile.mkdtemp(prefix="c4a-p19-"))
+    try:
+        opened = Busy(str(folder / "a.sqlite"), secret=b"p" * 16).count("tool_intent", "x") == 0
+    except LedgerError:
+        opened = False
+    check("P19 a record that is busy twice at startup still opens", opened and busy["calls"] == 3, busy)
+    busy["left"] = -1
+    stuck = Busy.__new__(Busy)
+    try:
+        stuck._setup_when_free(patience=0.1)
+        gave_up = False
+    except sqlite3.OperationalError:
+        gave_up = True
+    check("P19 a record that stays busy gives up instead of waiting for ever", gave_up)
+
     print(f"\n{len(FAILED)} production check(s) failed" if FAILED else "\nall production checks pass")
     return 1 if FAILED else 0
 

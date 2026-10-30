@@ -1,6 +1,15 @@
 # Changelog
 
-## 0.5.1
+## 0.5.2
+
+**Fixed**
+- Processes that open a new run record at the same moment could fail with "not a usable Call4Agents run record
+  (database is locked)", because SQLite does not apply its busy timeout to every step of opening a record. Opening
+  now waits and retries for up to 30 seconds. Check P19 and a mutation. Found by the stress test on Windows.
+
+Version 0.5.1 was tagged but never published: this bug stopped its release. The security fix below ships in 0.5.2.
+
+## 0.5.1 (not published; included in 0.5.2)
 
 **Security fix: please upgrade**
 - **An approval could be used for other arguments under the same named key** (issue #1, found and reported by

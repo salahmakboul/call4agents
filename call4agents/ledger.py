@@ -153,7 +153,7 @@ class Ledger:
         self._lock = threading.Lock()
         self._local = threading.local()
         try:
-            self._setup()
+            self._setup_when_free()
         except sqlite3.DatabaseError as exc:
             raise LedgerError(f"{self.path} is not a usable Call4Agents run record ({exc}). "
                               "Point c4a.init() at a new file or at an existing run record.") from exc
@@ -165,6 +165,18 @@ class Ledger:
                           stacklevel=3)
         env_old = os.environ.get("C4A_OLD_SECRETS", "")
         self.old_secrets = list(old_secrets or []) + [x.encode() for x in env_old.split(",") if x]
+
+    def _setup_when_free(self, patience: float = 30.0) -> None:
+        """Processes that open a new record together can get "database is locked" at once: switching to WAL
+        and upgrading a read to a write do not use SQLite's busy timeout. That is a wait, not a broken record (P19)."""
+        deadline = time.monotonic() + patience
+        while True:
+            try:
+                return self._setup()
+            except sqlite3.OperationalError as exc:
+                if not any(w in str(exc) for w in ("locked", "busy")) or time.monotonic() > deadline:
+                    raise
+                time.sleep(0.05)
 
     def _setup(self) -> None:
         with self._conn() as conn:

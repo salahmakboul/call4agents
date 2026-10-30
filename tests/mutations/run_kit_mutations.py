@@ -62,6 +62,8 @@ MUTATIONS = [
     ("P10 archive moves runs in doubt", "call4agents/ops.py", "if t < cutoff and r not in open_runs]", "if t < cutoff]", "tests.test_c4a_production"),
     ("P11 unrecordable result not marked", INIT, '"error": "result could not be recorded"})', '"error": "x"})', "tests.test_c4a_production"),
     ("P12 one connection shared by threads", LEDGER, "self._local = threading.local()", "self._local = self", "tests.test_c4a_production"),
+    ("P19 a busy new record is called unusable", LEDGER, "if not any(w in str(exc) for w in (\"locked\", \"busy\")) or time.monotonic() > deadline:",
+     "if True:", "tests.test_c4a_production"),
     ("P14 any object's str() accepted", LEDGER, "    raise TypeError(f\"{type(o).__name__} is not a type with a stable", "    return str(o)" + chr(10) + "    raise TypeError(f\"{type(o).__name__} is not a type with a stable", "tests.test_c4a_production"),
     ("P14 deep nesting not caught", LEDGER, "    if _too_deep(value):", "    if False:", "tests.test_c4a_production"),
     ("P15 damaged row unexplained", LEDGER, "        except ValueError as exc:" + chr(10) + "            raise LedgerError(f\"row", "        except ZeroDivisionError as exc:" + chr(10) + "            raise LedgerError(f\"row", "tests.test_c4a_production"),
