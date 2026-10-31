@@ -190,6 +190,12 @@ def main() -> int:
         from call4agents.examples.approval_incident import main as incident
         incident()
         return 0
+    if len(sys.argv) > 1 and sys.argv[1] == "crashtest":
+        from call4agents.crashtest import main as crashtest
+        return crashtest(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "scan":
+        from call4agents.scan import main as scan
+        return scan(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "quickstart":
         from call4agents.quickstart import main as quickstart
         return quickstart()
@@ -216,7 +222,7 @@ def main() -> int:
         print(json.dumps(diff(sys.argv[2], sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else None), indent=1))
         return 0
     if len(sys.argv) < 2 or sys.argv[1] != "demo":
-        print("usage: python -m call4agents quickstart | incident | demo | selftest | doctor | report | status|doubt|verify <record> | "
+        print("usage: python -m call4agents quickstart | incident | demo | crashtest <script> | scan <path> | selftest | doctor | report | status|doubt|verify <record> | "
               "resolve <record> <key> done|not-done [note] | archive <record> <archive> <days> | "
               "prove <spec.json> | diff <a.sqlite> <b.sqlite> [run_id]")
         return 2

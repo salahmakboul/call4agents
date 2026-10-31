@@ -12,6 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 INIT, LEDGER = "call4agents/__init__.py", "call4agents/ledger.py"
+CT, SCAN = "call4agents/crashtest.py", "call4agents/scan.py"
 PG = "call4agents/stores/postgres.py"
 
 # (name, file, old text, new text, suite)
@@ -114,6 +115,27 @@ MUTATIONS = [
      'if decided is None or (decided["payload"]["decision"] == "approve" and unused):', "if False:", "tests.test_tickets"),
     ("T OpenAI bridge approves whatever waits", "call4agents/adapters/openai_agents.py",
      'item = waiting.get(info["call_id"])', "item = next(iter(waiting.values()), None)", "tests.test_tickets"),
+    # --- crashtest and scan: each check must be able to fail, and crashtest must catch a real bug of ours
+    ("CT crashtest misses the old approval bypass", INIT,
+     'or spent["payload"]["approval"] not in lg.matching_approvals(run_id, tool, call_args)):', "or False):", "tests.test_crashtest"),
+    ("CT nothing is ever killed", CT, "if n == self.crash_at:", "if False:", "tests.test_crashtest"),
+    ("CT no kill after the action", CT, 'self.point(f"after {shown}")', "pass", "tests.test_crashtest"),
+    ("CT a repeat is never counted", CT, "ran[c] > baseline[c]", "False", "tests.test_crashtest"),
+    ("CT a changed call is ignored", CT, "sorted(c for c in ran if c not in baseline)", "[]", "tests.test_crashtest"),
+    ("CT SQLite writes are not crash points", CT, "conn.set_trace_callback(trace)", "pass", "tests.test_crashtest"),
+    ("CT file writes are not crash points", CT, "sys.addaudithook(c.audit)", "pass", "tests.test_crashtest"),
+    ("CT each await counts as a call", CT, "self.open_async.add(id(frame))", "pass", "tests.test_crashtest"),
+    ("CT in doubt counts as lost", CT, '"lost": [] if in_doubt else sorted', '"lost": sorted', "tests.test_crashtest"),
+    ("CT a failing script looks clean", CT, 'if clean.returncode != 0:', "if False:", "tests.test_crashtest"),
+    ("CT the loop counts as an action", SCAN, "node.func.id in found - {name}", "False", "tests.test_crashtest"),
+    ("SC guards are ignored", SCAN, "if approval and once:", "if False:", "tests.test_crashtest"),
+    ("SC reads are listed", SCAN, "if not effects and RISKY_NAME.search(name) and not READ_NAME.match(name):",
+     "if not effects and RISKY_NAME.search(name):", "tests.test_crashtest"),
+    ("SC any function counts as a tool", SCAN, "for name in sorted(tool_names(tree) | set(class_tools(tree))):", "for name in sorted(functions):", "tests.test_crashtest"),
+    ("SC helpers are not followed", SCAN, 'found += [f"{e} (in {node.func.id})" for e in effects_in(helper)]', "pass", "tests.test_crashtest"),
+    ("SC an approval set up elsewhere reads as missing", SCAN, "file_approval = bool(FILE_APPROVAL.search(source))", "file_approval = False", "tests.test_crashtest"),
+    ("SC a name alone reads as code", SCAN, 'effects, confidence = ["name suggests an action"], "name only"',
+     'effects, confidence = ["name suggests an action"], "code"', "tests.test_crashtest"),
     ("S9 verify on a shared record not handled", "call4agents/ops.py", "integrity = PG_INTEGRITY if _is_pg(path) else",
      "integrity = \"?\" if _is_pg(path) else", "tests.test_shared_record"),
 ]
@@ -125,7 +147,7 @@ def copy_tree(dst: Path) -> None:
     (dst / "tests" / "__init__.py").write_text("", encoding="utf-8")
     for f in ("test_c4a_kit.py", "c4a_codec_types.py", "c4a_k18_child.py", "c4a_prove_sample.py", "test_idempotency.py",
               "test_c4a_production.py", "test_undo.py", "c4a_undo_child.py", "test_adapters.py",
-              "test_shared_record.py", "test_tickets.py"):
+              "test_shared_record.py", "test_tickets.py", "test_crashtest.py"):
         shutil.copy(ROOT / "tests" / f, dst / "tests" / f)
 
 

@@ -4,6 +4,19 @@ Call4Agents makes the actions of a Python agent safe to retry. You add it to the
 have: LangGraph, Pydantic AI, the OpenAI Agents SDK, an MCP server, or plain Python. It does not
 replace any of them.
 
+**Does your agent repeat an action after a crash?** This kills it at every step, restarts it, and tells you which
+action ran twice. Your agent does not need to use our guard first.
+
+```
+pip install call4agents
+call4agents crashtest --demo          # a small agent, without and with the one-line fix
+call4agents crashtest your_agent.py   # yours (experimental; every action really runs, so use test accounts)
+```
+
+![call4agents crashtest: a small agent is killed at every step and restarted. Without the guard its refund runs twice; with one line added it does not.](docs/crashtest.svg)
+
+Then the kit makes it stop:
+
 ![call4agents quickstart: an agent crashes right after sending an email, then resumes. Without call4agents 2 emails are sent; with it, 1.](docs/demo.svg)
 
 - **Once-only actions.** A crash, a retry or a resume does not send the same email or payment twice.
@@ -16,7 +29,7 @@ replace any of them.
 - **Record, replay, diff.** Rerun a recorded run offline with zero model calls, and find the step where
   two runs (for example two models) begin to differ.
 
-Version 0.5, early. Standard library only, zero dependencies (PostgreSQL for several machines is an optional extra). Apache-2.0.
+Version 0.6, early. Standard library only, zero dependencies (PostgreSQL for several machines is an optional extra). Apache-2.0.
 
 ```python
 # pip install call4agents
@@ -247,6 +260,8 @@ added to it, never changed or deleted.
 |---|---|
 | `call4agents quickstart` | the demo plus a crash and resume in each installed framework |
 | `call4agents incident` | three approval incidents, without and with the kit |
+| `call4agents crashtest <script>` | kills your agent at every step, restarts it, reports what ran twice or without approval (experimental) |
+| `call4agents scan <path>` | lists tools that send, pay, delete or write with no approval or once-only guard; runs nothing (experimental) |
 | `call4agents demo` | the plain-Python demo only |
 | `call4agents selftest` | the kit's checks (in a repository checkout, the full offline suites) |
 | `call4agents doctor` | system and framework versions for a bug report; prints only, sends nothing |
@@ -260,6 +275,29 @@ added to it, never changed or deleted.
 | `call4agents prove spec.json` | puts each bug back and checks that your guard catches it |
 
 `python -m call4agents ...` works the same way. `<record>` is a file, or a `postgresql://` address for a shared record.
+
+## Test your own agent (experimental)
+
+`call4agents crashtest your_agent.py` runs your script in a new empty folder, once cleanly, then once per crash
+point. It kills the process just before and just after each action, and just before each write saved to SQLite or
+to a file in that folder. Then it starts the script again and compares what ran with the clean run:
+
+- **RAN TWICE**: the same call ran more times than in the clean run.
+- **NOT APPROVED**: a call the clean run never made. On a restart the environment has `CRASHTEST_RESUME=1`, so your
+  script can act out a changed call.
+- **NEVER FINISHED**: the call was lost, or the framework hid an in-doubt stop.
+
+Your script must be able to restart: a fixed run or thread id, and saved state in the current folder. Actions are
+found by reading the script (names like `pay` or `send_email`, and calls that post, delete or run commands). Add
+your own with `--watch name,name`. **Every action really runs, many times, with your environment: use test accounts.**
+
+It does not see writes to PostgreSQL, Redis or a remote service as crash points, and it tests only the path your
+script takes. A clean result covers that path and those crash points, nothing more.
+
+`call4agents scan <path>` reads Python source and runs nothing. It lists functions given to a model as tools whose
+code sends, pays, deletes or writes, with no approval or once-only guard on them. It cannot see a guard in another
+file or service, tools built at runtime, or what a call does past one helper in the same file. Measured results
+are in [docs/SCAN_RESULTS.md](docs/SCAN_RESULTS.md).
 
 ## In production
 
@@ -399,6 +437,9 @@ A dash means the case was not tested in that framework.
 - an action resumed in 3 new processes, as a method with a set argument, runs once;
 - a real process killed before and after every write to the record and inside the action, then the recovery
   killed too (`python -m tests.test_crash_matrix`, 412 crashes): no double charge and no unapproved payment;
+- `call4agents crashtest` finds the repeat in a small real agent on LangGraph, Pydantic AI and the OpenAI Agents
+  SDK, and finds none with the guard (`python -m tests.test_crashtest --require-frameworks`); with our old approval
+  bypass put back, its check fails;
 - 14 simultaneous callers of one action: it runs once;
 - 8 simultaneous actions on one "yes": exactly one runs;
 - 3,000 of 3,000 records from 20 parallel writers;
@@ -419,7 +460,8 @@ next to every batch of mutations. Rerun them with `python -m tests.mutations.run
 - systems and Python versions not listed at the top of this page;
 - several real machines on a real network sharing one PostgreSQL record (the tests use separate processes
   and one local PostgreSQL server), and managed platforms such as LangGraph Cloud;
-- an independent code review;
+- an independent code review (see [docs/REVIEWED.md](docs/REVIEWED.md));
+- `crashtest` and `scan` on real production agents;
 - frameworks other than the four with adapters (LangGraph, Pydantic AI, the OpenAI Agents SDK, MCP); the
   decorator itself works in any framework;
 - approval tickets with real users and real approval UIs (experimental: tested with fake models only).

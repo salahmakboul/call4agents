@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.0
+
+**New (experimental)**
+- `call4agents crashtest <script>` kills your agent at every step, restarts it, and reports which action ran twice,
+  ran without approval, or never finished. Your agent does not need our guard. `call4agents crashtest --demo` shows
+  it on a small agent, without and with the one-line fix. Tested with small real agents on LangGraph, Pydantic AI and
+  the OpenAI Agents SDK. Every action really runs, many times: use test accounts.
+- `call4agents scan <path>` reads Python source and lists tools that send, pay, delete or write with no approval or
+  once-only guard. It runs nothing. Results on real projects, with what it gets wrong, are in `docs/SCAN_RESULTS.md`.
+
+**Changed**
+- SECURITY.md: every report is answered within 24 hours and serious ones are fixed within 7 days.
+- `docs/REVIEWED.md` lists what outside people have reviewed, and what nobody has.
+
 ## 0.5.3
 
 **New**

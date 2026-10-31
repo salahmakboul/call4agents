@@ -15,12 +15,16 @@ Please do not open a public issue for a vulnerability, and do not test against s
 
 ## What happens next
 
-- We acknowledge the report within **7 days**.
-- Within **30 days** we tell you whether we can reproduce it and what we plan to do.
+- We answer every report within **24 hours**.
+- We fix serious reports within **7 days**: anything in the scope list below that can run an action twice, run
+  it without its approval, or leak a secret.
 - We fix it in a new release, publish a GitHub security advisory, and credit you unless you prefer not.
 - If a release turns out to be unsafe, we yank it on PyPI (see [docs/RELEASING.md](docs/RELEASING.md)).
 
-The project is maintained by a very small team, so these are honest upper limits, not marketing.
+If we cannot fix something in 7 days, we tell you why within those 7 days and agree a date with you.
+
+The contact is the private reporting form above. See [docs/REVIEWED.md](docs/REVIEWED.md) for what outside
+people have reviewed so far.
 
 ## Supported versions
 

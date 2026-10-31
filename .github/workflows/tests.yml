@@ -34,6 +34,7 @@ jobs:
       - run: python -m tests.test_idempotency
       - run: python -m tests.test_undo
       - run: python -m tests.test_tickets
+      - run: python -m tests.test_crashtest
       - run: python -m tests.stress_c4a_ledger
       - name: big test (quick size)
         run: python -m tests.bigtest_c4a --quick
@@ -41,7 +42,7 @@ jobs:
   frameworks:
     name: frameworks ${{ matrix.os }} py${{ matrix.python }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -68,6 +69,8 @@ jobs:
         run: python -m tests.test_adapters
       - name: approval tickets with the real Pydantic AI
         run: python -m tests.test_tickets --require-frameworks
+      - name: crashtest on small agents in each real framework
+        run: python -m tests.test_crashtest --require-frameworks
       - name: the copy-and-run examples
         shell: bash
         run: |
@@ -95,7 +98,7 @@ jobs:
   mutations:
     name: bug re-insertion checks
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
