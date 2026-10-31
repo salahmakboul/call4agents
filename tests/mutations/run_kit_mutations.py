@@ -12,7 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 INIT, LEDGER = "call4agents/__init__.py", "call4agents/ledger.py"
-CT, SCAN = "call4agents/crashtest.py", "call4agents/scan.py"
+CT, SCAN, AUDIT = "call4agents/crashtest.py", "call4agents/scan.py", "call4agents/audit.py"
 PG = "call4agents/stores/postgres.py"
 
 # (name, file, old text, new text, suite)
@@ -138,6 +138,13 @@ MUTATIONS = [
     ("SC an approval set up elsewhere reads as missing", SCAN, "file_approval = bool(FILE_APPROVAL.search(source))", "file_approval = False", "tests.test_crashtest"),
     ("SC a name alone reads as code", SCAN, 'effects, confidence = ["name suggests an action"], "name only"',
      'effects, confidence = ["name suggests an action"], "code"', "tests.test_crashtest"),
+    # --- audit export
+    ("A the signature is not checked", AUDIT, 'if not hmac.compare_digest(str(doc.get("signature")), _signature(secret, doc)):', "if False:", "tests.test_audit"),
+    ("A the end of the chain is not checked", AUDIT, 'if _chain(entries) != doc.get("head"):', "if False:", "tests.test_audit"),
+    ("A an entry's hash is not compared", AUDIT, 'if e.get("hash") != head:', "if False:", "tests.test_audit"),
+    ("A the summary is not signed", AUDIT, '"count", "head", "actions", "decisions")}', '"count", "head")}', "tests.test_audit"),
+    ("A results are exported", AUDIT, 'LEFT_OUT = ("mac", "result")', 'LEFT_OUT = ("mac",)', "tests.test_audit"),
+    ("A the approval key signs exports", AUDIT, 'return hmac.new(_key(secret), canonical(signed)', 'return hmac.new(b"public", canonical(signed)', "tests.test_audit"),
     ("S9 verify on a shared record not handled", "call4agents/ops.py", "integrity = PG_INTEGRITY if _is_pg(path) else",
      "integrity = \"?\" if _is_pg(path) else", "tests.test_shared_record"),
 ]
@@ -149,7 +156,7 @@ def copy_tree(dst: Path) -> None:
     (dst / "tests" / "__init__.py").write_text("", encoding="utf-8")
     for f in ("test_c4a_kit.py", "c4a_codec_types.py", "c4a_k18_child.py", "c4a_prove_sample.py", "test_idempotency.py",
               "test_c4a_production.py", "test_undo.py", "c4a_undo_child.py", "test_adapters.py",
-              "test_shared_record.py", "test_tickets.py", "test_crashtest.py"):
+              "test_shared_record.py", "test_tickets.py", "test_crashtest.py", "test_audit.py"):
         shutil.copy(ROOT / "tests" / f, dst / "tests" / f)
 
 

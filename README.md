@@ -262,6 +262,8 @@ added to it, never changed or deleted.
 | `call4agents incident` | three approval incidents, without and with the kit |
 | `call4agents crashtest <script>` | kills your agent at every step, restarts it, reports what ran twice or without approval (experimental) |
 | `call4agents scan <path>` | lists tools that send, pay, delete or write with no approval or once-only guard; runs nothing (experimental) |
+| `call4agents audit <record> <out.json> [--run id]` | a signed export: who approved what, when, for which arguments, and what ran (experimental) |
+| `call4agents audit-verify <out.json>` | exit 0 only if nothing in the export was changed |
 | `call4agents demo` | the plain-Python demo only |
 | `call4agents selftest` | the kit's checks (in a repository checkout, the full offline suites) |
 | `call4agents doctor` | system and framework versions for a bug report; prints only, sends nothing |
@@ -298,6 +300,17 @@ script takes. A clean result covers that path and those crash points, nothing mo
 code sends, pays, deletes or writes, with no approval or once-only guard on them. It cannot see a guard in another
 file or service, tools built at runtime, or what a call does past one helper in the same file. Measured results
 are in [docs/SCAN_RESULTS.md](docs/SCAN_RESULTS.md).
+
+## Audit export (experimental)
+
+`call4agents audit <record> out.json` writes who approved what, when, for which exact arguments, and what ran. It
+uses the record's secret (`C4A_SECRET` or its `secret` file) and never creates one. `call4agents audit-verify
+out.json` fails if any value was changed or any entry was removed, added or moved.
+
+Limits: anyone with the secret can sign a false export, so this shows the file has not changed since a holder of the
+secret signed it. It does not show that the record was honest before the export, and it is not proof for an outside
+party. A name appears only where one was recorded (`c4a.decide(ticket, "approve", by="sam")`). Action results are
+left out, but arguments are included, so treat the file as sensitive.
 
 ## In production
 

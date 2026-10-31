@@ -13,7 +13,7 @@ audit. No paid or formal audit has been done.
 - Replay (`call4agents/replay.py`): a review has been requested.
 - The PostgreSQL shared record (beta).
 - The framework bridges.
-- `call4agents crashtest` and `call4agents scan` (experimental).
+- `call4agents crashtest`, `scan` and `audit` (experimental).
 
 If you review any of this, please send what you find through [SECURITY.md](../SECURITY.md) if it is a
 vulnerability, or as an issue if it is not. You'll be added here, with your name or without it, as you prefer.

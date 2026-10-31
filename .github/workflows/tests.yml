@@ -35,6 +35,7 @@ jobs:
       - run: python -m tests.test_undo
       - run: python -m tests.test_tickets
       - run: python -m tests.test_crashtest
+      - run: python -m tests.test_audit
       - run: python -m tests.stress_c4a_ledger
       - name: big test (quick size)
         run: python -m tests.bigtest_c4a --quick

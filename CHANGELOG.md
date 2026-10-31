@@ -10,6 +10,10 @@
 - `call4agents scan <path>` reads Python source and lists tools that send, pay, delete or write with no approval or
   once-only guard. It runs nothing. Results on real projects, with what it gets wrong, are in `docs/SCAN_RESULTS.md`.
 
+- `call4agents audit` writes a signed export: who approved what, when, for which exact arguments, and what ran.
+  `call4agents audit-verify` fails if anything in it was changed. Anyone with the secret can sign a false export, so
+  this shows the file is unchanged since it was signed, nothing more.
+
 **Changed**
 - SECURITY.md: every report is answered within 24 hours and serious ones are fixed within 7 days.
 - `docs/REVIEWED.md` lists what outside people have reviewed, and what nobody has.
