@@ -136,6 +136,8 @@ MUTATIONS = [
     ("SC an approval set up elsewhere reads as missing", SCAN, "file_approval = bool(FILE_APPROVAL.search(source))", "file_approval = False", "tests.test_crashtest"),
     ("SC a name alone reads as code", SCAN, 'effects, confidence = ["name suggests an action"], "name only"',
      'effects, confidence = ["name suggests an action"], "code"', "tests.test_crashtest"),
+    ("K24 a cancel is not recorded", INIT, "result = await f(*args, **kwargs)\n                except BaseException as exc:",
+     "result = await f(*args, **kwargs)\n                except Exception as exc:", "tests.test_c4a_kit"),
     # --- audit export
     ("A the signature is not checked", AUDIT, 'if not hmac.compare_digest(str(doc.get("signature")), _signature(secret, doc)):', "if False:", "tests.test_audit"),
     ("A the end of the chain is not checked", AUDIT, 'if _chain(entries) != doc.get("head"):', "if False:", "tests.test_audit"),

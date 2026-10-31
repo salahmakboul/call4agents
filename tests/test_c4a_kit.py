@@ -1,5 +1,6 @@
 """Call4Agents v0.1 kit - offline checks (0 calls). Run: python -m tests.test_c4a_kit"""
 
+import asyncio
 import json
 import sqlite3
 import sys
@@ -695,6 +696,33 @@ def main():
           and inc["changed_call"]["without"]["charges"] == ["9999 mallory"]
           and inc["crash_inside"]["with"]["stopped"] == "EffectInDoubt"
           and inc["ignored_no"]["with"]["stopped"] == "ApprovalRequired", charges)
+
+    # K24 a cancelled async action may already have reached the outside world: it is in doubt, never run again
+    k24 = []
+
+    @c4a.effect(name="k24.refund")
+    async def k24_refund(order):
+        k24.append(order)
+        await asyncio.sleep(5)
+
+    async def k24_run():
+        with c4a.run("k24"):
+            task = asyncio.create_task(k24_refund("A"))
+            await asyncio.sleep(0.05)
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+            try:
+                await k24_refund("A")
+                return "ran"
+            except c4a.EffectInDoubt as e:
+                return str(e)
+
+    said = asyncio.run(k24_run())
+    check("K24 a cancelled action is in doubt at once, names the cancel, and does not run again",
+          "CancelledError" in said and k24 == ["A"], (said, k24))
 
     # K7 the core imports only the standard library
     import ast
