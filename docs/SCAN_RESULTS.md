@@ -20,7 +20,8 @@ the scanner reads that one project's code.
 ## How often a listing is right
 
 This review was done by the AI that wrote the scanner, so it is not independent. 24 of the 47 code listings
-were drawn at random (seed 20261031) and judged by reading what the tool does:
+were drawn at random (seed 20261031) and judged from the tool's name and what the scanner saw in its code. The
+full source of each tool was not read:
 
 | Verdict | Count | Examples of what was seen |
 |---|---:|---|
