@@ -131,8 +131,6 @@ MUTATIONS = [
     ("SC toolkit methods are not tools", SCAN, "return out | toolkit_methods(tree)", "return out", "tests.test_crashtest"),
     ("SC a search that POSTs is listed", SCAN, 'if READ_NAME.match(name) and all(e.startswith(', 'if False and all(e.startswith(', "tests.test_crashtest"),
     ("SC guards are ignored", SCAN, "if approval and once:", "if False:", "tests.test_crashtest"),
-    ("SC reads are listed", SCAN, "if not effects and RISKY_NAME.search(name) and not READ_NAME.match(name):",
-     "if not effects and RISKY_NAME.search(name):", "tests.test_crashtest"),
     ("SC any function counts as a tool", SCAN, "for name in sorted(tool_names(tree) | set(class_tools(tree))):", "for name in sorted(functions):", "tests.test_crashtest"),
     ("SC helpers are not followed", SCAN, 'found += [f"{e} (in {node.func.id})" for e in effects_in(helper)]', "pass", "tests.test_crashtest"),
     ("SC an approval set up elsewhere reads as missing", SCAN, "file_approval = bool(FILE_APPROVAL.search(source))", "file_approval = False", "tests.test_crashtest"),

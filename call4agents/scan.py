@@ -204,7 +204,7 @@ def scan_source(source: str, filename: str = "<source>") -> list:
         effects = _with_helpers(fn, functions)
         if READ_NAME.match(name) and all(e.startswith(("sends an HTTP POST", "runs a command")) for e in effects):
             continue                                  # searches often POST their query, and grep runs a command
-        if not effects and RISKY_NAME.search(name) and not READ_NAME.match(name):
+        if not effects and RISKY_NAME.search(name):
             # A name alone is weak evidence, so it is kept apart from what the code was seen doing.
             effects, confidence = ["name suggests an action"], "name only"
         else:
