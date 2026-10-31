@@ -52,7 +52,7 @@ class Child:
         self.user_code = {}
         self.open_async = set()
         self.kit = str(Path(__file__).resolve().parent)
-        self.cwd = str(Path.cwd().resolve())
+        self.cwd = os.path.realpath(os.getcwd())
         self.script = script
 
     def log(self, **entry):
@@ -92,7 +92,7 @@ class Child:
             self.log(start=code.co_name, call=shown)
         else:
             if is_async:
-                if dis.opname[code.co_code[frame.f_lasti]] in ("YIELD_VALUE", "SEND", "YIELD_FROM"):
+                if not dis.opname[code.co_code[frame.f_lasti]].startswith("RETURN"):
                     return                            # a coroutine going to sleep
                 self.open_async.discard(id(frame))
             shown = f"{code.co_name}({_shown(frame)})"
@@ -117,7 +117,7 @@ class Child:
     def audit(self, event, args):
         if event == "open" and len(args) == 3 and isinstance(args[0], (str, os.PathLike)):
             flags = args[2] if isinstance(args[2], int) else 0
-            if flags & (os.O_WRONLY | os.O_RDWR) and str(args[0]) and os.path.abspath(args[0]).startswith(self.cwd) \
+            if flags & (os.O_WRONLY | os.O_RDWR) and str(args[0]) and os.path.realpath(args[0]).startswith(self.cwd) \
                     and not str(args[0]).endswith((".sqlite", ".sqlite-wal", ".sqlite-shm", ".db", ".journal")):
                 self.point("before a saved write")
 

@@ -128,6 +128,8 @@ MUTATIONS = [
     ("CT in doubt counts as lost", CT, '"lost": [] if in_doubt else sorted', '"lost": sorted', "tests.test_crashtest"),
     ("CT a failing script looks clean", CT, 'if clean.returncode != 0:', "if False:", "tests.test_crashtest"),
     ("CT the loop counts as an action", SCAN, "node.func.id in found - {name}", "False", "tests.test_crashtest"),
+    ("SC toolkit methods are not tools", SCAN, "return out | toolkit_methods(tree)", "return out", "tests.test_crashtest"),
+    ("SC a search that POSTs is listed", SCAN, 'if READ_NAME.match(name) and all(e.startswith(', 'if False and all(e.startswith(', "tests.test_crashtest"),
     ("SC guards are ignored", SCAN, "if approval and once:", "if False:", "tests.test_crashtest"),
     ("SC reads are listed", SCAN, "if not effects and RISKY_NAME.search(name) and not READ_NAME.match(name):",
      "if not effects and RISKY_NAME.search(name):", "tests.test_crashtest"),

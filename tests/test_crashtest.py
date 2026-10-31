@@ -146,7 +146,7 @@ def crash_checks(folder):
     check("CT5 the old approval bypass: pay(20) never runs at any crash point",
           "pay(amount=20)" not in problems(r)["unapproved"] and r["reached"] == r["tested"], problems(r))
 
-    broken = script(folder, "agent_broken.py", "def pay(x):\n    pass\nraise ValueError('nope')\n")
+    broken = script(folder, "agent_broken.py", "def pay(x):\n    pass\npay(1)\nraise ValueError('nope')\n")
     check("CT6 a failing script: exit 2, not a clean result", main([broken]) == 2)
     quiet = script(folder, "agent_quiet.py", "def add(a, b):\n    return a + b\nadd(1, 2)\n")
     check("CT6 no action seen: exit 2", "error" in crashtest(quiet) and main([quiet]) == 2)
@@ -185,6 +185,10 @@ def scan_checks():
           == ["sends an HTTP DELETE (in _do)"])
     check("SC1 a tool written as a class, through self.client, is seen", sc.scan_source(
         "class Refund(BaseTool):\n    def _run(self, id):\n        self.client.post('u')\n", "x.py")[0]["tool"] == "Refund")
+    kit = "class Mail(Toolkit):\n    def __init__(self):\n        super().__init__(tools=[self.send])\n        self.log()\n"
+    kit += "    def log(self):\n        requests.post('u')\n    def send(self, to):\n        requests.post('u')\n"
+    check("SC1 a method a toolkit hands over is a tool, and one it only calls is not",
+          [f["tool"] for f in sc.scan_source(kit, "x.py")] == ["send"], sc.scan_source(kit, "x.py"))
     check("SC1 a SQL write is seen",
           scanned("@function_tool\ndef note(db, t):\n    db.execute('INSERT INTO n VALUES (1)')\n")[0]["does"] == ["writes to a database"])
     check("SC2 a guarded tool with approval is left alone",
@@ -193,6 +197,12 @@ def scan_checks():
     check("SC2 once-only alone still asks for approval", only_once[0]["missing"] == ["approval"], only_once)
     keyed = scanned("@function_tool\ndef pay(a):\n    requests.post('https://x', headers={'Idempotency-Key': a})\n")
     check("SC2 an idempotency key counts as once-only", keyed[0]["missing"] == ["approval"], keyed)
+    check("SC3 the loop around an action is not an action",
+          sc.actions_in("def pay(a):\n    pass\ndef send_all():\n    pay(1)\n") == {"pay"})
+    check("SC3 a message to another agent is left alone",
+          not scanned("@function_tool\ndef ask_agent(q):\n    return a2a.send_message(q)\n"))
+    check("SC3 a search that POSTs its query is left alone",
+          not scanned("@function_tool\ndef search_web(q):\n    return requests.post('u', json=q)\n"))
     check("SC3 a read is left alone", not scanned("@function_tool\ndef get_weather(c):\n    return requests.get('https://x')\n"))
     check("SC3 a read named like an action is left alone", not scanned("@function_tool\ndef list_payment(c):\n    return 1\n"))
     check("SC3 a function not given to a model is left alone", not scanned("def pay(a):\n    requests.post('https://x')\n"))
