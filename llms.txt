@@ -11,6 +11,7 @@
 - [MCP servers: handle duplicate tool calls from client retries](https://salahmakboul.github.io/call4agents/guides/mcp-idempotent-tool-calls/): An MCP client that loses a response may send the same tools/call again. How an MCP server in Python can return the first result instead of acting twice.
 - [Human approval that binds to the exact arguments](https://salahmakboul.github.io/call4agents/guides/human-approval-bound-to-arguments/): A "yes" to pay(10, alice) must not run pay(9999, mallory), and one "yes" should cover one action. How to bind an approval to what was shown.
 - [Idempotency keys for AI agent tool calls](https://salahmakboul.github.io/call4agents/guides/idempotency-keys-for-ai-agents/): Give an agent's API calls an idempotency key that stays the same across crashes and retries, so Stripe-style APIs drop the duplicate.
+- [My agent's tool call timed out. Did it run?](https://salahmakboul.github.io/call4agents/guides/tool-call-timeout-unknown-outcome/): A timeout or crash does not tell you whether the action happened. What we measured with real process kills, why a read-back can mislead you, and what to do instead.
 
 ## Project
 - [Source and README](https://github.com/salahmakboul/call4agents)

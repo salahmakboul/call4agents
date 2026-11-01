@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AI agent tool call timed out: did it run? What to do about an unknown outcome</title>
+<meta name="description" content="A timeout or crash does not tell you whether the action happened. What we measured with real process kills, why a read-back can mislead you, and what to do instead.">
+<link rel="canonical" href="https://salahmakboul.github.io/call4agents/guides/tool-call-timeout-unknown-outcome/">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Call4Agents">
+<meta property="og:title" content="AI agent tool call timed out: did it run? What to do about an unknown outcome">
+<meta property="og:description" content="A timeout or crash does not tell you whether the action happened. What we measured with real process kills, why a read-back can mislead you, and what to do instead.">
+<meta property="og:url" content="https://salahmakboul.github.io/call4agents/guides/tool-call-timeout-unknown-outcome/">
+<meta property="og:image" content="https://salahmakboul.github.io/call4agents/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Call4Agents: without it, 2 emails after a crash; with it, 1.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="https://salahmakboul.github.io/call4agents/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://salahmakboul.github.io/call4agents/assets/site.css">
+<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "AI agent tool call timed out: did it run? What to do about an unknown outcome", "description": "A timeout or crash does not tell you whether the action happened. What we measured with real process kills, why a read-back can mislead you, and what to do instead.", "url": "https://salahmakboul.github.io/call4agents/guides/tool-call-timeout-unknown-outcome/", "dateModified": "2026-11-01", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Guides", "item": "https://salahmakboul.github.io/call4agents/guides/"}, {"@type": "ListItem", "position": 3, "name": "AI agent tool call timed out: did it run? What to do about an unknown outcome", "item": "https://salahmakboul.github.io/call4agents/guides/tool-call-timeout-unknown-outcome/"}]}]</script>
+</head>
+<body>
+<header class="container">
+<nav>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/"><strong>Call4Agents</strong></a></li></ul>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/guides/">Guides</a></li><li><a href="https://github.com/salahmakboul/call4agents">GitHub</a></li><li><a href="https://pypi.org/project/call4agents/">PyPI</a></li></ul>
+</nav>
+</header>
+<main class="container">
+<nav aria-label="breadcrumb" class="crumbs"><ul><li><a href="https://salahmakboul.github.io/call4agents/">Home</a></li><li><a href="https://salahmakboul.github.io/call4agents/guides/">Guides</a></li><li>AI agent tool call timed out: did it run? What to do about an unknown outcome</li></ul></nav>
+<article><h1>My agent&#x27;s tool call timed out. Did it run?</h1><p><em>A timeout or crash does not tell you whether the action happened. What we measured with real process kills, why a read-back can mislead you, and what to do instead.</em></p>
+<h2>The short answer</h2>
+<p>You don't know, and retrying is how you find out the expensive way. After a timeout or a crash, an action has three
+possible states: <strong>done</strong>, <strong>not done</strong> and <strong>unknown</strong>. Most duplicate emails and
+double payments come from treating unknown as not done.</p>
+
+<h2>Why "check first, then retry" can fail</h2>
+<p>The usual advice is to read the state back from the provider and retry only if the action isn't there. A read that
+finds nothing can simply be behind. We tested this in plain Python with a fake provider that commits at once and shows
+the commit to reads 200 ms later. The worker sends and dies, then recovery reads back and retries on "not found". 20 runs
+each:</p>
+<table><thead><tr><th>Read back after</th><th>Commits</th></tr></thead>
+<tbody><tr><td>0 ms</td><td>2</td></tr><tr><td>100 ms</td><td>2</td></tr><tr><td>300 ms</td><td>1</td></tr></tbody></table>
+<p>The check worked only when it waited longer than the lag. Most providers don't publish a worst-case lag, so "not found"
+is weak evidence unless the read is strongly consistent.</p>
+
+<h2>Three more ways it goes wrong</h2>
+<p>These are small tests with fake services and real process kills, not production numbers.</p>
+<table><thead><tr><th>Situation</th><th>Weak design</th><th>Stronger design</th></tr></thead><tbody>
+<tr><td>A "started" record, then a crash</td><td>Inside the step's transaction: 2 effects in 10 of 10 runs</td><td>Committed on its own before the tool: 1 effect</td></tr>
+<tr><td>A worker stalls past its lease, then wakes up</td><td>Lease only: 2 sends in 20 of 20 runs</td><td>Generation check at the record: 1 send</td></tr>
+<tr><td>A used approval, then a restart</td><td>Kept in memory: 2 effects in 10 of 10 runs</td><td>Durable store with a unique key: 1 effect</td></tr>
+</tbody></table>
+
+<h2>What to do instead</h2>
+<ol>
+<li><strong>Write a record before the tool runs, and commit it on its own.</strong> Then a crash leaves evidence that the call began.</li>
+<li><strong>Keep "unknown" as a real state.</strong> Don't turn it into a failure, because a failure invites a retry.</li>
+<li><strong>Settle it with strong evidence:</strong> an idempotency key the provider honours, a strongly consistent read, or a person.</li>
+<li><strong>Keep your keys stable.</strong> If a key is built from arguments and the model invents a new reference ID, the key changes. In one test that paid twice; a key fixed on the business action paid once.</li>
+<li><strong>Test it by killing the process.</strong> A handler that throws is kinder than a real crash, because cleanup code still runs.</li>
+</ol>
+
+<h2>See what your own agent does</h2>
+<p>This kills a Python agent at every step, restarts it and lists what ran twice. Your agent doesn't need to use our library
+first. The command is experimental and the actions really run, so use test accounts.</p>
+<pre><code>pip install call4agents
+call4agents crashtest your_agent.py</code></pre>
+<p>The fixes above work with or without Call4Agents. It is one open-source way to do them in Python.</p>
+</article>
+<section><h2>Related guides</h2><ul><li><a href="https://salahmakboul.github.io/call4agents/guides/agent-sent-email-twice/">Why did my AI agent send the email twice?</a></li><li><a href="https://salahmakboul.github.io/call4agents/guides/idempotency-keys-for-ai-agents/">Idempotency keys for AI agent tool calls</a></li></ul></section>
+</main>
+<footer class="container"><hr><p><small>Call4Agents · Apache-2.0 · Copyright 2026 Salah Eddine Makboul ·
+<a href="https://github.com/salahmakboul/call4agents">Source on GitHub</a> · <a href="https://pypi.org/project/call4agents/">PyPI</a> · Site layout: Pico CSS (MIT).</small></p></footer>
+</body>
+</html>
