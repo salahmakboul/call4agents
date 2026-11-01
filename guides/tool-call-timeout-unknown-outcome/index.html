@@ -47,7 +47,8 @@ each:</p>
 is weak evidence unless the read is strongly consistent.</p>
 
 <h2>Three more ways it goes wrong</h2>
-<p>These are small tests with fake services and real process kills, not production numbers.</p>
+<p>These are small tests with fake services and real process kills, not production numbers. All 26 results are in an
+<a href="https://huggingface.co/datasets/ghiuoi/agent-crash-recovery-tests">open dataset on Hugging Face</a> (CC BY 4.0).</p>
 <table><thead><tr><th>Situation</th><th>Weak design</th><th>Stronger design</th></tr></thead><tbody>
 <tr><td>A "started" record, then a crash</td><td>Inside the step's transaction: 2 effects in 10 of 10 runs</td><td>Committed on its own before the tool: 1 effect</td></tr>
 <tr><td>A worker stalls past its lease, then wakes up</td><td>Lease only: 2 sends in 20 of 20 runs</td><td>Generation check at the record: 1 send</td></tr>
