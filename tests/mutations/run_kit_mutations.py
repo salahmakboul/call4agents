@@ -19,10 +19,10 @@ PG = "call4agents/stores/postgres.py"
 MUTATIONS = [
     # --- K17: one yes = one action, deny enforced
     ("control (no-op)", LEDGER, "# Each \"yes\" is spent", "# Each \"yes\" is spent", "tests.test_c4a_kit"),
-    ("K17 a yes is never spent", LEDGER, 'self.append(run_id, "approval_used",', 'self.append(run_id, "approval_used_x",', "tests.test_c4a_kit"),
-    ("K17 a no is ignored", LEDGER, 'return max(self._matching(run_id, tool, args, "denial"), default=0)', "return 0", "tests.test_c4a_kit"),
-    ("K17 no deny check when in doubt", INIT, 'if (lg.last_denial(run_id, tool, call_args) > spent["seq"]', "if (False", "tests.test_c4a_kit"),
-    ("K17 no unique index on a use", LEDGER, "CREATE UNIQUE INDEX IF NOT EXISTS one_use", "CREATE INDEX IF NOT EXISTS one_use", "tests.test_c4a_kit"),
+    ("K17 a yes is never spent", LEDGER, 'self._insert(conn, run_id, "approval_used",', 'self._insert(conn, run_id, "approval_used_x",', "tests.test_c4a_kit"),
+    ("K17 a no is ignored", LEDGER, 'denied = max(self._matching_in(conn, run_id, tool, args, "denial"), default=0)', "denied = 0", "tests.test_c4a_kit"),
+    ("K17 no deny check when in doubt", LEDGER, 'if (denied > spent["seq"] or', "if (False or", "tests.test_c4a_kit"),
+    ("K17 no unique index on a use", LEDGER, "CREATE UNIQUE INDEX IF NOT EXISTS one_use", "CREATE INDEX IF NOT EXISTS one_use", "tests.test_atomic_admission"),
     # --- K18: bugs found by an outside tester
     ("K18 keys from str() again", LEDGER, "default=_stable)", "default=str)", "tests.test_c4a_kit"),
     ("K18 tool name = function name", INIT, "tool = name or _tool_name(f)", "tool = name or f.__name__", "tests.test_c4a_kit"),
@@ -42,8 +42,8 @@ MUTATIONS = [
      "tests.test_c4a_kit"),
     ("K21 numbers compared as text", INIT, "        return na == nb" + chr(10), "        return a == b" + chr(10), "tests.test_c4a_kit"),
     # --- K22: a spent "yes" covers only its own arguments; a losing caller gets a conflict
-    ("K22 a spent yes covers other arguments", INIT,
-     'or spent["payload"]["approval"] not in lg.matching_approvals(run_id, tool, call_args)):', "or False):", "tests.test_c4a_kit"),
+    ("K22 a spent yes covers other arguments", LEDGER,
+     'or spent["payload"]["approval"] not in approvals):', "or False):", "tests.test_c4a_kit"),
     ("K22 the race loser gets the winner's result", INIT, 'if "replay" in plan:                # a caller', "if False:                # a caller", "tests.test_c4a_kit"),
     # --- K19: a record cannot make the codec call a function
     ("K19 codec calls whatever is named", "call4agents/codec.py", "    if not isinstance(obj, type):" + chr(10),
@@ -109,15 +109,19 @@ MUTATIONS = [
     ("T expiry ignored", LEDGER, 'if time.time() > p["exp"]:', "if False:", "tests.test_tickets"),
     ("T deny recorded as a yes", LEDGER, 'kind = "approval" if decision == "approve" else "denial"', 'kind = "approval"',
      "tests.test_tickets"),
-    ("T approval not checked when it runs", INIT, "elif not lg.use_approval(run_id, tool, call_args, k):", "elif False:",
+    ("T approval not checked when it runs", INIT, "if owned is None:", "if False:",
      "tests.test_tickets"),
     ("T an open ticket is not reused", LEDGER,
      'if decided is None or (decided["payload"]["decision"] == "approve" and unused):', "if False:", "tests.test_tickets"),
     ("T OpenAI bridge approves whatever waits", "call4agents/adapters/openai_agents.py",
      'item = waiting.get(info["call_id"])', "item = next(iter(waiting.values()), None)", "tests.test_tickets"),
     # --- crashtest and scan: each check must be able to fail, and crashtest must catch a real bug of ours
-    ("CT crashtest misses the old approval bypass", INIT,
-     'or spent["payload"]["approval"] not in lg.matching_approvals(run_id, tool, call_args)):', "or False):", "tests.test_crashtest"),
+    ("CT split admission trusts a spent yes", LEDGER,
+     '        try:\n            with self._lock, self._conn() as conn:\n                self._begin_admission(conn)',
+     '        if self.latest("effect_approved", effect) is None and not self.use_approval(run_id, tool, args, effect):\n'
+     '            return None\n        return self.claim(run_id, key, payload)\n'
+     '        try:\n            with self._lock, self._conn() as conn:\n                self._begin_admission(conn)',
+     "tests.test_crashtest --approval-boundary-only"),
     ("CT nothing is ever killed", CT, "if n == self.crash_at:", "if False:", "tests.test_crashtest"),
     ("CT no kill after the action", CT, 'self.point(f"after {shown}")', "pass", "tests.test_crashtest"),
     ("CT a repeat is never counted", CT, "ran[c] > baseline[c]", "False", "tests.test_crashtest"),
@@ -147,6 +151,35 @@ MUTATIONS = [
     ("A the approval key signs exports", AUDIT, 'return hmac.new(_key(secret), canonical(signed)', 'return hmac.new(b"public", canonical(signed)', "tests.test_audit"),
     ("S9 verify on a shared record not handled", "call4agents/ops.py", "integrity = PG_INTEGRITY if _is_pg(path) else",
      "integrity = \"?\" if _is_pg(path) else", "tests.test_shared_record"),
+    # --- atomic admission: splitting the commit must leave a detectable partial admission
+    ("control (atomic SQLite)", LEDGER, 'conn.execute("BEGIN IMMEDIATE")', 'conn.execute("BEGIN IMMEDIATE")',
+     "tests.test_atomic_admission"),
+    ("A SQLite commits before intent", LEDGER,
+     '                self._insert(conn, run_id, "tool_intent", key, payload)',
+     '                conn.execute("COMMIT")\n                self._insert(conn, run_id, "tool_intent", key, payload)',
+     "tests.test_atomic_admission"),
+    ("control (atomic PostgreSQL)", PG, 'conn.execute("LOCK TABLE entries IN SHARE ROW EXCLUSIVE MODE")',
+     'conn.execute("LOCK TABLE entries IN SHARE ROW EXCLUSIVE MODE")', "tests.test_atomic_admission --postgres"),
+    ("A PostgreSQL commits inside admission", PG, '        return row.fetchone()[0]',
+     '        result = row.fetchone()[0]\n        conn.execute("COMMIT")\n        return result',
+     "tests.test_atomic_admission --postgres"),
+]
+
+# This opt-in batch requires the PostgreSQL dependencies already installed by CI.
+# Keep the default mutation inventory and its historical count unchanged.
+PG_ADMISSION = [
+    ("PG admission lock removed", PG,
+     'conn.execute("LOCK TABLE entries IN SHARE ROW EXCLUSIVE MODE")',
+     'conn.execute("SELECT 1")',
+     "tests.test_atomic_admission --postgres AtomicAdmission.test_uncommitted_raw_denial_blocks_admission_and_connection_recovers"),
+    ("PG admission lock allows writers", PG,
+     'conn.execute("LOCK TABLE entries IN SHARE ROW EXCLUSIVE MODE")',
+     'conn.execute("LOCK TABLE entries IN SHARE UPDATE EXCLUSIVE MODE")',
+     "tests.test_atomic_admission --postgres AtomicAdmission.test_uncommitted_raw_denial_blocks_admission_and_connection_recovers"),
+    ("PG admission commits before intent", PG,
+     '        return row.fetchone()[0]',
+     '        result = row.fetchone()[0]\n        conn.execute("COMMIT")\n        return result',
+     "tests.test_atomic_admission --postgres AtomicAdmission.test_failure_before_intent_rolls_back_entire_admission"),
 ]
 
 
@@ -156,11 +189,16 @@ def copy_tree(dst: Path) -> None:
     (dst / "tests" / "__init__.py").write_text("", encoding="utf-8")
     for f in ("test_c4a_kit.py", "c4a_codec_types.py", "c4a_k18_child.py", "c4a_prove_sample.py", "test_idempotency.py",
               "test_c4a_production.py", "test_undo.py", "c4a_undo_child.py", "test_adapters.py",
-              "test_shared_record.py", "test_tickets.py", "test_crashtest.py", "test_audit.py"):
+              "test_shared_record.py", "test_tickets.py", "test_crashtest.py", "test_audit.py", "test_atomic_admission.py"):
         shutil.copy(ROOT / "tests" / f, dst / "tests" / f)
 
 
 def main() -> int:
+    if sys.argv[1:] == ["--postgres-admission"]:
+        return postgres_admission()
+    if len(sys.argv) != 1:
+        print("usage: python -m tests.mutations.run_kit_mutations [--postgres-admission]")
+        return 2
     bad = 0
     for name, rel, old, new, suite in MUTATIONS:
         tmp = Path(tempfile.mkdtemp(prefix="c4a-mut-"))
@@ -173,7 +211,7 @@ def main() -> int:
                 bad += 1
                 continue
             path.write_text(text.replace(old, new), encoding="utf-8")
-            r = subprocess.run([sys.executable, "-m", suite], cwd=tmp, capture_output=True, text=True, timeout=600)
+            r = subprocess.run([sys.executable, "-m", *suite.split()], cwd=tmp, capture_output=True, text=True, timeout=600)
             fails = [l.split()[1] for l in r.stdout.splitlines() if l.strip().startswith("FAIL")]
             caught = r.returncode != 0
             expected = not name.startswith("control")
@@ -182,6 +220,39 @@ def main() -> int:
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
     print("\nall mutations behave as expected" if not bad else f"\n{bad} mutation result(s) not as expected")
+    return 1 if bad else 0
+
+
+def postgres_admission() -> int:
+    """Only assertion failures kill a mutant; setup/import errors fail the batch."""
+    with tempfile.TemporaryDirectory(prefix="c4a-mut-pg-base-") as base:
+        copy_tree(Path(base))
+        baseline = subprocess.run([sys.executable, "-m", "tests.test_atomic_admission", "--postgres"],
+                                  cwd=base, capture_output=True, text=True, timeout=600)
+        if baseline.returncode or "OK" not in baseline.stderr:
+            print("BAD pristine PostgreSQL admission suite did not pass")
+            print(baseline.stderr[-2000:])
+            return 1
+    bad = 0
+    for name, rel, old, new, suite in PG_ADMISSION:
+        with tempfile.TemporaryDirectory(prefix="c4a-mut-pg-") as tmp:
+            root = Path(tmp)
+            copy_tree(root)
+            path = root / rel
+            source = path.read_text(encoding="utf-8")
+            if source.count(old) != 1:
+                print(f"BAD {name}: exact anchor count {source.count(old)}")
+                bad += 1
+                continue
+            path.write_text(source.replace(old, new), encoding="utf-8")
+            result = subprocess.run([sys.executable, "-m", *suite.split()], cwd=root,
+                                    capture_output=True, text=True, timeout=600)
+            killed = (result.returncode != 0 and "FAIL: test_" in result.stderr
+                      and "ERROR:" not in result.stderr and "ModuleNotFoundError" not in result.stderr)
+            print(f"{'ok ' if killed else 'BAD'} {name}: {'assertion caught' if killed else 'no assertion failure'}")
+            if not killed:
+                print(result.stderr[-2000:])
+                bad += 1
     return 1 if bad else 0
 
 

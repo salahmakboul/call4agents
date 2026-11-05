@@ -242,9 +242,12 @@ class Ledger:
     # ------------------------------------------------------------ append / read
     def append(self, run_id: str, kind: str, key: str, payload: Any = None) -> int:
         with self._lock, self._conn() as conn:
-            cur = conn.execute("INSERT INTO entries (run_id, kind, key, payload, t) VALUES (?, ?, ?, ?, ?)",
-                               (run_id, kind, key, None if payload is None else canonical(payload), time.time()))
-            return cur.lastrowid
+            return self._insert(conn, run_id, kind, key, payload)
+
+    def _insert(self, conn: Any, run_id: str, kind: str, key: str, payload: Any = None) -> int:
+        cur = conn.execute("INSERT INTO entries (run_id, kind, key, payload, t) VALUES (?, ?, ?, ?, ?)",
+                           (run_id, kind, key, None if payload is None else canonical(payload), time.time()))
+        return cur.lastrowid
 
     def claim(self, run_id: str, key: str, payload: Any = None) -> bool:
         """Atomically record an intent. True = this caller owns the effect; False = someone already does."""
@@ -252,6 +255,45 @@ class Ledger:
             self.append(run_id, "tool_intent", key, payload)
             return True
         except self._DUPLICATE:
+            return False
+
+    def _begin_admission(self, conn: Any) -> None:
+        # Lock before reading: a deferred read-to-write upgrade can fail under contention.
+        conn.execute("BEGIN IMMEDIATE")
+
+    def claim_approved(self, run_id: str, tool: str, args: Dict[str, Any], effect: str,
+                       key: str, payload: Any = None) -> Optional[bool]:
+        """One transaction for a live yes and its intent: True owns it, False already claimed,
+        None needs approval. No application code runs until the transaction has committed.
+        Old records with effect_approved but no intent remain resumable under the same rules.
+        """
+        try:
+            with self._lock, self._conn() as conn:
+                self._begin_admission(conn)
+                if self._latest_in(conn, "tool_done", effect) is not None:
+                    return False
+                spent = self._latest_in(conn, "effect_approved", effect)
+                denied = max(self._matching_in(conn, run_id, tool, args, "denial"), default=0)
+                approvals = self._matching_in(conn, run_id, tool, args, "approval")
+                if spent is not None:
+                    if (denied > spent["seq"] or spent["payload"]["approval"] not in approvals):
+                        return None
+                if self._latest_in(conn, "tool_intent", key) is not None:
+                    return False
+                if spent is None:
+                    for seq in approvals:
+                        used_key = f"{run_id}\x00{tool}\x00{seq}"
+                        if seq <= denied or self._latest_in(conn, "approval_used", used_key) is not None:
+                            continue
+                        self._insert(conn, run_id, "approval_used", used_key, {"effect": effect})
+                        self._insert(conn, run_id, "effect_approved", effect, {"approval": seq})
+                        break
+                    else:
+                        return None
+                self._insert(conn, run_id, "tool_intent", key, payload)
+                return True
+        except self._DUPLICATE:
+            # Outside the context: PostgreSQL must roll back a unique violation before any read.
             return False
 
     def first_intent_time(self, base_key: str) -> Optional[float]:
@@ -271,8 +313,11 @@ class Ledger:
 
     def latest(self, kind: str, key: str) -> Optional[Dict[str, Any]]:
         with self._conn() as conn:
-            row = conn.execute("SELECT seq, run_id, payload, t FROM entries WHERE kind = ? AND key = ? "
-                               "ORDER BY seq DESC LIMIT 1", (kind, key)).fetchone()
+            return self._latest_in(conn, kind, key)
+
+    def _latest_in(self, conn: Any, kind: str, key: str) -> Optional[Dict[str, Any]]:
+        row = conn.execute("SELECT seq, run_id, payload, t FROM entries WHERE kind = ? AND key = ? "
+                           "ORDER BY seq DESC LIMIT 1", (kind, key)).fetchone()
         if row is None:
             return None
         return {"seq": row[0], "run_id": row[1], "payload": self._payload(row[0], row[2]), "t": row[3]}
@@ -318,10 +363,13 @@ class Ledger:
         return mac
 
     def _matching(self, run_id: str, tool: str, args: Dict[str, Any], kind: str) -> List[int]:
-        wants = [self.sign(tool, args, key) for key in [self.secret] + list(getattr(self, "old_secrets", []))]
         with self._conn() as conn:
-            rows = conn.execute("SELECT seq, payload FROM entries WHERE kind = ? AND key = ? ORDER BY seq",
-                                (kind, f"{run_id}\x00{tool}")).fetchall()
+            return self._matching_in(conn, run_id, tool, args, kind)
+
+    def _matching_in(self, conn: Any, run_id: str, tool: str, args: Dict[str, Any], kind: str) -> List[int]:
+        wants = [self.sign(tool, args, key) for key in [self.secret] + list(getattr(self, "old_secrets", []))]
+        rows = conn.execute("SELECT seq, payload FROM entries WHERE kind = ? AND key = ? ORDER BY seq",
+                            (kind, f"{run_id}\x00{tool}")).fetchall()
         return [r[0] for r in rows if r[1] and any(hmac.compare_digest(json.loads(r[1]).get("mac", ""), w) for w in wants)]
 
     def matching_approvals(self, run_id: str, tool: str, args: Dict[str, Any]) -> List[int]:

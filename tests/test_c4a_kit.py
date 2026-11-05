@@ -628,21 +628,13 @@ def main():
         except (c4a.ApprovalRequired, c4a.KeyConflict) as exc:
             return type(exc).__name__
 
-    # the process dies after the "yes" is spent and before the intent is recorded
+    # A legacy record can have a spent "yes" without an intent. It must remain resumable.
     lg = fresh()
-    claim = lg.claim
-
-    def dies(*a, **k):
-        raise KeyboardInterrupt
-
-    lg.claim = dies
     with c4a.run("k22"):
         c4a.approve(k22_pay, amount=10)
-        try:
-            k22_pay(10, c4a_key="order-1")
-        except KeyboardInterrupt:
-            pass
-    lg.claim = claim
+        from call4agents.ledger import effect_key
+        old_key = effect_key("k22", "k22.pay", {"__c4a_key__": "order-1"})
+        assert lg.use_approval("k22", "k22.pay", {"amount": 10}, old_key)
     with c4a.run("k22"):
         other = outcome(k22_pay, 20, c4a_key="order-1")
         again = outcome(k22_pay, 10, c4a_key="order-1")
@@ -654,15 +646,20 @@ def main():
         """Call A has passed its checks and waits just before recording its intent while B runs."""
         lg = fresh()
         k22.clear()
-        claim, ready, go, out = lg.claim, threading.Event(), threading.Event(), {}
+        claim = lg.claim_approved if fn is k22_pay else lg.claim
+        ready, go, out = threading.Event(), threading.Event(), {}
 
-        def slow(run_id, key, payload=None):
+        def slow(*args):
+            payload = args[-1]
             if payload and payload["args"] == slow_args:
                 ready.set()
                 go.wait(10)
-            return claim(run_id, key, payload)
+            return claim(*args)
 
-        lg.claim = slow
+        if fn is k22_pay:
+            lg.claim_approved = slow
+        else:
+            lg.claim = slow
         with c4a.run("k22"):
             if setup:
                 setup()
@@ -699,16 +696,18 @@ def main():
 
     # K24 a cancelled async action may already have reached the outside world: it is in doubt, never run again
     k24 = []
+    k24_started = asyncio.Event()
 
     @c4a.effect(name="k24.refund")
     async def k24_refund(order):
         k24.append(order)
+        k24_started.set()
         await asyncio.sleep(5)
 
     async def k24_run():
         with c4a.run("k24"):
             task = asyncio.create_task(k24_refund("A"))
-            await asyncio.sleep(0.05)
+            await asyncio.wait_for(k24_started.wait(), timeout=10)
             task.cancel()
             try:
                 await task
