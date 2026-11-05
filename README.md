@@ -4,6 +4,10 @@ Call4Agents makes the actions of a Python agent safe to retry. You add it to the
 have: LangGraph, Pydantic AI, the OpenAI Agents SDK, an MCP server, or plain Python. It does not
 replace any of them.
 
+**Write-up, 5 November 2026:** [A "yes" is not exactly-once](docs/finding/). One approved payment, a crash
+right after it, a documented resume: 2 payments in LangGraph, Pydantic AI and the OpenAI Agents SDK. Script and
+every run's data included.
+
 **Does your agent repeat an action after a crash?** This kills it at every step, restarts it, and tells you which
 action ran twice. Your agent does not need to use our guard first.
 

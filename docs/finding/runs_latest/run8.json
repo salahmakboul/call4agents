@@ -1,0 +1,180 @@
+{
+ "versions": {
+  "langgraph": "1.2.19",
+  "pydantic-ai": "2.63.0",
+  "openai-agents": "0.24.0"
+ },
+ "python": "3.12.10",
+ "cases": {
+  "LangGraph | approve_then_crash | without": {
+   "payments": 2,
+   "paid": [
+    {
+     "amount": 10,
+     "to": "alice"
+    },
+    {
+     "amount": 10,
+     "to": "alice"
+    }
+   ],
+   "exit_codes": [
+    0,
+    17,
+    0,
+    0
+   ],
+   "asked_again": true
+  },
+  "LangGraph | approve_then_crash | with call4agents": {
+   "payments": 1,
+   "paid": [
+    {
+     "amount": 10,
+     "to": "alice"
+    }
+   ],
+   "exit_codes": [
+    0,
+    17,
+    0,
+    0
+   ],
+   "asked_again": false
+  },
+  "LangGraph | edited_after_yes | without": {
+   "payments": 1,
+   "paid": [
+    {
+     "amount": 9999,
+     "to": "mallory"
+    }
+   ],
+   "exit_codes": [
+    0,
+    0
+   ],
+   "asked_again": false
+  },
+  "LangGraph | edited_after_yes | with call4agents": {
+   "payments": 0,
+   "paid": [],
+   "exit_codes": [
+    0,
+    0
+   ],
+   "asked_again": false
+  },
+  "Pydantic AI | approve_then_crash | without": {
+   "payments": 2,
+   "paid": [
+    {
+     "amount": 10,
+     "to": "alice"
+    },
+    {
+     "amount": 10,
+     "to": "alice"
+    }
+   ],
+   "exit_codes": [
+    0,
+    17,
+    0
+   ],
+   "asked_again": false
+  },
+  "Pydantic AI | approve_then_crash | with call4agents": {
+   "payments": 1,
+   "paid": [
+    {
+     "amount": 10,
+     "to": "alice"
+    }
+   ],
+   "exit_codes": [
+    0,
+    17,
+    0
+   ],
+   "asked_again": false
+  },
+  "Pydantic AI | edited_after_yes | without": {
+   "payments": 1,
+   "paid": [
+    {
+     "amount": 9999,
+     "to": "mallory"
+    }
+   ],
+   "exit_codes": [
+    0,
+    0
+   ],
+   "asked_again": false
+  },
+  "Pydantic AI | edited_after_yes | with call4agents": {
+   "payments": 0,
+   "paid": [],
+   "exit_codes": [
+    0,
+    0
+   ],
+   "asked_again": false
+  },
+  "OpenAI Agents SDK | approve_then_crash | without": {
+   "payments": 2,
+   "paid": [
+    {
+     "amount": 10,
+     "to": "alice"
+    },
+    {
+     "amount": 10,
+     "to": "alice"
+    }
+   ],
+   "exit_codes": [
+    0,
+    17,
+    0
+   ],
+   "asked_again": false
+  },
+  "OpenAI Agents SDK | approve_then_crash | with call4agents": {
+   "payments": 1,
+   "paid": [
+    {
+     "amount": 10,
+     "to": "alice"
+    }
+   ],
+   "exit_codes": [
+    0,
+    17,
+    0
+   ],
+   "asked_again": false
+  },
+  "OpenAI Agents SDK | edited_after_yes | without": {
+   "payments": 0,
+   "paid": [],
+   "exit_codes": [
+    0,
+    1,
+    1
+   ],
+   "raised_in_approve": "agents.exceptions.ModelBehaviorError: Model reused a tool call ID for a different invocation. Use a unique call ID for each tool invocation."
+  },
+  "OpenAI Agents SDK | edited_after_yes | with call4agents": {
+   "payments": 0,
+   "paid": [],
+   "exit_codes": [
+    0,
+    1,
+    1
+   ],
+   "raised_in_approve": "agents.exceptions.ModelBehaviorError: Model reused a tool call ID for a different invocation. Use a unique call ID for each tool invocation."
+  }
+ }
+}
