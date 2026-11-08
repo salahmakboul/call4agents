@@ -4,6 +4,9 @@
 Disclosure: we build a library for this problem. Everything below can be rerun without our library, and the fixes
 in section 9 work without it.*
 
+*Update, 8 November 2026: the same test on Google ADK 2.14.0 and Microsoft Agent Framework 1.25.0 gave 2 payments in
+every run too (5 runs each). Scripts and data: [more_frameworks/](more_frameworks/).*
+
 ## 1. The short version
 
 A person approves one payment. The tool pays. The process dies before the framework saves its progress. A new
