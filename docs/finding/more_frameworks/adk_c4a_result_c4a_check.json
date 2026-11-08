@@ -1,0 +1,231 @@
+{
+ "mode": "c4a+check",
+ "call4agents": "0.6.0",
+ "adk": "2.14.0",
+ "python": "3.12.10",
+ "runs_per_case": 5,
+ "cases": {
+  "control: no crash": {
+   "payments": [
+    [
+     "10 alice"
+    ],
+    [
+     "10 alice"
+    ],
+    [
+     "10 alice"
+    ],
+    [
+     "10 alice"
+    ],
+    [
+     "10 alice"
+    ]
+   ],
+   "runs": [
+    {
+     "start": {
+      "asked": 1,
+      "exit": 0
+     },
+     "approve": {
+      "asked_again": 0,
+      "texts": [
+       "Paid."
+      ],
+      "exit": 0
+     },
+     "payments": [
+      "10 alice"
+     ]
+    },
+    {
+     "start": {
+      "asked": 1,
+      "exit": 0
+     },
+     "approve": {
+      "asked_again": 0,
+      "texts": [
+       "Paid."
+      ],
+      "exit": 0
+     },
+     "payments": [
+      "10 alice"
+     ]
+    },
+    {
+     "start": {
+      "asked": 1,
+      "exit": 0
+     },
+     "approve": {
+      "asked_again": 0,
+      "texts": [
+       "Paid."
+      ],
+      "exit": 0
+     },
+     "payments": [
+      "10 alice"
+     ]
+    },
+    {
+     "start": {
+      "asked": 1,
+      "exit": 0
+     },
+     "approve": {
+      "asked_again": 0,
+      "texts": [
+       "Paid."
+      ],
+      "exit": 0
+     },
+     "payments": [
+      "10 alice"
+     ]
+    },
+    {
+     "start": {
+      "asked": 1,
+      "exit": 0
+     },
+     "approve": {
+      "asked_again": 0,
+      "texts": [
+       "Paid."
+      ],
+      "exit": 0
+     },
+     "payments": [
+      "10 alice"
+     ]
+    }
+   ]
+  },
+  "crash after approved payment": {
+   "payments": [
+    [
+     "10 alice"
+    ],
+    [
+     "10 alice"
+    ],
+    [
+     "10 alice"
+    ],
+    [
+     "10 alice"
+    ],
+    [
+     "10 alice"
+    ]
+   ],
+   "runs": [
+    {
+     "start": {
+      "asked": 1,
+      "exit": 0
+     },
+     "approve": {
+      "error": "",
+      "exit": 17
+     },
+     "resume": {
+      "asked_again": 0,
+      "texts": [
+       "Paid."
+      ],
+      "exit": 0
+     },
+     "payments": [
+      "10 alice"
+     ]
+    },
+    {
+     "start": {
+      "asked": 1,
+      "exit": 0
+     },
+     "approve": {
+      "error": "",
+      "exit": 17
+     },
+     "resume": {
+      "asked_again": 0,
+      "texts": [
+       "Paid."
+      ],
+      "exit": 0
+     },
+     "payments": [
+      "10 alice"
+     ]
+    },
+    {
+     "start": {
+      "asked": 1,
+      "exit": 0
+     },
+     "approve": {
+      "error": "",
+      "exit": 17
+     },
+     "resume": {
+      "asked_again": 0,
+      "texts": [
+       "Paid."
+      ],
+      "exit": 0
+     },
+     "payments": [
+      "10 alice"
+     ]
+    },
+    {
+     "start": {
+      "asked": 1,
+      "exit": 0
+     },
+     "approve": {
+      "error": "",
+      "exit": 17
+     },
+     "resume": {
+      "asked_again": 0,
+      "texts": [
+       "Paid."
+      ],
+      "exit": 0
+     },
+     "payments": [
+      "10 alice"
+     ]
+    },
+    {
+     "start": {
+      "asked": 1,
+      "exit": 0
+     },
+     "approve": {
+      "error": "",
+      "exit": 17
+     },
+     "resume": {
+      "asked_again": 0,
+      "texts": [
+       "Paid."
+      ],
+      "exit": 0
+     },
+     "payments": [
+      "10 alice"
+     ]
+    }
+   ]
+  }
+ }
+}

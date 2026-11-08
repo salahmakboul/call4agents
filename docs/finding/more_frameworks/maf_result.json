@@ -1,0 +1,747 @@
+{
+ "agent_framework": "1.25.0",
+ "python": "3.12.10",
+ "runs_per_case": 5,
+ "cases": {
+  "control: no crash": {
+   "payments": [
+    [
+     "10 alice"
+    ],
+    [
+     "10 alice"
+    ],
+    [
+     "10 alice"
+    ],
+    [
+     "10 alice"
+    ],
+    [
+     "10 alice"
+    ]
+   ],
+   "runs": [
+    {
+     "start": {
+      "asked": 1,
+      "checkpoints": 2,
+      "exit": 0
+     },
+     "approve": {
+      "checkpoints_before": 2,
+      "asked": 1,
+      "pending_args": [
+       {
+        "amount": 10,
+        "to": "alice"
+       }
+      ],
+      "asked_again_after_yes": 0,
+      "outputs": [
+       "Paid."
+      ],
+      "exit": 0
+     },
+     "payments": [
+      "10 alice"
+     ]
+    },
+    {
+     "start": {
+      "asked": 1,
+      "checkpoints": 2,
+      "exit": 0
+     },
+     "approve": {
+      "checkpoints_before": 2,
+      "asked": 1,
+      "pending_args": [
+       {
+        "amount": 10,
+        "to": "alice"
+       }
+      ],
+      "asked_again_after_yes": 0,
+      "outputs": [
+       "Paid."
+      ],
+      "exit": 0
+     },
+     "payments": [
+      "10 alice"
+     ]
+    },
+    {
+     "start": {
+      "asked": 1,
+      "checkpoints": 2,
+      "exit": 0
+     },
+     "approve": {
+      "checkpoints_before": 2,
+      "asked": 1,
+      "pending_args": [
+       {
+        "amount": 10,
+        "to": "alice"
+       }
+      ],
+      "asked_again_after_yes": 0,
+      "outputs": [
+       "Paid."
+      ],
+      "exit": 0
+     },
+     "payments": [
+      "10 alice"
+     ]
+    },
+    {
+     "start": {
+      "asked": 1,
+      "checkpoints": 2,
+      "exit": 0
+     },
+     "approve": {
+      "checkpoints_before": 2,
+      "asked": 1,
+      "pending_args": [
+       {
+        "amount": 10,
+        "to": "alice"
+       }
+      ],
+      "asked_again_after_yes": 0,
+      "outputs": [
+       "Paid."
+      ],
+      "exit": 0
+     },
+     "payments": [
+      "10 alice"
+     ]
+    },
+    {
+     "start": {
+      "asked": 1,
+      "checkpoints": 2,
+      "exit": 0
+     },
+     "approve": {
+      "checkpoints_before": 2,
+      "asked": 1,
+      "pending_args": [
+       {
+        "amount": 10,
+        "to": "alice"
+       }
+      ],
+      "asked_again_after_yes": 0,
+      "outputs": [
+       "Paid."
+      ],
+      "exit": 0
+     },
+     "payments": [
+      "10 alice"
+     ]
+    }
+   ]
+  },
+  "crash after approved payment": {
+   "payments": [
+    [
+     "10 alice",
+     "10 alice"
+    ],
+    [
+     "10 alice",
+     "10 alice"
+    ],
+    [
+     "10 alice",
+     "10 alice"
+    ],
+    [
+     "10 alice",
+     "10 alice"
+    ],
+    [
+     "10 alice",
+     "10 alice"
+    ]
+   ],
+   "runs": [
+    {
+     "start": {
+      "asked": 1,
+      "checkpoints": 2,
+      "exit": 0
+     },
+     "approve": {
+      "error": "",
+      "exit": 17
+     },
+     "resume": {
+      "checkpoints_before": 4,
+      "asked": 0,
+      "pending_args": [],
+      "exit": 0
+     },
+     "payments": [
+      "10 alice",
+      "10 alice"
+     ]
+    },
+    {
+     "start": {
+      "asked": 1,
+      "checkpoints": 2,
+      "exit": 0
+     },
+     "approve": {
+      "error": "",
+      "exit": 17
+     },
+     "resume": {
+      "checkpoints_before": 4,
+      "asked": 0,
+      "pending_args": [],
+      "exit": 0
+     },
+     "payments": [
+      "10 alice",
+      "10 alice"
+     ]
+    },
+    {
+     "start": {
+      "asked": 1,
+      "checkpoints": 2,
+      "exit": 0
+     },
+     "approve": {
+      "error": "",
+      "exit": 17
+     },
+     "resume": {
+      "checkpoints_before": 4,
+      "asked": 0,
+      "pending_args": [],
+      "exit": 0
+     },
+     "payments": [
+      "10 alice",
+      "10 alice"
+     ]
+    },
+    {
+     "start": {
+      "asked": 1,
+      "checkpoints": 2,
+      "exit": 0
+     },
+     "approve": {
+      "error": "",
+      "exit": 17
+     },
+     "resume": {
+      "checkpoints_before": 4,
+      "asked": 0,
+      "pending_args": [],
+      "exit": 0
+     },
+     "payments": [
+      "10 alice",
+      "10 alice"
+     ]
+    },
+    {
+     "start": {
+      "asked": 1,
+      "checkpoints": 2,
+      "exit": 0
+     },
+     "approve": {
+      "error": "",
+      "exit": 17
+     },
+     "resume": {
+      "checkpoints_before": 4,
+      "asked": 0,
+      "pending_args": [],
+      "exit": 0
+     },
+     "payments": [
+      "10 alice",
+      "10 alice"
+     ]
+    }
+   ]
+  },
+  "crash, resume from the checkpoint before the yes": {
+   "payments": [
+    [
+     "10 alice",
+     "10 alice"
+    ],
+    [
+     "10 alice",
+     "10 alice"
+    ],
+    [
+     "10 alice",
+     "10 alice"
+    ],
+    [
+     "10 alice",
+     "10 alice"
+    ],
+    [
+     "10 alice",
+     "10 alice"
+    ]
+   ],
+   "runs": [
+    {
+     "start": {
+      "asked": 1,
+      "checkpoints": 2,
+      "exit": 0
+     },
+     "approve": {
+      "error": "",
+      "exit": 17
+     },
+     "resume": {
+      "checkpoints_before": 4,
+      "asked": 1,
+      "pending_args": [
+       {
+        "amount": 10,
+        "to": "alice"
+       }
+      ],
+      "asked_again_after_yes": 0,
+      "outputs": [
+       "Paid."
+      ],
+      "exit": 0
+     },
+     "payments": [
+      "10 alice",
+      "10 alice"
+     ]
+    },
+    {
+     "start": {
+      "asked": 1,
+      "checkpoints": 2,
+      "exit": 0
+     },
+     "approve": {
+      "error": "",
+      "exit": 17
+     },
+     "resume": {
+      "checkpoints_before": 4,
+      "asked": 1,
+      "pending_args": [
+       {
+        "amount": 10,
+        "to": "alice"
+       }
+      ],
+      "asked_again_after_yes": 0,
+      "outputs": [
+       "Paid."
+      ],
+      "exit": 0
+     },
+     "payments": [
+      "10 alice",
+      "10 alice"
+     ]
+    },
+    {
+     "start": {
+      "asked": 1,
+      "checkpoints": 2,
+      "exit": 0
+     },
+     "approve": {
+      "error": "",
+      "exit": 17
+     },
+     "resume": {
+      "checkpoints_before": 4,
+      "asked": 1,
+      "pending_args": [
+       {
+        "amount": 10,
+        "to": "alice"
+       }
+      ],
+      "asked_again_after_yes": 0,
+      "outputs": [
+       "Paid."
+      ],
+      "exit": 0
+     },
+     "payments": [
+      "10 alice",
+      "10 alice"
+     ]
+    },
+    {
+     "start": {
+      "asked": 1,
+      "checkpoints": 2,
+      "exit": 0
+     },
+     "approve": {
+      "error": "",
+      "exit": 17
+     },
+     "resume": {
+      "checkpoints_before": 4,
+      "asked": 1,
+      "pending_args": [
+       {
+        "amount": 10,
+        "to": "alice"
+       }
+      ],
+      "asked_again_after_yes": 0,
+      "outputs": [
+       "Paid."
+      ],
+      "exit": 0
+     },
+     "payments": [
+      "10 alice",
+      "10 alice"
+     ]
+    },
+    {
+     "start": {
+      "asked": 1,
+      "checkpoints": 2,
+      "exit": 0
+     },
+     "approve": {
+      "error": "",
+      "exit": 17
+     },
+     "resume": {
+      "checkpoints_before": 4,
+      "asked": 1,
+      "pending_args": [
+       {
+        "amount": 10,
+        "to": "alice"
+       }
+      ],
+      "asked_again_after_yes": 0,
+      "outputs": [
+       "Paid."
+      ],
+      "exit": 0
+     },
+     "payments": [
+      "10 alice",
+      "10 alice"
+     ]
+    }
+   ]
+  },
+  "edited before the yes": {
+   "payments": [
+    [
+     "99 mallo"
+    ],
+    [
+     "99 mallo"
+    ],
+    [
+     "99 mallo"
+    ],
+    [
+     "99 mallo"
+    ],
+    [
+     "99 mallo"
+    ]
+   ],
+   "runs": [
+    {
+     "start": {
+      "asked": 1,
+      "checkpoints": 2,
+      "exit": 0
+     },
+     "fields_edited": 5,
+     "approve": {
+      "checkpoints_before": 2,
+      "asked": 1,
+      "pending_args": [
+       {
+        "amount": 99,
+        "to": "mallo"
+       }
+      ],
+      "asked_again_after_yes": 0,
+      "outputs": [
+       "Paid."
+      ],
+      "exit": 0
+     },
+     "payments": [
+      "99 mallo"
+     ]
+    },
+    {
+     "start": {
+      "asked": 1,
+      "checkpoints": 2,
+      "exit": 0
+     },
+     "fields_edited": 5,
+     "approve": {
+      "checkpoints_before": 2,
+      "asked": 1,
+      "pending_args": [
+       {
+        "amount": 99,
+        "to": "mallo"
+       }
+      ],
+      "asked_again_after_yes": 0,
+      "outputs": [
+       "Paid."
+      ],
+      "exit": 0
+     },
+     "payments": [
+      "99 mallo"
+     ]
+    },
+    {
+     "start": {
+      "asked": 1,
+      "checkpoints": 2,
+      "exit": 0
+     },
+     "fields_edited": 5,
+     "approve": {
+      "checkpoints_before": 2,
+      "asked": 1,
+      "pending_args": [
+       {
+        "amount": 99,
+        "to": "mallo"
+       }
+      ],
+      "asked_again_after_yes": 0,
+      "outputs": [
+       "Paid."
+      ],
+      "exit": 0
+     },
+     "payments": [
+      "99 mallo"
+     ]
+    },
+    {
+     "start": {
+      "asked": 1,
+      "checkpoints": 2,
+      "exit": 0
+     },
+     "fields_edited": 5,
+     "approve": {
+      "checkpoints_before": 2,
+      "asked": 1,
+      "pending_args": [
+       {
+        "amount": 99,
+        "to": "mallo"
+       }
+      ],
+      "asked_again_after_yes": 0,
+      "outputs": [
+       "Paid."
+      ],
+      "exit": 0
+     },
+     "payments": [
+      "99 mallo"
+     ]
+    },
+    {
+     "start": {
+      "asked": 1,
+      "checkpoints": 2,
+      "exit": 0
+     },
+     "fields_edited": 5,
+     "approve": {
+      "checkpoints_before": 2,
+      "asked": 1,
+      "pending_args": [
+       {
+        "amount": 99,
+        "to": "mallo"
+       }
+      ],
+      "asked_again_after_yes": 0,
+      "outputs": [
+       "Paid."
+      ],
+      "exit": 0
+     },
+     "payments": [
+      "99 mallo"
+     ]
+    }
+   ]
+  },
+  "crash, then edited after the yes": {
+   "payments": [
+    [
+     "10 alice",
+     "99 mallo"
+    ],
+    [
+     "10 alice",
+     "99 mallo"
+    ],
+    [
+     "10 alice",
+     "99 mallo"
+    ],
+    [
+     "10 alice",
+     "99 mallo"
+    ],
+    [
+     "10 alice",
+     "99 mallo"
+    ]
+   ],
+   "runs": [
+    {
+     "start": {
+      "asked": 1,
+      "checkpoints": 2,
+      "exit": 0
+     },
+     "approve": {
+      "error": "",
+      "exit": 17
+     },
+     "fields_edited": 15,
+     "resume": {
+      "checkpoints_before": 4,
+      "asked": 0,
+      "pending_args": [],
+      "exit": 0
+     },
+     "payments": [
+      "10 alice",
+      "99 mallo"
+     ]
+    },
+    {
+     "start": {
+      "asked": 1,
+      "checkpoints": 2,
+      "exit": 0
+     },
+     "approve": {
+      "error": "",
+      "exit": 17
+     },
+     "fields_edited": 15,
+     "resume": {
+      "checkpoints_before": 4,
+      "asked": 0,
+      "pending_args": [],
+      "exit": 0
+     },
+     "payments": [
+      "10 alice",
+      "99 mallo"
+     ]
+    },
+    {
+     "start": {
+      "asked": 1,
+      "checkpoints": 2,
+      "exit": 0
+     },
+     "approve": {
+      "error": "",
+      "exit": 17
+     },
+     "fields_edited": 15,
+     "resume": {
+      "checkpoints_before": 4,
+      "asked": 0,
+      "pending_args": [],
+      "exit": 0
+     },
+     "payments": [
+      "10 alice",
+      "99 mallo"
+     ]
+    },
+    {
+     "start": {
+      "asked": 1,
+      "checkpoints": 2,
+      "exit": 0
+     },
+     "approve": {
+      "error": "",
+      "exit": 17
+     },
+     "fields_edited": 15,
+     "resume": {
+      "checkpoints_before": 4,
+      "asked": 0,
+      "pending_args": [],
+      "exit": 0
+     },
+     "payments": [
+      "10 alice",
+      "99 mallo"
+     ]
+    },
+    {
+     "start": {
+      "asked": 1,
+      "checkpoints": 2,
+      "exit": 0
+     },
+     "approve": {
+      "error": "",
+      "exit": 17
+     },
+     "fields_edited": 15,
+     "resume": {
+      "checkpoints_before": 4,
+      "asked": 0,
+      "pending_args": [],
+      "exit": 0
+     },
+     "payments": [
+      "10 alice",
+      "99 mallo"
+     ]
+    }
+   ]
+  }
+ }
+}
