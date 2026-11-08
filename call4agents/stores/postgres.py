@@ -135,9 +135,13 @@ class PostgresLedger(Ledger):
             self._local.conn, self._local.pid = conn, os.getpid()
         return conn
 
-    def append(self, run_id: str, kind: str, key: str, payload: Any = None) -> int:
-        with self._lock, self._conn() as conn:
-            row = conn.execute("INSERT INTO entries (run_id, kind, key, payload, t) VALUES (?, ?, ?, ?, ?) "
-                               "RETURNING seq",
-                               (run_id, kind, key, None if payload is None else canonical(payload), time.time()))
-            return row.fetchone()[0]
+    def _begin_admission(self, conn: Any) -> None:
+        # Like SQLite's single writer, serialize the short admission with every append,
+        # including approvals and denials, across connections. Never hold it during an effect.
+        conn.execute("LOCK TABLE entries IN SHARE ROW EXCLUSIVE MODE")
+
+    def _insert(self, conn: Any, run_id: str, kind: str, key: str, payload: Any = None) -> int:
+        row = conn.execute("INSERT INTO entries (run_id, kind, key, payload, t) VALUES (?, ?, ?, ?, ?) "
+                           "RETURNING seq",
+                           (run_id, kind, key, None if payload is None else canonical(payload), time.time()))
+        return row.fetchone()[0]

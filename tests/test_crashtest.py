@@ -1,6 +1,7 @@
 """call4agents crashtest and scan. Run: python -m tests.test_crashtest [--require-frameworks]
 
 Offline, 0 LLM calls. Every scripted agent really is killed and restarted.
+--approval-boundary-only runs CT5 alone for its focused bug re-insertion check.
 CT1 an action with no guard: the repeat is found, exit 1, and every crash point was really reached.
 CT2 the same action with the guard: nothing repeats, exit 0.
 CT3 an async action is counted once per call, and its repeat is found.
@@ -142,9 +143,7 @@ def crash_checks(folder):
 
     r = crashtest(script(folder, "agent_changed.py", CHANGED))
     check("CT4 a call the clean run never made is reported", "pay(amount=20)" in problems(r)["unapproved"], problems(r))
-    r = crashtest(script(folder, "agent_bypass.py", BYPASS))
-    check("CT5 the old approval bypass: pay(20) never runs at any crash point",
-          "pay(amount=20)" not in problems(r)["unapproved"] and r["reached"] == r["tested"], problems(r))
+    approval_crash_check(folder)
 
     broken = script(folder, "agent_broken.py", "def pay(x):\n    pass\npay(1)\nraise ValueError('nope')\n")
     check("CT6 a failing script: exit 2, not a clean result", main([broken]) == 2)
@@ -152,6 +151,12 @@ def crash_checks(folder):
     check("CT6 no action seen: exit 2", "error" in crashtest(quiet) and main([quiet]) == 2)
     check("CT6 --watch adds an action", crashtest(quiet, watch=["add"]).get("actions") == {"add(a=1, b=2)": 1})
     check("CT6 --demo finds the repeat without the guard and none with it", main(["--demo"]) == 0)
+
+
+def approval_crash_check(folder):
+    r = crashtest(script(folder, "agent_bypass.py", BYPASS))
+    check("CT5 the old approval bypass: pay(20) never runs at any crash point",
+          "pay(amount=20)" not in problems(r)["unapproved"] and r["reached"] == r["tested"], problems(r))
 
 
 def framework_checks():
@@ -221,9 +226,12 @@ def scan_checks():
 
 
 def main_test():
-    scan_checks()
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as folder:
-        crash_checks(folder)
+        if "--approval-boundary-only" in sys.argv:
+            approval_crash_check(folder)
+        else:
+            scan_checks()
+            crash_checks(folder)
     if "--require-frameworks" in sys.argv:
         framework_checks()
     if FAILED:

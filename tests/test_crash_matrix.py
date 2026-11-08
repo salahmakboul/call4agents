@@ -38,19 +38,19 @@ def child(work, kind, step, amount, crash_at, when):
     lg = c4a.init(str(work / "record.sqlite"), secret=b"m" * 16)
     crash_at = int(crash_at)
     writes = {"n": 0}
-    append = lg.append
+    insert = lg._insert
 
     def counted(*args, **kwargs):
         writes["n"] += 1
         if writes["n"] == crash_at and when == "before":
             os._exit(9)
-        out = append(*args, **kwargs)
+        out = insert(*args, **kwargs)
         if writes["n"] == crash_at and when == "after":
             os._exit(9)
         (work / "writes.txt").write_text(str(writes["n"]))
         return out
 
-    lg.append = counted
+    lg._insert = counted
 
     def pay(amount):
         with open(work / "bank.txt", "a") as f:

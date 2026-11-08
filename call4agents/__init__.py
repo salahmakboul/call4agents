@@ -292,17 +292,6 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
             if approval and _replay.SOURCE is not None:
                 if not lg.approved(run_id, tool, call_args):
                     raise ApprovalRequired(tool, call_args)
-            elif approval and lg.latest("tool_done", k) is None:     # it may still run: it needs a live "yes"
-                spent = lg.latest("effect_approved", k)
-                if spent is not None:
-                    # this effect already spent its "yes" (a retry or a resume): a later "no" still stops it.
-                    # The "yes" must be for THESE arguments: a named key is the same for other arguments (K22).
-                    if (lg.last_denial(run_id, tool, call_args) > spent["seq"]
-                            or spent["payload"]["approval"] not in lg.matching_approvals(run_id, tool, call_args)):
-                        raise ApprovalRequired(tool, call_args)
-                elif not lg.use_approval(run_id, tool, call_args, k):
-                    # no unused "yes" for exactly these arguments; one "yes" = one action (K17)
-                    raise ApprovalRequired(tool, call_args)
             if _replay.SOURCE is not None:          # replay: never touch the outside world
                 done = _replay.SOURCE.done(k)
                 if done is None:
@@ -311,12 +300,22 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
                     lg.claim(run_id, intent_key(k, 1), {"tool": tool, "args": call_args, "replayed": True})
                     lg.append(run_id, "tool_done", k, {"result": done["result"], "replayed": True})
                 return {"replay": _codec.decode(done["result"])}
+
+            def claim(attempt: int, payload: Any) -> bool:
+                if not approval:
+                    return lg.claim(run_id, intent_key(k, attempt), payload)
+                owned = lg.claim_approved(run_id, tool, call_args, k, intent_key(k, attempt), payload)
+                if owned is None:
+                    refuse_conflict(lg, run_id, call_args, explicit)
+                    raise ApprovalRequired(tool, call_args)
+                return owned
+
             for _ in range(2):
                 done = lg.latest("tool_done", k)
                 if done is not None:
                     return {"replay": _codec.decode(done["payload"]["result"])}
                 attempt = lg.count("tool_abandoned", k) + lg.count("tool_retry_same_key", k) + 1
-                if lg.claim(run_id, intent_key(k, attempt), {"tool": tool, "args": call_args}):
+                if claim(attempt, {"tool": tool, "args": call_args}):
                     return {"key": k, "run_id": run_id, "attempt": attempt}
                 err = lg.latest("tool_error", k)
                 failed = err is not None and err["payload"].get("attempt") == attempt
@@ -333,8 +332,7 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
                         # The outside API still remembers this key: resending with the SAME key cannot
                         # create a second effect. Record the retry, then claim the next attempt.
                         lg.append(run_id, "tool_retry_same_key", k, {"attempt": attempt})
-                        if lg.claim(run_id, intent_key(k, attempt + 1), {"tool": tool, "args": call_args,
-                                                                         "same_key_retry": True}):
+                        if claim(attempt + 1, {"tool": tool, "args": call_args, "same_key_retry": True}):
                             return {"key": k, "run_id": run_id, "attempt": attempt + 1}
                     raise EffectInDoubt(tool, call_args, why)
                 if reconcile is None:
