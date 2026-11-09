@@ -104,6 +104,142 @@ def main():
         truthy = False
     check("K25c c4a.UNKNOWN has no truth value (`if reconcile(...)` would treat it as an answer)", not truthy)
 
+    # K26 retries=N: retry only when the record decides the next try; any other error is raised at once
+    class Busy(Exception):
+        pass
+
+    class NoAnswer(Exception):
+        pass
+
+    def k26_call(fn, *a):
+        try:
+            with c4a.run("r1"):
+                return fn(*a)
+        except c4a.EffectInDoubt as exc:
+            return "doubt: " + str(exc)
+        except Exception as exc:  # noqa: BLE001  (a wrong path must FAIL a check, not crash the suite)
+            return type(exc).__name__
+
+    lg = fresh()
+    tries = []
+
+    @c4a.effect(retry_on=(Busy,), retries=3, backoff=0)
+    def k26a(to):
+        tries.append(to)
+        if len(tries) < 3:
+            raise Busy("try later")
+        return "sent"
+    got = k26_call(k26a, "bob")
+    kinds = [e["kind"] for e in lg.entries("r1")]
+    check("K26 an error that proves nothing happened is retried, and each try is recorded",
+          got == "sent" and len(tries) == 3 and kinds.count("tool_abandoned") == 2 and kinds.count("tool_done") == 1,
+          (got, tries, kinds))
+
+    lg = fresh()
+    tries = []
+
+    @c4a.effect(retry_on=(Busy,), retries=3, backoff=0)
+    def k26b(to):
+        tries.append(to)
+        raise NoAnswer("no answer")
+    first, second = k26_call(k26b, "bob"), k26_call(k26b, "bob")
+    check("K26b any other error is raised at once, never retried blind; the next call is in doubt and names it",
+          first == "NoAnswer" and second.startswith("doubt") and "NoAnswer" in second and tries == ["bob"],
+          (first, second, tries))
+
+    lg = fresh()
+    keys, bank = [], {}
+
+    @c4a.effect(idempotent_for=3600, retries=2, backoff=0)
+    def k26c(amount):
+        k = c4a.idempotency_key()
+        keys.append(k)
+        bank.setdefault(k, amount)          # the provider charges once per key
+        if len(keys) == 1:
+            raise NoAnswer("charged, but the answer was lost")
+        return "charged"
+    got = k26_call(k26c, 10)
+    check("K26c with idempotent_for the retry resends the SAME key: the provider charges once",
+          got == "charged" and len(keys) == 2 and keys[0] == keys[1] and len(bank) == 1, (got, keys, bank))
+
+    lg = fresh()
+    tries = []
+
+    @c4a.effect(retry_on=(Busy,), retries=2, backoff=0)
+    def k26d(to):
+        tries.append(to)
+        raise Busy("still busy")
+    got = k26_call(k26d, "bob")
+    check("K26d after the last retry the real error is raised, after exactly retries + 1 tries",
+          got == "Busy" and len(tries) == 3, (got, tries))
+
+    lg = fresh()
+    tries = []
+
+    @c4a.effect(approval=True, retry_on=(Busy,), retries=1, backoff=0)
+    def k26e(amount):
+        tries.append(amount)
+        if len(tries) == 1:
+            raise Busy("busy")
+        return "paid"
+    with c4a.run("r1"):
+        c4a.approve(k26e, amount=5)
+    got = k26_call(k26e, 5)
+    check("K26e an approved action retried after a 'nothing happened' error needs no second yes, and finishes once",
+          got == "paid" and tries == [5, 5], (got, tries))
+
+    try:
+        @c4a.effect(retries=2)
+        def k26f(to):
+            return to
+        refused = False
+    except ValueError:
+        refused = True
+    check("K26f retries= with no retry_on, idempotent_for or reconcile is refused when the action is declared", refused)
+
+    lg = fresh()
+    tries = []
+
+    @c4a.effect(reconcile=lambda to: None, retries=3, backoff=0)
+    def k26g(to):
+        tries.append(to)
+        raise KeyboardInterrupt
+    try:
+        with c4a.run("r1"):
+            k26g("bob")
+        stopped = False
+    except KeyboardInterrupt:
+        stopped = True
+    check("K26g a cancel or exit (not an Exception) is never retried", stopped and tries == ["bob"], tries)
+
+    lg = fresh()
+    tries = []
+
+    @c4a.effect(reconcile=lambda to: "found it", retries=2, backoff=0)
+    def k26h(to):
+        tries.append(to)
+        raise NoAnswer("timed out after sending")
+    got = k26_call(k26h, "bob")
+    check("K26h with reconcile the retry asks the provider first: it found the action, so it does not run again",
+          got == "found it" and tries == ["bob"], (got, tries))
+
+    import asyncio
+    lg = fresh()
+    tries = []
+
+    @c4a.effect(retry_on=(Busy,), retries=2, backoff=0)
+    async def k26i(to):
+        tries.append(to)
+        if len(tries) < 2:
+            raise Busy("busy")
+        return "sent"
+
+    async def k26i_run():
+        with c4a.run("r1"):
+            return await k26i("bob")
+    got = asyncio.run(k26i_run())
+    check("K26i the async version retries the same way", got == "sent" and tries == ["bob", "bob"], (got, tries))
+
     # K4 approvals bound to exact arguments (key order does not matter, values do)
     fresh()
     paid = []

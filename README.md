@@ -180,6 +180,10 @@ Rules worth knowing before you start:
 - **If the function raises**, the action may or may not have happened (a timeout after the charge
   raises too). The next call raises `EffectInDoubt` and names the error. List errors that prove nothing
   happened with `retry_on=(ConnectionRefusedError,)`; after those, the next call runs the action again.
+- **Retries** (next release, experimental): `retries=3` tries again inside the same call, waiting 0.5, 1, 2 s
+  (`backoff=`), but only when the record decides the next try: an error in `retry_on`, a resend with the same key
+  (`idempotent_for=`), or a provider check first (`reconcile=`). Any other error is raised at once, and `retries=`
+  without one of those three is refused when you declare the action.
 
 **LangGraph and LangChain.**
 - `from call4agents.adapters import langgraph as c4a_lg`.

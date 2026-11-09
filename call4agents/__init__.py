@@ -238,7 +238,8 @@ def idempotency_headers(header: str = "Idempotency-Key") -> Dict[str, str]:
 def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optional[str] = None,
            reconcile: Optional[Callable[..., Any]] = None, key: Optional[Callable[..., str]] = None,
            wait: float = 2.0, idempotent_for: Optional[float] = None, retry_on: tuple = (),
-           exclude: tuple = (), undo: Optional[Callable[..., Any]] = None):
+           exclude: tuple = (), undo: Optional[Callable[..., Any]] = None, retries: int = 0,
+           backoff: float = 0.5):
     """Mark a function that changes the outside world.
 
     - Once-only per (run, tool, exact arguments): a repeat returns the recorded result.
@@ -265,6 +266,12 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
       raises too), so the next call raises EffectInDoubt at once, naming the error. retry_on=
       (SomeError, ...) lists errors that prove nothing happened: after those, the next call runs
       the action again.
+    - retries=N (experimental): after an error, try again up to N times in the same call, waiting
+      backoff * 2**n seconds (at most 30), but ONLY when the record decides the next try: the error
+      is in retry_on (nothing happened), or idempotent_for is set (the resend uses the same key), or
+      reconcile= is set (the provider is asked first). Any other error is raised at once, never
+      retried blind; a try that comes out in doubt stops the retries with EffectInDoubt. Each try is
+      recorded with its error.
     - The tool name is module + qualified name; for methods, `self` is not part of the key (pass
       c4a_key= to tell two objects apart). Arguments without a stable text form raise TypeError.
     - exclude=("ctx",): parameters left out of the key (a framework's context object, which changes
@@ -279,6 +286,11 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
         if name is None and getattr(f, "__name__", "") == "<lambda>":
             raise TypeError("@c4a.effect on a lambda needs name=...: two lambdas in one place would share one key")
         tool = name or _tool_name(f)
+        if not isinstance(retries, int) or isinstance(retries, bool) or retries < 0:
+            raise ValueError("retries must be a whole number, 0 or more")
+        if retries and not (retry_on or idempotent_for is not None or reconcile is not None):
+            raise ValueError(f"{tool}: retries= needs retry_on=, idempotent_for= or reconcile=. Without one of "
+                             "them nothing tells a safe retry from a second action, so nothing would be retried")
         if undo is not None:
             if tool.endswith(".undo"):
                 raise TypeError("an undo action cannot have its own undo")
@@ -395,26 +407,42 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
             else:
                 lg.append(plan["run_id"], "tool_error", plan["key"], {"attempt": plan["attempt"], "error": repr(exc)[:200]})
 
+        def retry_after(n: int, exc: BaseException) -> Optional[float]:
+            """Seconds to wait before try n+2, or None: raise now. Only errors whose next try the record
+            decides (retry_on, same-key resend, or a reconcile check) are retried; never a cancel or exit."""
+            if n >= retries or not isinstance(exc, Exception):
+                return None
+            if not ((retry_on and isinstance(exc, retry_on)) or idempotent_for is not None or reconcile is not None):
+                return None
+            return min(30.0, backoff * (2 ** n))
+
         if inspect.iscoroutinefunction(f):
             @functools.wraps(f)
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 import asyncio
                 explicit = kwargs.pop("c4a_key", None)
                 call_args = _bound_args(f, args, kwargs, exclude)
-                # in a worker thread: waiting for another caller must not block the event loop
-                plan = await asyncio.to_thread(contextvars.copy_context().run, check, call_args, explicit)
-                if "replay" in plan:
-                    return plan["replay"]
-                token = _EFFECT_KEY.set(plan["key"])
-                try:
-                    result = await f(*args, **kwargs)
-                except BaseException as exc:
-                    failed(plan, exc)
-                    raise
-                finally:
-                    _EFFECT_KEY.reset(token)
-                record_result(plan, result)
-                return result
+                n = 0
+                while True:
+                    # in a worker thread: waiting for another caller must not block the event loop
+                    plan = await asyncio.to_thread(contextvars.copy_context().run, check, call_args, explicit)
+                    if "replay" in plan:
+                        return plan["replay"]
+                    token = _EFFECT_KEY.set(plan["key"])
+                    try:
+                        result = await f(*args, **kwargs)
+                    except BaseException as exc:
+                        failed(plan, exc)
+                        delay = retry_after(n, exc)
+                        if delay is None:
+                            raise
+                    else:
+                        record_result(plan, result)
+                        return result
+                    finally:
+                        _EFFECT_KEY.reset(token)
+                    await asyncio.sleep(delay)
+                    n += 1
             async_wrapper.c4a_name, async_wrapper.c4a_fn, async_wrapper.c4a_exclude = tool, f, tuple(exclude)
             return async_wrapper
 
@@ -422,19 +450,26 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             explicit = kwargs.pop("c4a_key", None)
             call_args = _bound_args(f, args, kwargs, exclude)
-            plan = check(call_args, explicit)
-            if "replay" in plan:
-                return plan["replay"]
-            token = _EFFECT_KEY.set(plan["key"])
-            try:
-                result = f(*args, **kwargs)
-            except BaseException as exc:
-                failed(plan, exc)
-                raise
-            finally:
-                _EFFECT_KEY.reset(token)
-            record_result(plan, result)
-            return result
+            n = 0
+            while True:
+                plan = check(call_args, explicit)
+                if "replay" in plan:
+                    return plan["replay"]
+                token = _EFFECT_KEY.set(plan["key"])
+                try:
+                    result = f(*args, **kwargs)
+                except BaseException as exc:
+                    failed(plan, exc)
+                    delay = retry_after(n, exc)
+                    if delay is None:
+                        raise
+                else:
+                    record_result(plan, result)
+                    return result
+                finally:
+                    _EFFECT_KEY.reset(token)
+                time.sleep(delay)
+                n += 1
         wrapper.c4a_name, wrapper.c4a_fn, wrapper.c4a_exclude = tool, f, tuple(exclude)
         return wrapper
 

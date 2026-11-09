@@ -149,6 +149,16 @@ MUTATIONS = [
      "found = None", "tests.test_c4a_kit"),
     ("K25 UNKNOWN reads as false", INIT, '        raise TypeError("c4a.UNKNOWN has no truth value',
      '        return False\n        raise TypeError("c4a.UNKNOWN has no truth value', "tests.test_c4a_kit"),
+    # --- K26: retries only when the record decides the next try
+    ("K26 any error is retried", INIT,
+     "            if not ((retry_on and isinstance(exc, retry_on)) or idempotent_for is not None or reconcile is not None):",
+     "            if False:", "tests.test_c4a_kit"),
+    ("K26 a cancel is retried", INIT, "if n >= retries or not isinstance(exc, Exception):", "if n >= retries:",
+     "tests.test_c4a_kit"),
+    ("K26 nothing is retried", INIT, "return min(30.0, backoff * (2 ** n))", "return None", "tests.test_c4a_kit"),
+    ("K26 one try too many", INIT, "if n >= retries or not", "if n > retries or not", "tests.test_c4a_kit"),
+    ("K26 retries without a signal accepted", INIT, "if retries and not (retry_on or", "if False and not (retry_on or",
+     "tests.test_c4a_kit"),
     # --- pytest plugin: it must refuse without test accounts, and fail on a repeat
     ("control (no-op)", PYT, "def _explain(", "def _explain(", "tests.test_pytest_plugin --require-pytest"),
     ("PT runs without test accounts", PYT, "if test_accounts is not True:", "if False:", "tests.test_pytest_plugin --require-pytest"),
