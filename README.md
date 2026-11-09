@@ -314,6 +314,20 @@ def test_refund_survives_a_crash(c4a_crashtest):
 The test fails on RAN TWICE or NOT APPROVED and shows the one-line fix. It refuses to start until you pass
 `test_accounts=True`, which says the script talks only to fakes, sandboxes or test accounts.
 
+In GitHub Actions (experimental; it installs the published 0.6.0 by default). Pin a commit SHA instead of `main`:
+
+```yaml
+- uses: actions/checkout@v4
+- uses: salahmakboul/call4agents@main
+  with:
+    script: agents/refund_agent.py
+    test-accounts: "true"      # required: every action really runs, many times
+    watch: refund              # optional: more function names to treat as actions
+```
+
+The job fails if an action ran twice or without approval. The output `exit-code` is 0, 1 (found a problem) or 2
+(the script could not run).
+
 `call4agents scan <path>` reads Python source and runs nothing. It lists functions given to a model as tools whose
 code sends, pays, deletes or writes, with no approval or once-only guard on them. It cannot see a guard in another
 file or service, tools built at runtime, or what a call does past one helper in the same file. Measured results

@@ -12,6 +12,9 @@
   script from your test suite and fails the test on RAN TWICE or NOT APPROVED. It refuses to start without
   `test_accounts=True`, because every action really runs, many times. Checks PT1-PT3 on the bundled demo agent,
   with mutations (runs without test accounts; a repeat passes).
+- GitHub Action (`uses: salahmakboul/call4agents@<sha>`): runs `call4agents crashtest` on a script in CI and fails
+  the job on RAN TWICE or NOT APPROVED; refuses without `test-accounts: "true"`. A CI job runs it on the demo agent:
+  guarded passes, unguarded fails with exit code 1, and a missing `test-accounts` is refused.
 
 **Tests**
 - Contention test for atomic admission: 12 processes, each with its own approval, admit at once on one SQLite

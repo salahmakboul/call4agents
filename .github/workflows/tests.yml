@@ -102,6 +102,48 @@ jobs:
       - name: crash at every write, and crash the recovery too
         run: python -m tests.test_crash_matrix
 
+  action:
+    name: the GitHub Action on the demo agent
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: the guarded demo agent passes
+        uses: ./
+        env:
+          AGENT_GUARD: "1"
+        with:
+          script: call4agents/examples/crashtest_agent.py
+          test-accounts: "true"
+          install: .
+      - name: the unguarded demo agent fails the job
+        id: unguarded
+        continue-on-error: true
+        uses: ./
+        env:
+          AGENT_GUARD: "0"
+        with:
+          script: call4agents/examples/crashtest_agent.py
+          test-accounts: "true"
+          install: .
+      - name: without test-accounts it refuses
+        id: refused
+        continue-on-error: true
+        uses: ./
+        with:
+          script: call4agents/examples/crashtest_agent.py
+          test-accounts: "no"
+          install: .
+      - name: each case ended the way it should
+        shell: bash
+        env:
+          UNGUARDED: ${{ steps.unguarded.outcome }}/${{ steps.unguarded.outputs.exit-code }}
+          REFUSED: ${{ steps.refused.outcome }}/${{ steps.refused.outputs.exit-code }}
+        run: |
+          echo "unguarded: $UNGUARDED   refused: $REFUSED"
+          test "$UNGUARDED" = "failure/1"
+          test "$REFUSED" = "failure/"
+
   mutations:
     name: bug re-insertion checks
     runs-on: ubuntu-latest

@@ -1,0 +1,69 @@
+name: call4agents crashtest
+description: Kill your agent at every step, restart it, and fail the job if an action ran twice or without approval (experimental).
+author: Salah Eddine Makboul
+branding:
+  icon: refresh-cw
+  color: orange
+
+inputs:
+  script:
+    description: Path to the agent script to test. It must be able to restart (a fixed run id, state saved in its folder).
+    required: true
+  test-accounts:
+    description: >
+      Must be "true". Every action of the script really runs, many times; this says the script talks only to fakes,
+      sandboxes or test accounts.
+    required: true
+  watch:
+    description: Extra function names to treat as actions, comma separated.
+    required: false
+    default: ""
+  max-crashes:
+    description: Most crash points to test.
+    required: false
+    default: "200"
+  install:
+    description: What pip installs (a version pin, or "." to test a checkout of call4agents itself).
+    required: false
+    default: "call4agents==0.6.0"
+  python-version:
+    description: Python version for the test.
+    required: false
+    default: "3.12"
+
+outputs:
+  exit-code:
+    description: 0 nothing repeated, 1 an action ran twice or without approval, 2 crashtest could not run the script.
+    value: ${{ steps.crashtest.outputs.exit-code }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+    - name: refuse without test accounts
+      if: inputs.test-accounts != 'true'
+      shell: bash
+      run: |
+        echo "::error::call4agents crashtest runs every action many times, for real. Point the script at fakes, sandboxes or test accounts, then set test-accounts: true."
+        exit 1
+    - name: install call4agents
+      shell: bash
+      env:
+        INSTALL: ${{ inputs.install }}
+      run: python -m pip install "$INSTALL"
+    - name: crashtest
+      id: crashtest
+      shell: bash
+      env:
+        SCRIPT: ${{ inputs.script }}
+        WATCH: ${{ inputs.watch }}
+        MAX: ${{ inputs.max-crashes }}
+      run: |
+        args=("$SCRIPT" --max-crashes "$MAX")
+        if [ -n "$WATCH" ]; then args+=(--watch "$WATCH"); fi
+        code=0
+        call4agents crashtest "${args[@]}" || code=$?
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+        exit $code
