@@ -154,6 +154,8 @@ MUTATIONS = [
     # --- atomic admission: splitting the commit must leave a detectable partial admission
     ("control (atomic SQLite)", LEDGER, 'conn.execute("BEGIN IMMEDIATE")', 'conn.execute("BEGIN IMMEDIATE")',
      "tests.test_atomic_admission"),
+    ("A SQLite admission takes no write lock", LEDGER, 'conn.execute("BEGIN IMMEDIATE")', 'conn.execute("BEGIN")',
+     "tests.test_atomic_admission AtomicAdmission.test_many_processes_admit_distinct_approved_effects_at_once"),
     ("A SQLite commits before intent", LEDGER,
      '                self._insert(conn, run_id, "tool_intent", key, payload)',
      '                conn.execute("COMMIT")\n                self._insert(conn, run_id, "tool_intent", key, payload)',

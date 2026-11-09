@@ -350,6 +350,21 @@ class AtomicAdmission(unittest.TestCase):
             self.assertEqual(kinds.count(kind), 1, kind)
         self.assertEqual((Path(self.tmp.name) / "effect.txt").read_text().splitlines(), ["10"])
 
+    def test_many_processes_admit_distinct_approved_effects_at_once(self):
+        # Contention (PR #3 review): every process holds its own "yes" and admits at the same moment.
+        # Each must run exactly once; none may fail with "database is locked" (a deferred BEGIN
+        # in the SQLite admission upgrades to a write too late and loses the race).
+        amounts = [100 + i for i in range(12)]
+        for amount in amounts:
+            self.lg.record_approval(self.run_id, "atomic.pay", {"amount": amount})
+        results = self.race(["order-%d" % a for a in amounts], amounts)
+        self.assertEqual(sorted(results), sorted(str(a) for a in amounts))
+        paid = (Path(self.tmp.name) / "effect.txt").read_text().splitlines()
+        self.assertEqual(sorted(paid), sorted(str(a) for a in amounts))
+        kinds = [r["kind"] for r in self.lg.entries(self.run_id)]
+        for kind in ("approval_used", "effect_approved", "tool_intent", "tool_done"):
+            self.assertEqual(kinds.count(kind), len(amounts), kind)
+
     def test_one_approval_cannot_admit_two_distinct_effects(self):
         results = self.race(["order-a", "order-b"])
         self.assertEqual(sorted(results), ["10", "ApprovalRequired"])
