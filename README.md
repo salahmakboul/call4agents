@@ -248,7 +248,11 @@ added to it, never changed or deleted.
    and the action does not run again.
 3. If the process dies **between** the two writes, nobody knows whether the action happened. The kit
    raises `EffectInDoubt` instead of guessing. You can resolve it in two ways:
-   - `reconcile=` asks the outside system whether the action happened;
+   - `reconcile=` asks the outside system whether the action happened. It returns the result (it
+     happened), `None` (it did not: the action runs once more), or, in the next release and experimental,
+     `c4a.UNKNOWN` (the system can't tell yet, for example a search that lags behind writes or a
+     transaction still pending: the action stays in doubt and the next try asks again). Return `None`
+     only when the provider can really confirm the action did not happen;
    - `idempotent_for=` lets the kit resend it with the same key while the API still remembers that key
      ([docs/IDEMPOTENCY.md](docs/IDEMPOTENCY.md)).
 4. **Approvals.** An approval is an HMAC, made with a local secret, over the tool name and its exact

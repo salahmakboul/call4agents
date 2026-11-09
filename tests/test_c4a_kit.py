@@ -70,6 +70,40 @@ def main():
         got = mail2("bob")
     check("K3 reconcile() finding the effect stops a repeat", got == "already sent" and sent == [], (got, sent))
 
+    # K25 reconcile() can say "cannot tell yet" (c4a.UNKNOWN): stays in doubt, records nothing, runs nothing;
+    # the next try asks again (a lookup that lags behind writes must never trigger a re-run)
+    lg = fresh()
+    sent.clear()
+    answers = [c4a.UNKNOWN, c4a.UNKNOWN, None]
+
+    @c4a.effect(reconcile=lambda to: answers.pop(0))
+    def mail3(to):
+        sent.append(to)
+        return "ok"
+    k3 = effect_key("r1", mail3.c4a_name, {"to": "bob"})
+    lg.append("r1", "tool_intent", intent_key(k3), {"tool": "mail3"})
+    outcomes = []
+    for _ in range(3):
+        try:
+            with c4a.run("r1"):
+                outcomes.append(mail3("bob"))
+        except c4a.EffectInDoubt as exc:
+            outcomes.append("doubt: " + ("could not tell" in str(exc) and "unknown" or str(exc)))
+        except Exception as exc:  # noqa: BLE001  (a wrong path must FAIL the check below, not crash the suite)
+            outcomes.append(type(exc).__name__)
+        if len(outcomes) == 2:
+            kinds_after_unknown = [e["kind"] for e in lg.entries("r1")]
+    check("K25 reconcile() returning c4a.UNKNOWN keeps the call in doubt and runs nothing",
+          outcomes[:2] == ["doubt: unknown"] * 2 and kinds_after_unknown == ["tool_intent"], (outcomes, kinds_after_unknown))
+    check("K25b after UNKNOWN, a later 'did not happen' (None) runs it once", outcomes[2] == "ok" and sent == ["bob"],
+          (outcomes, sent))
+    try:
+        bool(c4a.UNKNOWN)
+        truthy = True
+    except TypeError:
+        truthy = False
+    check("K25c c4a.UNKNOWN has no truth value (`if reconcile(...)` would treat it as an answer)", not truthy)
+
     # K4 approvals bound to exact arguments (key order does not matter, values do)
     fresh()
     paid = []

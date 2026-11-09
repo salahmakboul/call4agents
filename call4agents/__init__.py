@@ -30,7 +30,7 @@ from call4agents.proof import prove  # noqa: F401  (module named proof: a 'prove
 
 __all__ = ["init", "run", "effect", "approve", "deny", "current_ledger", "idempotency_key", "idempotency_headers", "recorded", "diff", "prove",
            "undo", "UndoFailed", "ReplayMismatch", "ReplayMissing", "ApprovalRequired", "EffectInDoubt", "Ledger",
-           "pause", "decide", "TicketRefused", "KeyConflict"]
+           "pause", "decide", "TicketRefused", "KeyConflict", "UNKNOWN"]
 __version__ = "0.6.0"
 
 _LEDGER: Optional[Ledger] = None
@@ -45,6 +45,28 @@ def current_run() -> str:
         raise RuntimeError("no current run: call this inside `with c4a.run(<your thread/session id>):` "
                            "(new threads do not inherit it: use contextvars.copy_context().run or enter c4a.run there)")
     return run_id
+
+
+class _Unknown:
+    """What a reconcile function returns when the outside world cannot tell yet (a search that lags
+    behind writes, a transaction still pending). Nothing is recorded, nothing runs, and the call stays
+    in doubt: the next try asks reconcile again. Returning None would mean "it did not happen" and run
+    the action once more, so None must only be returned when the provider can really confirm it."""
+    _instance: Optional["_Unknown"] = None
+
+    def __new__(cls) -> "_Unknown":
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __repr__(self) -> str:
+        return "c4a.UNKNOWN"
+
+    def __bool__(self) -> bool:
+        raise TypeError("c4a.UNKNOWN has no truth value: compare with `is c4a.UNKNOWN`")
+
+
+UNKNOWN = _Unknown()
 
 
 class ApprovalRequired(Exception):
@@ -221,7 +243,9 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
 
     - Once-only per (run, tool, exact arguments): a repeat returns the recorded result.
     - Crash between intent and result: EffectInDoubt, unless reconcile(**args) returns the
-      result (the effect happened) or None (it did not; then it runs once).
+      result (the effect happened) or None (it did not; then it runs once). Experimental: it can
+      return c4a.UNKNOWN when the outside world cannot tell yet; the call then stays in doubt
+      (EffectInDoubt, nothing recorded, nothing run) and the next try asks reconcile again.
     - approval=True: runs only if c4a.approve(...) recorded a "yes" for these exact arguments.
       One "yes" covers ONE action: a retry or resume of the same action reuses it, a deliberate
       second action (new c4a_key) needs a new "yes". c4a.deny(...) cancels earlier "yes" answers,
@@ -338,6 +362,8 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
                 if reconcile is None:
                     raise EffectInDoubt(tool, call_args, why)
                 found = reconcile(**call_args)
+                if found is UNKNOWN:      # the outside world cannot tell yet: never a reason to run again
+                    raise EffectInDoubt(tool, call_args, "reconcile could not tell yet")
                 if found is not None:
                     lg.append(run_id, "tool_done", k, {"result": _codec.encode(found), "reconciled": True})
                     return {"replay": found}

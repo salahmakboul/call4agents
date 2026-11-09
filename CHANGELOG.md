@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+**New (experimental)**
+- `reconcile=` can return `c4a.UNKNOWN` when the outside system cannot tell yet whether the action happened (a
+  search that lags behind writes, a transaction still pending). The action stays in doubt: nothing is recorded,
+  nothing runs, and the next try asks again. `None` still means "it did not happen" and runs the action once more.
+  Suggested in two outside discussions (a three-valued probe on deepseek-harness#11762, and a dev.to comment on
+  lookups that lag). Checks K25, K25b, K25c, each with a mutation that brings the wrong behaviour back.
+
+**Tests**
+- Contention test for atomic admission: 12 processes, each with its own approval, admit at once on one SQLite
+  record; each runs once and none fails with "database is locked". A mutation that puts a deferred `BEGIN` back
+  fails it (10 of 10 local runs).
+
 ## 0.6.0
 
 **New (experimental)**

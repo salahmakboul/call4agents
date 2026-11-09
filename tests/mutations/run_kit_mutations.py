@@ -142,6 +142,12 @@ MUTATIONS = [
      'effects, confidence = ["name suggests an action"], "code"', "tests.test_crashtest"),
     ("K24 a cancel is not recorded", INIT, "result = await f(*args, **kwargs)\n                except BaseException as exc:",
      "result = await f(*args, **kwargs)\n                except Exception as exc:", "tests.test_c4a_kit"),
+    # --- K25: reconcile can say "cannot tell yet"
+    ("K25 UNKNOWN stored as the result", INIT, "if found is UNKNOWN:", "if False:", "tests.test_c4a_kit"),
+    ("K25 UNKNOWN read as did-not-happen", INIT, 'raise EffectInDoubt(tool, call_args, "reconcile could not tell yet")',
+     "found = None", "tests.test_c4a_kit"),
+    ("K25 UNKNOWN reads as false", INIT, '        raise TypeError("c4a.UNKNOWN has no truth value',
+     '        return False\n        raise TypeError("c4a.UNKNOWN has no truth value', "tests.test_c4a_kit"),
     # --- audit export
     ("A the signature is not checked", AUDIT, 'if not hmac.compare_digest(str(doc.get("signature")), _signature(secret, doc)):', "if False:", "tests.test_audit"),
     ("A the end of the chain is not checked", AUDIT, 'if _chain(entries) != doc.get("head"):', "if False:", "tests.test_audit"),
