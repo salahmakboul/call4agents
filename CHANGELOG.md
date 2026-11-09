@@ -8,6 +8,10 @@
   nothing runs, and the next try asks again. `None` still means "it did not happen" and runs the action once more.
   Suggested in two outside discussions (a three-valued probe on deepseek-harness#11762, and a dev.to comment on
   lookups that lag). Checks K25, K25b, K25c, each with a mutation that brings the wrong behaviour back.
+- pytest plugin: installing call4agents adds the `c4a_crashtest` fixture, which runs `call4agents crashtest` on a
+  script from your test suite and fails the test on RAN TWICE or NOT APPROVED. It refuses to start without
+  `test_accounts=True`, because every action really runs, many times. Checks PT1-PT3 on the bundled demo agent,
+  with mutations (runs without test accounts; a repeat passes).
 
 **Tests**
 - Contention test for atomic admission: 12 processes, each with its own approval, admit at once on one SQLite

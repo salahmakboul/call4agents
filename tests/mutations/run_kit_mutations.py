@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 INIT, LEDGER = "call4agents/__init__.py", "call4agents/ledger.py"
 CT, SCAN, AUDIT = "call4agents/crashtest.py", "call4agents/scan.py", "call4agents/audit.py"
 PG = "call4agents/stores/postgres.py"
+PYT = "call4agents/adapters/pytest_plugin.py"
 
 # (name, file, old text, new text, suite)
 MUTATIONS = [
@@ -148,6 +149,11 @@ MUTATIONS = [
      "found = None", "tests.test_c4a_kit"),
     ("K25 UNKNOWN reads as false", INIT, '        raise TypeError("c4a.UNKNOWN has no truth value',
      '        return False\n        raise TypeError("c4a.UNKNOWN has no truth value', "tests.test_c4a_kit"),
+    # --- pytest plugin: it must refuse without test accounts, and fail on a repeat
+    ("control (no-op)", PYT, "def _explain(", "def _explain(", "tests.test_pytest_plugin --require-pytest"),
+    ("PT runs without test accounts", PYT, "if test_accounts is not True:", "if False:", "tests.test_pytest_plugin --require-pytest"),
+    ("PT a repeat passes the test", PYT, 'if found["twice"] or found["unapproved"]:', 'if found["unapproved"]:',
+     "tests.test_pytest_plugin --require-pytest"),
     # --- audit export
     ("A the signature is not checked", AUDIT, 'if not hmac.compare_digest(str(doc.get("signature")), _signature(secret, doc)):', "if False:", "tests.test_audit"),
     ("A the end of the chain is not checked", AUDIT, 'if _chain(entries) != doc.get("head"):', "if False:", "tests.test_audit"),
@@ -197,7 +203,8 @@ def copy_tree(dst: Path) -> None:
     (dst / "tests" / "__init__.py").write_text("", encoding="utf-8")
     for f in ("test_c4a_kit.py", "c4a_codec_types.py", "c4a_k18_child.py", "c4a_prove_sample.py", "test_idempotency.py",
               "test_c4a_production.py", "test_undo.py", "c4a_undo_child.py", "test_adapters.py",
-              "test_shared_record.py", "test_tickets.py", "test_crashtest.py", "test_audit.py", "test_atomic_admission.py"):
+              "test_shared_record.py", "test_tickets.py", "test_crashtest.py", "test_audit.py", "test_atomic_admission.py",
+              "test_pytest_plugin.py"):
         shutil.copy(ROOT / "tests" / f, dst / "tests" / f)
 
 

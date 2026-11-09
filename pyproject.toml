@@ -40,5 +40,8 @@ Changelog = "https://github.com/salahmakboul/call4agents/blob/main/CHANGELOG.md"
 [project.scripts]
 call4agents = "call4agents.__main__:main"
 
+[project.entry-points.pytest11]
+call4agents = "call4agents.adapters.pytest_plugin"   # the c4a_crashtest fixture (experimental); only pytest loads it
+
 [tool.setuptools]
 packages = ["call4agents", "call4agents.adapters", "call4agents.examples", "call4agents.stores"]

@@ -304,6 +304,16 @@ your own with `--watch name,name`. **Every action really runs, many times, with 
 It does not see writes to PostgreSQL, Redis or a remote service as crash points, and it tests only the path your
 script takes. A clean result covers that path and those crash points, nothing more.
 
+In your test suite (in the next release, experimental): installing call4agents adds a pytest fixture.
+
+```python
+def test_refund_survives_a_crash(c4a_crashtest):
+    c4a_crashtest("agents/refund_agent.py", watch=["refund"], test_accounts=True)
+```
+
+The test fails on RAN TWICE or NOT APPROVED and shows the one-line fix. It refuses to start until you pass
+`test_accounts=True`, which says the script talks only to fakes, sandboxes or test accounts.
+
 `call4agents scan <path>` reads Python source and runs nothing. It lists functions given to a model as tools whose
 code sends, pays, deletes or writes, with no approval or once-only guard on them. It cannot see a guard in another
 file or service, tools built at runtime, or what a call does past one helper in the same file. Measured results
