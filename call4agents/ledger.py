@@ -8,6 +8,7 @@ Every module reads and writes the same entries:
   approval      an HMAC over (tool, canonical arguments), signed with a local secret
   denial        a "no" for exact arguments; cancels earlier approvals for them
   approval_used one approval spent by one effect (unique: a "yes" is used once)
+  limit_reserved / limit_released   a shared limit's cost, held by one effect / given back (experimental)
 Entries are never updated or deleted.
 """
 
@@ -23,7 +24,7 @@ import threading
 import time
 import warnings
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 SCHEMA = """CREATE TABLE IF NOT EXISTS entries (
     seq INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -107,6 +108,15 @@ SCHEMA_VERSION = 1          # bump only with a migration below; older kits refus
 
 class LedgerError(RuntimeError):
     """The run record cannot be used safely (wrong file, newer format, network drive, bad secret)."""
+
+
+class LimitReached(Exception):
+    """A shared limit would be exceeded. Nothing ran and nothing was recorded (an approval stays unspent)."""
+
+    def __init__(self, name: str, used: float, cost: float, maximum: float) -> None:
+        super().__init__(f"limit {name!r}: {used:g} already held, this action needs {cost:g}, the maximum is "
+                         f"{maximum:g}. Nothing ran.")
+        self.name, self.used, self.cost, self.maximum = name, used, cost, maximum
 
 
 class TicketRefused(Exception):
@@ -262,7 +272,8 @@ class Ledger:
         conn.execute("BEGIN IMMEDIATE")
 
     def claim_approved(self, run_id: str, tool: str, args: Dict[str, Any], effect: str,
-                       key: str, payload: Any = None) -> Optional[bool]:
+                       key: str, payload: Any = None,
+                       limit: Optional[Tuple[str, float, float, Optional[float]]] = None) -> Optional[bool]:
         """One transaction for a live yes and its intent: True owns it, False already claimed,
         None needs approval. No application code runs until the transaction has committed.
         Old records with effect_approved but no intent remain resumable under the same rules.
@@ -290,11 +301,67 @@ class Ledger:
                         break
                     else:
                         return None
+                if limit is not None:     # raises LimitReached: the whole admission rolls back, the yes stays unspent
+                    self._reserve_in(conn, run_id, effect, limit)
                 self._insert(conn, run_id, "tool_intent", key, payload)
                 return True
         except self._DUPLICATE:
             # Outside the context: PostgreSQL must roll back a unique violation before any read.
             return False
+
+    # ------------------------------------------------------------ shared limits (experimental)
+    # A limit is (name, maximum, cost, per): every effect admitted under `name` holds `cost` until the kit
+    # proves it did not happen. The check and the reservation share the admission's lock and transaction.
+
+    def _held_in(self, conn: Any, name: str) -> List[Dict[str, Any]]:
+        """Reservations under `name` not given back: [{seq, effect, cost, t}]."""
+        rows = conn.execute("SELECT seq, payload, t FROM entries WHERE kind = 'limit_reserved' AND key = ? "
+                            "ORDER BY seq", (name,)).fetchall()
+        back = {self._payload(r[0], r[1])["reservation"] for r in conn.execute(
+            "SELECT seq, payload FROM entries WHERE kind = 'limit_released' AND key = ?", (name,)).fetchall()}
+        held = []
+        for seq, text, t in rows:
+            if seq not in back:
+                p = self._payload(seq, text)
+                held.append({"seq": seq, "effect": p["effect"], "cost": p["cost"], "t": t})
+        return held
+
+    def _reserve_in(self, conn: Any, run_id: str, effect: str, limit: Tuple[str, float, float, Optional[float]]) -> None:
+        name, maximum, cost, per = limit
+        held = self._held_in(conn, name)
+        if any(h["effect"] == effect for h in held):
+            return                      # a retry or resume of the same action keeps its one reservation
+        since = time.time() - per if per else None
+        used = sum(h["cost"] for h in held if since is None or h["t"] >= since)
+        if used + cost > maximum:
+            raise LimitReached(name, used, cost, maximum)
+        self._insert(conn, run_id, "limit_reserved", name, {"effect": effect, "cost": cost})
+
+    def claim_limited(self, run_id: str, effect: str, key: str, payload: Any,
+                      limit: Tuple[str, float, float, Optional[float]]) -> bool:
+        """One transaction for the limit check, the reservation and the intent. True owns it, False already
+        claimed; LimitReached when it would go over (nothing written)."""
+        try:
+            # the same lock as claim_approved: two workers can never both take the last unit
+            with self._lock, self._conn() as conn:
+                self._begin_admission(conn)
+                if self._latest_in(conn, "tool_done", effect) is not None:
+                    return False
+                if self._latest_in(conn, "tool_intent", key) is not None:
+                    return False
+                self._reserve_in(conn, run_id, effect, limit)
+                self._insert(conn, run_id, "tool_intent", key, payload=payload)   # same transaction as the reservation
+                return True
+        except self._DUPLICATE:
+            return False
+
+    def release_limit(self, run_id: str, effect: str, name: str) -> None:
+        """Give back this effect's reservation: only when the kit has proved the effect did not happen."""
+        with self._lock, self._conn() as conn:
+            self._begin_admission(conn)
+            for h in self._held_in(conn, name):
+                if h["effect"] == effect:
+                    self._insert(conn, run_id, "limit_released", name, {"reservation": h["seq"], "effect": effect})
 
     def first_intent_time(self, base_key: str) -> Optional[float]:
         """When the FIRST attempt of this effect was recorded (any attempt number), or None."""

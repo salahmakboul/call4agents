@@ -5,6 +5,7 @@ import json
 import sqlite3
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 import call4agents as c4a
@@ -239,6 +240,139 @@ def main():
             return await k26i("bob")
     got = asyncio.run(k26i_run())
     check("K26i the async version retries the same way", got == "sent" and tries == ["bob", "bob"], (got, tries))
+
+    # K27 shared limits: the check and the hold are one transaction with the intent
+    def k27_call(fn, *a, run="r1"):
+        try:
+            with c4a.run(run):
+                return fn(*a)
+        except c4a.LimitReached:
+            return "limit"
+        except c4a.EffectInDoubt:
+            return "doubt"
+        except Exception as exc:  # noqa: BLE001
+            return type(exc).__name__
+
+    lg = fresh()
+    sent.clear()
+    three = c4a.Limit("k27-mails", 3)
+
+    @c4a.effect(limit=three)
+    def k27a(to):
+        sent.append(to)
+        return "sent"
+    got = [k27_call(k27a, who) for who in ("a", "b", "c", "d")]
+    kinds = [e["kind"] for e in lg.entries("r1")]
+    check("K27 a limit of 3 actions: the 4th is refused, nothing runs and nothing is recorded for it",
+          got == ["sent"] * 3 + ["limit"] and sent == ["a", "b", "c"] and kinds.count("tool_intent") == 3
+          and kinds.count("limit_reserved") == 3, (got, sent, kinds))
+
+    lg = fresh()
+    paid = []
+    budget = c4a.Limit("k27-refunds", 500, cost=lambda amount, **_: amount)
+
+    @c4a.effect(limit=budget)
+    def k27b(order, amount):
+        paid.append(amount)
+        return "refunded"
+    got = [k27_call(k27b, o, a) for o, a in (("o1", 200), ("o2", 250), ("o3", 100), ("o4", 50))]
+    check("K27b costs add up: 200 + 250 held, 100 more is refused, 50 more fits", got == ["refunded", "refunded",
+          "limit", "refunded"] and paid == [200, 250, 50], (got, paid))
+
+    lg = fresh()
+    tries = []
+
+    @c4a.effect(limit=c4a.Limit("k27-one", 1), retry_on=(Busy,))
+    def k27c(to):
+        tries.append(to)
+        if to == "busy":
+            raise Busy("not sent")
+        return "sent"
+    got = [k27_call(k27c, "busy"), k27_call(k27c, "bob")]
+    check("K27c an error that proves nothing happened gives the cost back", got == ["Busy", "sent"]
+          and tries == ["busy", "bob"], (got, tries))
+
+    lg = fresh()
+    tries = []
+
+    @c4a.effect(limit=c4a.Limit("k27-doubt", 1))
+    def k27d(to):
+        tries.append(to)
+        if to == "lost":
+            raise NoAnswer("sent, maybe")
+        return "sent"
+    got = [k27_call(k27d, "lost"), k27_call(k27d, "lost"), k27_call(k27d, "bob")]
+    check("K27d an action in doubt keeps holding its cost: the next action is refused", got == ["NoAnswer", "doubt",
+          "limit"] and tries == ["lost"], (got, tries))
+
+    lg = fresh()
+    sent.clear()
+
+    @c4a.effect(limit=c4a.Limit("k27-same", 1))
+    def k27e(to):
+        sent.append(to)
+        return "sent"
+    got = [k27_call(k27e, "bob"), k27_call(k27e, "bob")]
+    kinds = [e["kind"] for e in lg.entries("r1")]
+    check("K27e the same action again returns its result and does not hold the limit twice",
+          got == ["sent", "sent"] and sent == ["bob"] and kinds.count("limit_reserved") == 1, (got, sent, kinds))
+
+    lg = fresh()
+    paid = []
+
+    @c4a.effect(approval=True, limit=c4a.Limit("k27-approved", 100, cost=lambda amount: amount))
+    def k27f(amount):
+        paid.append(amount)
+        return "paid"
+    with c4a.run("r1"):
+        c4a.approve(k27f, amount=80)
+        c4a.approve(k27f, amount=30)
+    got = [k27_call(k27f, 80), k27_call(k27f, 30)]
+    kinds = [e["kind"] for e in lg.entries("r1")]
+    check("K27f with approvals: over the limit is refused and its yes stays unspent (one transaction)",
+          got == ["paid", "limit"] and paid == [80] and kinds.count("approval_used") == 1, (got, paid, kinds))
+
+    lg = fresh()
+    sent.clear()
+
+    @c4a.effect(limit=c4a.Limit("k27-window", 1, per=0.3))
+    def k27g(to):
+        sent.append(to)
+        return "sent"
+    first, second = k27_call(k27g, "a"), k27_call(k27g, "b")
+    time.sleep(0.4)
+    third = k27_call(k27g, "c")
+    check("K27g per=SECONDS: a hold older than the window no longer counts", (first, second, third) ==
+          ("sent", "limit", "sent") and sent == ["a", "c"], (first, second, third, sent))
+
+    lg = fresh()
+
+    @c4a.effect(limit=c4a.Limit("k27-bad", 10, cost=lambda to: -1))
+    def k27h(to):
+        return "sent"
+    bad = [k27_call(k27h, "x")]
+    for wrong in (lambda: c4a.Limit("", 1), lambda: c4a.Limit("x", -1), lambda: c4a.Limit("x", 1, per=0)):
+        try:
+            wrong()
+            bad.append("accepted")
+        except ValueError:
+            bad.append("refused")
+    check("K27h a negative cost, an empty name, a negative maximum and per=0 are refused",
+          bad == ["ValueError", "refused", "refused", "refused"], bad)
+
+    lg = fresh()
+    keys = []
+
+    @c4a.effect(limit=c4a.Limit("k27-resend", 1), idempotent_for=3600, retries=1, backoff=0)
+    def k27i(amount):
+        keys.append(c4a.idempotency_key())
+        if len(keys) == 1:
+            raise NoAnswer("charged, answer lost")
+        return "charged"
+    got = k27_call(k27i, 10)
+    kinds = [e["kind"] for e in lg.entries("r1")]
+    check("K27i a same-key resend of the same action keeps its one hold (a limit of 1 is enough)",
+          got == "charged" and len(keys) == 2 and kinds.count("limit_reserved") == 1, (got, keys, kinds))
 
     # K4 approvals bound to exact arguments (key order does not matter, values do)
     fresh()

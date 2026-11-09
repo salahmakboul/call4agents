@@ -12,6 +12,16 @@
   next try (an error in `retry_on`, a same-key resend with `idempotent_for`, or a `reconcile` check first). Any other
   error is raised at once; a cancel or exit is never retried; a try that comes out in doubt stops with
   `EffectInDoubt`; `retries=` with none of the three is refused. Checks K26-K26i (sync and async), five mutations.
+- Shared limits: `c4a.Limit(name, maximum, cost=, per=)` and `@c4a.effect(limit=...)`. The limit check and the hold
+  are one transaction with the intent (SQLite and PostgreSQL); over the limit raises `c4a.LimitReached`, nothing runs
+  or is recorded, and an approval stays unspent. A hold is given back only when the kit proves the action did not
+  happen; in doubt it stays held. New row kinds `limit_reserved` and `limit_released` (no schema change). Checks
+  K27-K27i, a 12-process contention test on SQLite and PostgreSQL (exactly 5 of 12 under a limit of 5; with the
+  lock taken out, 9 to 12 ran in each of 5 runs), six mutations.
+
+**Fixed in the mutation inventory**
+- Two mutations (F key changes per attempt, K24) pointed at code the retry loop re-indented, and one (CT split
+  admission) matched twice after `claim_limited` was added. Updated; all 114 targets are found exactly once.
 - pytest plugin: installing call4agents adds the `c4a_crashtest` fixture, which runs `call4agents crashtest` on a
   script from your test suite and fails the test on RAN TWICE or NOT APPROVED. It refuses to start without
   `test_accounts=True`, because every action really runs, many times. Checks PT1-PT3 on the bundled demo agent,

@@ -184,6 +184,12 @@ Rules worth knowing before you start:
   (`backoff=`), but only when the record decides the next try: an error in `retry_on`, a resend with the same key
   (`idempotent_for=`), or a provider check first (`reconcile=`). Any other error is raised at once, and `retries=`
   without one of those three is refused when you declare the action.
+- **Shared limits** (next release, experimental): `c4a.Limit("refunds", 500, cost=lambda amount, **_: amount,
+  per=86400)` and `@c4a.effect(limit=...)`. Every process on the same record spends from one limit. The check and
+  the hold are one transaction with the intent: 12 processes racing for a limit of 5 ran exactly 5, and with that
+  lock taken out 9 to 12 ran (5 runs). An action over the limit raises `c4a.LimitReached`; nothing runs, nothing is recorded,
+  and its approval stays unspent. The cost comes back only when the kit proves the action did not happen; an action
+  in doubt keeps holding it. Every process must declare the same name, maximum and `per`.
 
 **LangGraph and LangChain.**
 - `from call4agents.adapters import langgraph as c4a_lg`.

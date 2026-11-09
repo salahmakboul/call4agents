@@ -324,10 +324,12 @@ class AtomicAdmission(unittest.TestCase):
                             self.pay(20, c4a_key="order")
                         self.assertEqual(self.pay(10, c4a_key="order"), 10)
 
-    def race(self, keys, amounts=None):
+    def race(self, keys, amounts=None, role="race"):
         gate = Path(self.tmp.name) / "go"
+        for left in [gate, *Path(self.tmp.name).glob("ready-*")]:      # from an earlier race in this test
+            left.unlink(missing_ok=True)
         amounts = amounts or [10] * len(keys)
-        procs = [self.worker("race", key, amount, gate=gate) for key, amount in zip(keys, amounts)]
+        procs = [self.worker(role, key, amount, gate=gate) for key, amount in zip(keys, amounts)]
         try:
             deadline = time.monotonic() + 30
             while len(list(Path(self.tmp.name).glob("ready-*"))) < len(procs):
@@ -364,6 +366,29 @@ class AtomicAdmission(unittest.TestCase):
         kinds = [r["kind"] for r in self.lg.entries(self.run_id)]
         for kind in ("approval_used", "effect_approved", "tool_intent", "tool_done"):
             self.assertEqual(kinds.count(kind), len(amounts), kind)
+
+    def test_shared_limit_holds_under_contention(self):
+        # 12 processes race for a limit of 5: exactly 5 run, 7 are refused, nothing runs past the limit.
+        # Without approvals (claim_limited) and with them (the limit inside claim_approved).
+        for role in ("limited", "limited-approved"):
+            with self.subTest(role=role):
+                self.run_id = "limit-" + uuid.uuid4().hex
+                (Path(self.tmp.name) / "effect.txt").unlink(missing_ok=True)
+                amounts = [200 + i for i in range(12)]
+                if role == "limited-approved":
+                    for amount in amounts:
+                        self.lg.record_approval(self.run_id, "atomic.pay", {"amount": amount})
+                results = self.race(["order-%d" % a for a in amounts], amounts, role=role)
+                self.assertEqual(results.count("LimitReached"), 7, results)
+                ran = [r for r in results if r != "LimitReached"]
+                self.assertEqual(len(ran), 5, results)
+                paid = (Path(self.tmp.name) / "effect.txt").read_text().splitlines()
+                self.assertEqual(sorted(paid), sorted(ran))
+                kinds = [r["kind"] for r in self.lg.entries(self.run_id)]
+                self.assertEqual(kinds.count("limit_reserved"), 5)
+                self.assertEqual(kinds.count("tool_intent"), 5)
+                if role == "limited-approved":
+                    self.assertEqual(kinds.count("approval_used"), 5)
 
     def test_one_approval_cannot_admit_two_distinct_effects(self):
         results = self.race(["order-a", "order-b"])
@@ -404,7 +429,7 @@ def worker(role, path, run_id, key, amount, work, gate):
     lg._insert = crashing
     admitted = lg.claim_approved
 
-    def committed(*args, **kwargs):
+    def at_gate():
         if gate:
             (Path(work) / ("ready-" + str(os.getpid()))).touch()
             deadline = time.monotonic() + 30
@@ -412,14 +437,25 @@ def worker(role, path, run_id, key, amount, work, gate):
                 if time.monotonic() > deadline:
                     raise RuntimeError("barrier timed out")
                 time.sleep(0.01)
+
+    def committed(*args, **kwargs):
+        at_gate()
         result = admitted(*args, **kwargs)
         if role == "crash-committed" and result is True:
             os._exit(17)
         return result
 
     lg.claim_approved = committed
+    limited_admit = lg.claim_limited
 
-    @c4a.effect(name="atomic.pay", approval=True, wait=10)
+    def limited_gate(*args, **kwargs):
+        at_gate()
+        return limited_admit(*args, **kwargs)
+
+    lg.claim_limited = limited_gate
+    budget = c4a.Limit("atomic.budget-" + run_id, 5) if role.startswith("limited") else None
+
+    @c4a.effect(name="atomic.pay", approval=(role != "limited"), wait=10, limit=budget)
     def pay(amount):
         with (Path(work) / "effect.txt").open("a") as f:
             f.write(str(amount) + "\n")
@@ -428,7 +464,7 @@ def worker(role, path, run_id, key, amount, work, gate):
     with c4a.run(run_id):
         try:
             print(pay(int(amount), c4a_key=key))
-        except (c4a.ApprovalRequired, c4a.KeyConflict, c4a.EffectInDoubt) as exc:
+        except (c4a.ApprovalRequired, c4a.KeyConflict, c4a.EffectInDoubt, c4a.LimitReached) as exc:
             print(type(exc).__name__)
 
 

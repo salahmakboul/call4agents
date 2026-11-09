@@ -20,17 +20,17 @@ import inspect
 import json
 import time
 import warnings
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Tuple
 
 from call4agents import codec as _codec
 from call4agents import replay as _replay
-from call4agents.ledger import Ledger, TicketRefused, canonical, effect_key, intent_key
+from call4agents.ledger import Ledger, LimitReached, TicketRefused, canonical, effect_key, intent_key
 from call4agents.replay import ReplayMismatch, ReplayMissing, diff, recorded  # noqa: F401
 from call4agents.proof import prove  # noqa: F401  (module named proof: a 'prove' module would be hidden)
 
 __all__ = ["init", "run", "effect", "approve", "deny", "current_ledger", "idempotency_key", "idempotency_headers", "recorded", "diff", "prove",
            "undo", "UndoFailed", "ReplayMismatch", "ReplayMissing", "ApprovalRequired", "EffectInDoubt", "Ledger",
-           "pause", "decide", "TicketRefused", "KeyConflict", "UNKNOWN"]
+           "pause", "decide", "TicketRefused", "KeyConflict", "UNKNOWN", "Limit", "LimitReached"]
 __version__ = "0.6.0"
 
 _LEDGER: Optional[Ledger] = None
@@ -67,6 +67,37 @@ class _Unknown:
 
 
 UNKNOWN = _Unknown()
+
+
+class Limit:
+    """A limit shared by every process that uses the same record (experimental).
+
+        refunds = c4a.Limit("refunds", 500, cost=lambda amount, **_: amount, per=86400)
+        @c4a.effect(limit=refunds)
+        def refund(order, amount): ...
+
+    Each action admitted under `name` holds its cost (default 1, so `maximum` counts actions) from the moment its
+    intent is written. The check and the hold are one transaction with the intent, so workers racing for the last
+    unit cannot both get it. The cost is given back only when the kit proves the action did not happen (an error in
+    retry_on, or reconcile= saying so). An action in doubt keeps holding it. per=SECONDS counts only holds made in
+    that window. Every process must use the same name, maximum and per: each checks its own.
+    """
+
+    def __init__(self, name: str, maximum: float, cost: Optional[Callable[..., float]] = None,
+                 per: Optional[float] = None) -> None:
+        if not isinstance(name, str) or not name:
+            raise ValueError("a Limit needs a name")
+        if isinstance(maximum, bool) or not isinstance(maximum, (int, float)) or maximum < 0:
+            raise ValueError("a Limit's maximum must be a number, 0 or more")
+        if per is not None and (isinstance(per, bool) or not isinstance(per, (int, float)) or per <= 0):
+            raise ValueError("per= must be a number of seconds above 0")
+        self.name, self.maximum, self.cost, self.per = name, float(maximum), cost, per
+
+    def spec(self, call_args: Dict[str, Any]) -> Tuple[str, float, float, Optional[float]]:
+        cost = 1 if self.cost is None else self.cost(**call_args)
+        if isinstance(cost, bool) or not isinstance(cost, (int, float)) or cost < 0 or cost != cost:
+            raise ValueError(f"limit {self.name!r}: cost must be a number, 0 or more, not {cost!r}")
+        return self.name, self.maximum, float(cost), self.per
 
 
 class ApprovalRequired(Exception):
@@ -239,7 +270,7 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
            reconcile: Optional[Callable[..., Any]] = None, key: Optional[Callable[..., str]] = None,
            wait: float = 2.0, idempotent_for: Optional[float] = None, retry_on: tuple = (),
            exclude: tuple = (), undo: Optional[Callable[..., Any]] = None, retries: int = 0,
-           backoff: float = 0.5):
+           backoff: float = 0.5, limit: Optional["Limit"] = None):
     """Mark a function that changes the outside world.
 
     - Once-only per (run, tool, exact arguments): a repeat returns the recorded result.
@@ -337,10 +368,15 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
                     lg.append(run_id, "tool_done", k, {"result": done["result"], "replayed": True})
                 return {"replay": _codec.decode(done["result"])}
 
+            spec = limit.spec(call_args) if limit is not None else None
+
             def claim(attempt: int, payload: Any) -> bool:
                 if not approval:
+                    if spec is not None:
+                        return lg.claim_limited(run_id, k, intent_key(k, attempt), payload, spec)
                     return lg.claim(run_id, intent_key(k, attempt), payload)
-                owned = lg.claim_approved(run_id, tool, call_args, k, intent_key(k, attempt), payload)
+                extra = {} if spec is None else {"limit": spec}   # unchanged call when no limit is set
+                owned = lg.claim_approved(run_id, tool, call_args, k, intent_key(k, attempt), payload, **extra)
                 if owned is None:
                     refuse_conflict(lg, run_id, call_args, explicit)
                     raise ApprovalRequired(tool, call_args)
@@ -380,6 +416,8 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
                     lg.append(run_id, "tool_done", k, {"result": _codec.encode(found), "reconciled": True})
                     return {"replay": found}
                 lg.append(run_id, "tool_abandoned", k, {"attempt": attempt})   # it did not happen: one new try
+                if limit is not None:
+                    lg.release_limit(run_id, k, limit.name)
             raise EffectInDoubt(tool, call_args)
 
         def record_result(plan: Dict[str, Any], result: Any) -> None:
@@ -404,6 +442,8 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
             lg = current_ledger()
             if retry_on and isinstance(exc, retry_on):      # the caller says: this error means "did not happen"
                 lg.append(plan["run_id"], "tool_abandoned", plan["key"], {"attempt": plan["attempt"], "error": repr(exc)[:200]})
+                if limit is not None:                         # proved not to have happened: give the cost back
+                    lg.release_limit(plan["run_id"], plan["key"], limit.name)
             else:
                 lg.append(plan["run_id"], "tool_error", plan["key"], {"attempt": plan["attempt"], "error": repr(exc)[:200]})
 

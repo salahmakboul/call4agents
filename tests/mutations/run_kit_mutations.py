@@ -86,8 +86,8 @@ MUTATIONS = [
     # --- F: idempotency keys
     ("control (no-op)", INIT, "# The outside API still remembers", "# The outside API still remembers", "tests.test_idempotency"),
     ("F no lifetime check", INIT, "if first is not None and time.time() - first <= idempotent_for:", "if True:", "tests.test_idempotency"),
-    ("F key changes per attempt", INIT, 'token = _EFFECT_KEY.set(plan["key"])' + chr(10) + "            try:" + chr(10) + "                result = f(",
-     'token = _EFFECT_KEY.set(plan["key"] + str(time.time()))' + chr(10) + "            try:" + chr(10) + "                result = f(",
+    ("F key changes per attempt", INIT, 'token = _EFFECT_KEY.set(plan["key"])' + chr(10) + "                try:" + chr(10) + "                    result = f(",
+     'token = _EFFECT_KEY.set(plan["key"] + str(time.time()))' + chr(10) + "                try:" + chr(10) + "                    result = f(",
      "tests.test_idempotency"),
     ("F no same-key retry", INIT, "if idempotent_for is not None and reconcile is None:", "if False:", "tests.test_idempotency"),
     # --- S: one run record shared by several machines (PostgreSQL)
@@ -141,8 +141,8 @@ MUTATIONS = [
     ("SC an approval set up elsewhere reads as missing", SCAN, "file_approval = bool(FILE_APPROVAL.search(source))", "file_approval = False", "tests.test_crashtest"),
     ("SC a name alone reads as code", SCAN, 'effects, confidence = ["name suggests an action"], "name only"',
      'effects, confidence = ["name suggests an action"], "code"', "tests.test_crashtest"),
-    ("K24 a cancel is not recorded", INIT, "result = await f(*args, **kwargs)\n                except BaseException as exc:",
-     "result = await f(*args, **kwargs)\n                except Exception as exc:", "tests.test_c4a_kit"),
+    ("K24 a cancel is not recorded", INIT, "result = await f(*args, **kwargs)\n                    except BaseException as exc:",
+     "result = await f(*args, **kwargs)\n                    except Exception as exc:", "tests.test_c4a_kit"),
     # --- K25: reconcile can say "cannot tell yet"
     ("K25 UNKNOWN stored as the result", INIT, "if found is UNKNOWN:", "if False:", "tests.test_c4a_kit"),
     ("K25 UNKNOWN read as did-not-happen", INIT, 'raise EffectInDoubt(tool, call_args, "reconcile could not tell yet")',
@@ -158,6 +158,26 @@ MUTATIONS = [
     ("K26 nothing is retried", INIT, "return min(30.0, backoff * (2 ** n))", "return None", "tests.test_c4a_kit"),
     ("K26 one try too many", INIT, "if n >= retries or not", "if n > retries or not", "tests.test_c4a_kit"),
     ("K26 retries without a signal accepted", INIT, "if retries and not (retry_on or", "if False and not (retry_on or",
+     "tests.test_c4a_kit"),
+    # --- K27: shared limits
+    ("K27 the limit is never checked", LEDGER, "if used + cost > maximum:", "if False:", "tests.test_c4a_kit"),
+    ("K27 the hold is outside the admission lock", LEDGER,
+     "                self._begin_admission(conn)" + chr(10) + "                if self._latest_in(conn, \"tool_done\", effect) is not None:"
+     + chr(10) + "                    return False" + chr(10) + "                if self._latest_in(conn, \"tool_intent\", key)",
+     "                if self._latest_in(conn, \"tool_done\", effect) is not None:"
+     + chr(10) + "                    return False" + chr(10) + "                if self._latest_in(conn, \"tool_intent\", key)",
+     "tests.test_atomic_admission AtomicAdmission.test_shared_limit_holds_under_contention"),
+    ("K27 the cost is never given back", INIT, "                    lg.release_limit(plan[\"run_id\"], plan[\"key\"], limit.name)",
+     "                    pass", "tests.test_c4a_kit"),
+    ("K27 a retry holds twice", LEDGER, "            return                      # a retry or resume",
+     "            pass                        # a retry or resume", "tests.test_c4a_kit"),
+    ("K27 the window is ignored", LEDGER, "if since is None or h[\"t\"] >= since", "if True", "tests.test_c4a_kit"),
+    ("K27 a refusal keeps the yes spent", LEDGER,
+     "                    self._reserve_in(conn, run_id, effect, limit)" + chr(10)
+     + "                self._insert(conn, run_id, \"tool_intent\", key, payload)" + chr(10),
+     "                    try:" + chr(10) + "                        self._reserve_in(conn, run_id, effect, limit)" + chr(10)
+     + "                    except LimitReached:" + chr(10) + "                        return None" + chr(10)
+     + "                self._insert(conn, run_id, \"tool_intent\", key, payload)" + chr(10),
      "tests.test_c4a_kit"),
     # --- pytest plugin: it must refuse without test accounts, and fail on a repeat
     ("control (no-op)", PYT, "def _explain(", "def _explain(", "tests.test_pytest_plugin --require-pytest"),
