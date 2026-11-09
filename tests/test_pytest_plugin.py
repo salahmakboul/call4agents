@@ -7,12 +7,15 @@ import os
 import subprocess
 import sys
 import tempfile
+from importlib.metadata import entry_points
 from pathlib import Path
 
 import call4agents
 
 FAILED = []
 AGENT = Path(call4agents.__file__).resolve().parent / "examples" / "crashtest_agent.py"
+ENTRY_POINT = any(ep.name == "call4agents" and ep.value == "call4agents.adapters.pytest_plugin"
+                  for ep in entry_points(group="pytest11"))
 
 
 def check(name, ok, detail=""):
@@ -28,8 +31,10 @@ def run_pytest(body, guard):
         kit_root = str(Path(call4agents.__file__).resolve().parent.parent)
         env = dict(os.environ, AGENT_GUARD=guard,
                    PYTHONPATH=os.pathsep.join([kit_root] + [p for p in [os.environ.get("PYTHONPATH")] if p]))
-        r = subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p",
-                            "call4agents.adapters.pytest_plugin", "--rootdir", d, d],
+        # Installed, pytest loads the plugin through its entry point (that is what users get); loading it
+        # again with -p would register it twice. From a checkout, load it by name.
+        load = [] if ENTRY_POINT else ["-p", "call4agents.adapters.pytest_plugin"]
+        r = subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", *load, "--rootdir", d, d],
                            cwd=d, env=env, capture_output=True, text=True, timeout=600)
         return r.returncode, r.stdout + r.stderr
 
@@ -44,6 +49,7 @@ def main():
         print("  skip  PT1-PT3 (pytest not installed)")
         return 0
 
+    print(f"  info  plugin loaded through {'the installed pytest11 entry point' if ENTRY_POINT else '-p (not installed)'}")
     code, out = run_pytest("def test_it(c4a_crashtest):\n    c4a_crashtest(AGENT)\n", "0")
     check("PT1 without test_accounts=True the fixture refuses and runs nothing",
           code == 1 and "pass test_accounts=True" in out and "crash(es) tested" not in out, out[-800:])
