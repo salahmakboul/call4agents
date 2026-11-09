@@ -8,6 +8,8 @@ replace any of them.
 right after it, a documented resume: 2 payments in LangGraph, Pydantic AI and the OpenAI Agents SDK. Script and
 every run's data included.
 
+**In one minute:** [every problem it handles, the line for each, and what was measured](docs/ONE_MINUTE.md).
+
 **Does your agent repeat an action after a crash?** This kills it at every step, restarts it, and tells you which
 action ran twice. Your agent does not need to use our guard first.
 
