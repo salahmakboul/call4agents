@@ -326,7 +326,11 @@ class Ledger:
                 held.append({"seq": seq, "effect": p["effect"], "cost": p["cost"], "t": t})
         return held
 
-    def _reserve_in(self, conn: Any, run_id: str, effect: str, limit: Tuple[str, float, float, Optional[float]]) -> None:
+    def _reserve_in(self, conn: Any, run_id: str, effect: str, limit: Any) -> None:
+        if isinstance(limit, list):     # several limits (a Limit and a rule's per_run): all hold, or none
+            for one in limit:
+                self._reserve_in(conn, run_id, effect, one)
+            return
         name, maximum, cost, per = limit
         held = self._held_in(conn, name)
         if any(h["effect"] == effect for h in held):

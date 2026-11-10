@@ -15,6 +15,7 @@ INIT, LEDGER = "call4agents/__init__.py", "call4agents/ledger.py"
 CT, SCAN, AUDIT = "call4agents/crashtest.py", "call4agents/scan.py", "call4agents/audit.py"
 PG = "call4agents/stores/postgres.py"
 PYT = "call4agents/adapters/pytest_plugin.py"
+RULES = "call4agents/rules.py"
 
 # (name, file, old text, new text, suite)
 MUTATIONS = [
@@ -167,7 +168,7 @@ MUTATIONS = [
      "                if self._latest_in(conn, \"tool_done\", effect) is not None:"
      + chr(10) + "                    return False" + chr(10) + "                if self._latest_in(conn, \"tool_intent\", key)",
      "tests.test_atomic_admission AtomicAdmission.test_shared_limit_holds_under_contention"),
-    ("K27 the cost is never given back", INIT, "                    lg.release_limit(plan[\"run_id\"], plan[\"key\"], limit.name)",
+    ("K27 the cost is never given back", INIT, "                    lg.release_limit(plan[\"run_id\"], plan[\"key\"], held)",
      "                    pass", "tests.test_c4a_kit"),
     ("K27 a retry holds twice", LEDGER, "            return                      # a retry or resume",
      "            pass                        # a retry or resume", "tests.test_c4a_kit"),
@@ -179,6 +180,41 @@ MUTATIONS = [
      + "                    except LimitReached:" + chr(10) + "                        return None" + chr(10)
      + "                self._insert(conn, run_id, \"tool_intent\", key, payload)" + chr(10),
      "tests.test_c4a_kit"),
+    # --- K28: rules checked against the bound arguments before a new attempt is admitted
+    ("control (no-op)", RULES, "KINDS = (", "KINDS = (", "tests.test_c4a_kit"),
+    ("K28 max is not enforced", RULES, 'raise RuleRefused(tool, args, f"max.{param}", f"{param}={args[param]} is over {bound}")',
+     "pass", "tests.test_c4a_kit"),
+    ("K28 a missing amount passes max", RULES, 'raise RuleRefused(tool, args, f"max.{param}", f"{param} is missing or not a number")',
+     "continue", "tests.test_c4a_kit"),
+    ("K28 NaN is a number", RULES, "return None if exact.is_nan() else exact", "return exact", "tests.test_c4a_kit"),
+    ("K28 the allow list is ignored", RULES, "if args.get(param) not in values or not isinstance(args.get(param), str):",
+     "if False:", "tests.test_c4a_kit"),
+    ("K28 ask needs no yes", INIT, 'if approval or decision == "ask":', "if approval:", "tests.test_c4a_kit"),
+    ("K28 per_run is not counted", INIT, "held.append((per_run_name(run_id), per_run, 1.0, None))", "pass",
+     "tests.test_c4a_kit"),
+    ("K28 per_run is never given back", INIT, "+ ([per_run_name(run_id)] if per_run is not None else [])", "+ []",
+     "tests.test_c4a_kit"),
+    ("K28 only the first limit holds", LEDGER, "for one in limit:", "for one in limit[:1]:", "tests.test_c4a_kit"),
+    ("K28 rules read before the replay", INIT, "            def claim_ruled(attempt: int, payload: Any) -> bool:",
+     "            if gate is not None:" + chr(10) + "                gate.decide(tool, call_args)" + chr(10) + chr(10)
+     + "            def claim_ruled(attempt: int, payload: Any) -> bool:", "tests.test_c4a_kit"),
+    ("K28 a refusal is not recorded", INIT,
+     'lg.append(run_id, "rule_refused", k, {"tool": tool, "args": call_args, "rule": refused.rule,',
+     'None and lg.append(run_id, "rule_refused", k, {"tool": tool, "args": call_args, "rule": refused.rule,',
+     "tests.test_c4a_kit"),
+    ("K28 a misspelt rule is accepted", RULES, "if unknown:        # a misspelt rule", "if False:          # a misspelt rule",
+     "tests.test_c4a_kit"),
+    ("K28 a tool with no section is accepted", RULES, "if not gate.covers(tool):", "if False:", "tests.test_c4a_kit"),
+    ("K28 a crashing policy allows", RULES,
+     'raise RuleRefused(tool, args, self.source, f"the policy raised {exc!r}") from exc', 'return "allow"',
+     "tests.test_c4a_kit"),
+    ("K28 an unclear answer allows", RULES,
+     'raise RuleRefused(tool, args, self.source, f"the policy answered {answer!r}, not allow, ask or deny")',
+     'return "allow"', "tests.test_c4a_kit"),
+    ("K28 the policy gets the real arguments", RULES, "answer = self.fn(tool, json.loads(canonical(args)))",
+     "answer = self.fn(tool, args)", "tests.test_c4a_kit"),
+    ("K28 the decision is not stored", INIT, "payload = dict(payload, rules=dict(gate.stamp(), decision=decision))",
+     "payload = dict(payload)", "tests.test_c4a_kit"),
     # --- pytest plugin: it must refuse without test accounts, and fail on a repeat
     ("control (no-op)", PYT, "def _explain(", "def _explain(", "tests.test_pytest_plugin --require-pytest"),
     ("PT runs without test accounts", PYT, "if test_accounts is not True:", "if False:", "tests.test_pytest_plugin --require-pytest"),

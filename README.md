@@ -190,6 +190,16 @@ Rules worth knowing before you start:
   lock taken out 9 to 12 ran (5 runs). An action over the limit raises `c4a.LimitReached`; nothing runs, nothing is recorded,
   and its approval stays unspent. The cost comes back only when the kit proves the action did not happen; an action
   in doubt keeps holding it. Every process must declare the same name, maximum and `per`.
+- **Rules** (next release, experimental): `@c4a.effect(rules=c4a.Rules.load("rules.json"))` with, per tool,
+  `{"max": {"amount": 500}, "allow": {"currency": ["EUR"]}, "ask_over": {"amount": 100}, "per_run": 3}`. They are
+  read against the call's bound arguments before a new attempt is admitted. A rule that says no raises
+  `c4a.RuleRefused` (nothing runs; the refusal is recorded), `ask_over` asks for a "yes" for the exact call, and
+  `per_run` is counted in the same transaction as the intent, so a crash or resume of one action counts once. A
+  misspelt rule or a tool with no section is refused when you declare it, and a missing or non-number amount is
+  refused, not allowed. The intent stores which rules decided (a digest) and the decision. A finished action still
+  returns its result after the rules change. Policy engines such as Cedar or OPA can check tool arguments too:
+  `rules=policy` takes a function `policy(tool, args)` that returns `"allow"`, `"ask"` or `"deny"`, so you can
+  ask your engine from there. An error or any other answer refuses the call.
 
 **LangGraph and LangChain.**
 - `from call4agents.adapters import langgraph as c4a_lg`.

@@ -374,6 +374,137 @@ def main():
     check("K27i a same-key resend of the same action keeps its one hold (a limit of 1 is enough)",
           got == "charged" and len(keys) == 2 and kinds.count("limit_reserved") == 1, (got, keys, kinds))
 
+    # K28 rules checked against the bound arguments before a new attempt is admitted
+    def k28_call(fn, *a, run="r1", **kw):
+        try:
+            with c4a.run(run):
+                return fn(*a, **kw)
+        except c4a.RuleRefused as exc:
+            return "refused " + exc.rule
+        except c4a.ApprovalRequired:
+            return "ask"
+        except c4a.LimitReached:
+            return "limit"
+        except c4a.EffectInDoubt:
+            return "doubt"
+        except Exception as exc:  # noqa: BLE001
+            return type(exc).__name__
+
+    lg = fresh()
+    paid = []
+    shop = c4a.Rules({"k28.refund": {"max": {"amount": 500}, "allow": {"currency": ["EUR"]},
+                                     "ask_over": {"amount": 100}, "per_run": 2}})
+
+    @c4a.effect(name="k28.refund", rules=shop)
+    def k28a(order, amount, currency="EUR"):
+        paid.append((order, amount))
+        return "refunded"
+    got = [k28_call(k28a, "o1", 600), k28_call(k28a, "o2", 50, "USD"), k28_call(k28a, "o3", "50"),
+           k28_call(k28a, "o4", float("nan"))]
+    kinds = [e["kind"] for e in lg.entries("r1")]
+    check("K28 over max, a currency not in the list, an amount that is text or NaN: refused, nothing runs, "
+          "no intent, each refusal recorded",
+          got == ["refused max.amount", "refused allow.currency", "refused max.amount", "refused max.amount"]
+          and paid == [] and kinds.count("tool_intent") == 0 and kinds.count("rule_refused") == 4, (got, paid, kinds))
+
+    got = [k28_call(k28a, "o5", 150)]
+    with c4a.run("r1"):
+        c4a.approve(k28a, order="o5", amount=150, currency="EUR")
+    got += [k28_call(k28a, "o5", 150), k28_call(k28a, "o6", 50)]
+    check("K28b over ask_over needs a yes for the exact call even without approval=True; under it runs",
+          got == ["ask", "refunded", "refunded"] and paid == [("o5", 150), ("o6", 50)], (got, paid))
+
+    got = [k28_call(k28a, "o7", 10), k28_call(k28a, "o5", 150), k28_call(k28a, "o8", 10, run="r2")]
+    check("K28c per_run 2: a third action in the run is refused, a repeat of a finished one returns its "
+          "result, another run has its own count",
+          got == ["refused per_run", "refunded", "refunded"] and paid == [("o5", 150), ("o6", 50), ("o8", 10)],
+          (got, paid))
+
+    intent = [e for e in lg.entries("r1") if e["kind"] == "tool_intent"][0]["payload"]
+    check("K28d the intent records the rules' digest and the decision",
+          intent.get("rules", {}).get("digest") == shop.digest and intent["rules"]["decision"] == "ask", intent)
+
+    lg = fresh()
+    paid = []
+
+    @c4a.effect(name="k28.e", rules=c4a.Rules({"k28.e": {"max": {"amount": 500}}}))
+    def k28e_before(amount):
+        paid.append(amount)
+        return "paid"
+
+    @c4a.effect(name="k28.e", rules=c4a.Rules({"k28.e": {"max": {"amount": 100}}}))
+    def k28e_after(amount):
+        paid.append(amount)
+        return "paid again"
+    got = [k28_call(k28e_before, 300), k28_call(k28e_after, 300), k28_call(k28e_after, 200)]
+    check("K28e a finished action replays its result after the rules are tightened; a new one is refused",
+          got == ["paid", "paid", "refused max.amount"] and paid == [300], (got, paid))
+
+    lg = fresh()
+    tries = []
+
+    @c4a.effect(name="k28.f", rules=c4a.Rules({"k28.f": {"per_run": 1}}), retry_on=(Busy,))
+    def k28f(to):
+        tries.append(to)
+        if to in ("busy", "lost"):
+            raise Busy("not sent") if to == "busy" else NoAnswer("sent, maybe")
+        return "sent"
+    got = [k28_call(k28f, "busy"), k28_call(k28f, "lost"), k28_call(k28f, "lost"), k28_call(k28f, "bob")]
+    check("K28f per_run: an error that proves nothing happened gives the count back; one in doubt keeps it",
+          got == ["Busy", "NoAnswer", "doubt", "refused per_run"] and tries == ["busy", "lost"], (got, tries))
+
+    bad = []
+    for section in ({"maxx": {"amount": 5}}, {"max": {"amount": "5"}}, {"allow": {"to": "bob"}}, {"per_run": -1},
+                    {"max": {}}):
+        try:
+            c4a.Rules({"k28.g": section})
+            bad.append("accepted")
+        except ValueError:
+            bad.append("refused")
+    try:
+        c4a.effect(name="k28.other", rules=c4a.Rules({"k28.g": {"per_run": 1}}))(lambda: None)
+        bad.append("accepted")
+    except ValueError:
+        bad.append("refused")
+    check("K28g a misspelt rule, a bound that is text, a bad list, a negative count, an empty max and a tool "
+          "with no section are refused when declared", bad == ["refused"] * 6, bad)
+
+    lg = fresh()
+    paid = []
+    seen = []
+
+    def policy(tool, args):
+        seen.append(tool)
+        args["to"] = "mallory"                       # a policy that changes its input must not change the call
+        if args["amount"] == 13:
+            raise RuntimeError("policy server down")
+        return {1: "allow", 2: "ask", 3: ("deny", "blocked account"), 4: "yes"}.get(args["amount"], "allow")
+
+    @c4a.effect(name="k28.h", rules=policy)
+    def k28h(amount, to="alice"):
+        paid.append((amount, to))
+        return "paid"
+    got = [k28_call(k28h, n) for n in (1, 2, 3, 4, 13)]
+    recorded = [e["payload"]["args"] for e in lg.entries("r1") if e["kind"] in ("tool_intent", "rule_refused")]
+    check("K28h a policy function: allow runs, ask needs a yes, deny and a crashing or unclear policy refuse "
+          "(fails closed), and it cannot change the call or what is recorded",
+          got[:2] == ["paid", "ask"] and all(g.startswith("refused policy:") for g in got[2:])
+          and paid == [(1, "alice")] and len(seen) == 5 and len(recorded) == 4
+          and all(a["to"] == "alice" for a in recorded), (got, paid, recorded))
+
+    lg = fresh()
+    paid = []
+
+    @c4a.effect(name="k28.i", rules=c4a.Rules({"k28.i": {"per_run": 5}}),
+                limit=c4a.Limit("k28-budget", 100, cost=lambda amount: amount))
+    def k28i(amount):
+        paid.append(amount)
+        return "paid"
+    got = [k28_call(k28i, 70), k28_call(k28i, 40)]
+    held = [e for e in lg.entries("r1") if e["kind"] == "limit_reserved"]
+    check("K28i a rule count and a Limit together: the Limit refusing rolls back the rule's count too",
+          got == ["paid", "limit"] and paid == [70] and len(held) == 2, (got, paid, held))
+
     # K4 approvals bound to exact arguments (key order does not matter, values do)
     fresh()
     paid = []

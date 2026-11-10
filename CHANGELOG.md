@@ -18,10 +18,20 @@
   happen; in doubt it stays held. New row kinds `limit_reserved` and `limit_released` (no schema change). Checks
   K27-K27i, a 12-process contention test on SQLite and PostgreSQL (exactly 5 of 12 under a limit of 5; with the
   lock taken out, 9 to 12 ran in each of 5 runs), six mutations.
+- Rules: `@c4a.effect(rules=c4a.Rules.load(path))` (or `c4a.Rules({...})`) with `max`, `allow`, `ask_over` and
+  `per_run` per tool, read against the bound arguments before a new attempt is admitted. A refusal raises
+  `c4a.RuleRefused`, runs nothing and is recorded as a `rule_refused` row; `ask_over` needs a "yes" for the exact
+  call; `per_run` is held in the admission transaction like a `Limit` (a crash, retry or resume of one action counts
+  once; an action in doubt keeps its count). The intent stores the rules' digest and the decision. `rules=` also
+  takes a function `policy(tool, args)` returning allow, ask or deny, as a route to a policy engine; it fails
+  closed and gets a copy of the arguments. A misspelt rule, a non-number bound and a tool with no section are refused
+  when declared. Checks K28-K28i, 16 mutations with a control. Not new as an idea: policy engines (Cedar in AWS
+  AgentCore Policy, OPA) and MCP proxies already check tool arguments; what is ours is that the check, the count and
+  the decision live in the same record as the once-only action.
 
 **Fixed in the mutation inventory**
 - Two mutations (F key changes per attempt, K24) pointed at code the retry loop re-indented, and one (CT split
-  admission) matched twice after `claim_limited` was added. Updated; all 114 targets are found exactly once.
+  admission) matched twice after `claim_limited` was added. Updated; every target is found exactly once (131 after the rules mutations).
 - pytest plugin: installing call4agents adds the `c4a_crashtest` fixture, which runs `call4agents crashtest` on a
   script from your test suite and fails the test on RAN TWICE or NOT APPROVED. It refuses to start without
   `test_accounts=True`, because every action really runs, many times. Checks PT1-PT3 on the bundled demo agent,
