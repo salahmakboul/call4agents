@@ -357,14 +357,22 @@ are in [docs/SCAN_RESULTS.md](docs/SCAN_RESULTS.md).
 
 ## Audit export (experimental)
 
-`call4agents audit <record> out.json` writes who approved what, when, for which exact arguments, and what ran. It
-uses the record's secret (`C4A_SECRET` or its `secret` file) and never creates one. `call4agents audit-verify
+`call4agents audit <record> out.json` writes who approved what, when, for which exact arguments, what ran, which
+rules decided, and which calls a rule refused (next release). It uses the record's secret (`C4A_SECRET` or its `secret` file) and never creates one. `call4agents audit-verify
 out.json` fails if any value was changed or any entry was removed, added or moved.
 
 Limits: anyone with the secret can sign a false export, so this shows the file has not changed since a holder of the
 secret signed it. It does not show that the record was honest before the export, and it is not proof for an outside
 party. A name appears only where one was recorded (`c4a.decide(ticket, "approve", by="sam")`). Action results are
-left out, but arguments are included, so treat the file as sensitive.
+left out, but arguments are included, so treat the file as sensitive. Exports in the 0.6 format still verify.
+
+**For your tracing tool** (next release, experimental): `call4agents spans <record> out.json [--run <id>]` writes
+OpenTelemetry traces as OTLP/JSON: one trace per run, one `execute_tool <tool>` span per action and per refused call,
+with `gen_ai.operation.name` and `gen_ai.tool.name` from the GenAI semantic conventions (still marked Development
+there) and the record's own facts under `c4a.*` (state, attempts, approval, rules decision). An action in doubt is
+`error.type = c4a.in_doubt` with status ERROR, so it shows as a failure someone must look at. Arguments, error texts
+and refusal reasons are left out unless you pass `--with-args`; results are never written. This file is not signed
+(use `audit` for that), and we have not loaded it into a real collector or tracing backend yet.
 
 ## In production
 

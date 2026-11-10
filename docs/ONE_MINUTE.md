@@ -18,7 +18,8 @@ one problem, the line that handles it, what we measured, and a command you can r
 | Several machines | Two machines run the same action | `c4a.init("postgresql://...")` (beta) | 8 processes on one PostgreSQL record: runs once | `python -m tests.test_shared_record` |
 | Which tools are unguarded? | Nobody knows until an incident | `call4agents scan <path>` | Reads source, runs nothing; what it misses is in [SCAN_RESULTS.md](SCAN_RESULTS.md) | `call4agents scan .` |
 | Does my own agent repeat? | You find out in production | `call4agents crashtest`, the GitHub Action, the pytest fixture (next release) | Finds the repeat in small real agents on three frameworks, none with the guard | `call4agents crashtest your_agent.py` |
-| Who approved what, and what ran? | No record you can hand over | `call4agents audit <record> out.json` (experimental) | Signed export; a changed, removed or moved entry is detected (A3, A4). Anyone with the secret could sign a false one | `python -m tests.test_audit` |
+| Who approved what, and what ran? | No record you can hand over | `call4agents audit <record> out.json` (experimental) | Signed export, with rule refusals and decisions (next release); a changed, removed or moved entry is detected (A3, A4, A8). Anyone with the secret could sign a false one | `python -m tests.test_audit` |
+| What is in doubt, in my tracing tool? | The record and the traces tell different stories | `call4agents spans <record> out.json` (next release) | One OpenTelemetry span per action and refusal; in doubt is an ERROR span; arguments only with `--with-args` (O1-O7). Not yet loaded into a real collector | `python -m tests.test_spans` |
 
 **Not proven:** real payment or email systems and production traffic; several real machines on a real network;
 `crashtest` and `scan` on real production agents; an independent code review. Rows marked "next release" are on

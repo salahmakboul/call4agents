@@ -16,6 +16,7 @@ CT, SCAN, AUDIT = "call4agents/crashtest.py", "call4agents/scan.py", "call4agent
 PG = "call4agents/stores/postgres.py"
 PYT = "call4agents/adapters/pytest_plugin.py"
 RULES = "call4agents/rules.py"
+SPANS = "call4agents/spans.py"
 
 # (name, file, old text, new text, suite)
 MUTATIONS = [
@@ -222,9 +223,29 @@ MUTATIONS = [
      "tests.test_pytest_plugin --require-pytest"),
     # --- audit export
     ("A the signature is not checked", AUDIT, 'if not hmac.compare_digest(str(doc.get("signature")), _signature(secret, doc)):', "if False:", "tests.test_audit"),
-    ("A the end of the chain is not checked", AUDIT, 'if _chain(entries) != doc.get("head"):', "if False:", "tests.test_audit"),
+    ("A the end of the chain is not checked", AUDIT, 'if _chain(entries, doc["format"]) != doc.get("head"):', "if False:", "tests.test_audit"),
     ("A an entry's hash is not compared", AUDIT, 'if e.get("hash") != head:', "if False:", "tests.test_audit"),
-    ("A the summary is not signed", AUDIT, '"count", "head", "actions", "decisions")}', '"count", "head")}', "tests.test_audit"),
+    ("A the summary is not signed", AUDIT, '"count", "head", "actions", "decisions", "refusals")}', '"count", "head")}',
+     "tests.test_audit"),
+    ("A refusals are not signed", AUDIT, '"decisions", "refusals")}', '"decisions")}', "tests.test_audit"),
+    ("A refusals are not exported", AUDIT, 'for e in entries if e["kind"] == "rule_refused" for p in',
+     'for e in entries if e["kind"] == "rule_refused_x" for p in', "tests.test_audit"),
+    ("A an older export is refused", AUDIT, 'if doc.get("format") not in SIGNED:', 'if doc.get("format") != FORMAT:',
+     "tests.test_audit"),
+    # --- spans export
+    ("control (no-op)", SPANS, "SCOPE = ", "SCOPE = ", "tests.test_spans"),
+    ("SP arguments always written", SPANS, "        if with_args:" + chr(10) + '            pairs["gen_ai.tool.call.arguments"] = a["args"]',
+     "        if True:" + chr(10) + '            pairs["gen_ai.tool.call.arguments"] = a["args"]', "tests.test_spans"),
+    ("SP in doubt looks fine", SPANS, 'if "IN DOUBT" in a["state"] or a["late"]:', "if False:", "tests.test_spans"),
+    ("SP refusals dropped", SPANS, 'if e["kind"] != "rule_refused":', "if True:", "tests.test_spans"),
+    ("SP a retry_on error not shown", SPANS, 'gave_up[e["key"]] = e["payload"]["error"]', "pass", "tests.test_spans"),
+    ("SP error text leaks", SPANS, "str(last)[:200] if with_args else _error_name(last)", "str(last)[:200]", "tests.test_spans"),
+    ("SP refusal reason leaks", SPANS, 'str(p.get("why"))[:200] if with_args', 'str(p.get("why"))[:200] if True',
+     "tests.test_spans"),
+    ("SP random ids", SPANS, 'return hashlib.sha256(f"{label}\\x00{text}".encode()).hexdigest()[:size]',
+     'return __import__("os").urandom(size // 2).hex()', "tests.test_spans"),
+    ("SP success marked OK", SPANS, 'status: Dict[str, Any] = {"code": UNSET}', 'status: Dict[str, Any] = {"code": 1}',
+     "tests.test_spans"),
     ("A results are exported", AUDIT, 'LEFT_OUT = ("mac", "result")', 'LEFT_OUT = ("mac",)', "tests.test_audit"),
     ("A the approval key signs exports", AUDIT, 'return hmac.new(_key(secret), canonical(signed)', 'return hmac.new(b"public", canonical(signed)', "tests.test_audit"),
     ("S9 verify on a shared record not handled", "call4agents/ops.py", "integrity = PG_INTEGRITY if _is_pg(path) else",
@@ -270,7 +291,7 @@ def copy_tree(dst: Path) -> None:
     for f in ("test_c4a_kit.py", "c4a_codec_types.py", "c4a_k18_child.py", "c4a_prove_sample.py", "test_idempotency.py",
               "test_c4a_production.py", "test_undo.py", "c4a_undo_child.py", "test_adapters.py",
               "test_shared_record.py", "test_tickets.py", "test_crashtest.py", "test_audit.py", "test_atomic_admission.py",
-              "test_pytest_plugin.py"):
+              "test_pytest_plugin.py", "test_spans.py"):
         shutil.copy(ROOT / "tests" / f, dst / "tests" / f)
 
 

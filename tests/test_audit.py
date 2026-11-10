@@ -6,7 +6,9 @@ A3 changing any single value in the file, at any place, is detected.
 A4 removing, adding, repeating or reordering an entry is detected.
 A5 another secret is refused, and a re-chained forgery without the secret is refused.
 A6 a missing secret is an error, and no new secret file appears.
-A7 --run exports one run only, and results and approval macs are left out."""
+A7 --run exports one run only, and results and approval macs are left out.
+A8 a call refused by a rule is listed with its rule, an action's rules decision is shown, and both are signed.
+A9 an export in the earlier format (c4a-audit-1) still verifies, and still fails when changed."""
 import copy
 import json
 import os
@@ -15,7 +17,7 @@ import tempfile
 from pathlib import Path
 
 import call4agents as c4a
-from call4agents.audit import _link, build, find_secret, main, verify
+from call4agents.audit import _link, _signature, build, find_secret, main, verify
 from call4agents.ledger import LedgerError
 
 FAILED = []
@@ -77,8 +79,19 @@ def main_test():
     with c4a.run("r2"):
         c4a.approve(pay, amount=5)
 
+    @c4a.effect(name="m.refund", rules=c4a.Rules({"m.refund": {"max": {"cents": 500}}}))
+    def refund(cents):
+        return "refunded"
+
+    with c4a.run("r3"):
+        refund(cents=200)
+        try:
+            refund(cents=9999)
+        except c4a.RuleRefused:
+            pass
+
     doc = build(record, SECRET)
-    rows = {a["args"]["amount"]: a for a in doc["actions"]}
+    rows = {a["args"]["amount"]: a for a in doc["actions"] if a["tool"] == "m.pay"}
     check("A1 what ran, with exact arguments", sorted(rows) == [10, 20] and rows[10]["tool"] == "m.pay" and rows[10]["state"] == "done", rows)
     check("A1 who approved, and when", rows[20]["approved_by"] == "sam" and rows[20]["approved_at"] and rows[10]["approved_at"], rows)
     check("A1 no name was given, so none is shown", rows[10]["approved_by"] is None, rows)
@@ -106,7 +119,7 @@ def main_test():
     forged = copy.deepcopy(doc)
     forged["actions"][0]["args"] = {"amount": 9999}
     forged["entries"][3]["payload"]["args"] = {"amount": 9999}
-    head = "c4a-audit-1"
+    head = forged["format"]
     for e in forged["entries"]:
         head = _link(head, {k: v for k, v in e.items() if k != "hash"})
         e["hash"] = head
@@ -132,6 +145,29 @@ def main_test():
         check("A7 an unknown run is an error", False)
     except LedgerError:
         check("A7 an unknown run is an error", True)
+
+    ruled = [a for a in doc["actions"] if a["tool"] == "m.refund"]
+    check("A8 a refused call is listed with its rule and reason",
+          [(r["tool"], r["args"], r["rule"]) for r in doc["refusals"]] == [("m.refund", {"cents": 9999}, "max.cents")]
+          and "9999" in doc["refusals"][0]["why"], doc["refusals"])
+    check("A8 the action's rules decision and digest are shown", len(ruled) == 1 and ruled[0]["rules"]["decision"]
+          == "allow" and len(ruled[0]["rules"]["digest"]) == 16, ruled)
+    hidden = copy.deepcopy(doc)
+    hidden["refusals"] = []
+    check("A8 removing a refusal from the summary is detected", refused(hidden))
+
+    old = copy.deepcopy(doc)
+    old.pop("refusals")
+    old["format"] = "c4a-audit-1"
+    head = old["format"]
+    for e in old["entries"]:
+        head = _link(head, {k: v for k, v in e.items() if k != "hash"})
+        e["hash"] = head
+    old["head"] = head
+    old["signature"] = _signature(SECRET, old)
+    check("A9 an export in the earlier format still verifies", not refused(old))
+    old["actions"][0]["args"] = {"amount": 9999}
+    check("A9 ... and still fails when changed", refused(old))
     lg.close() if hasattr(lg, "close") else None
 
     if FAILED:

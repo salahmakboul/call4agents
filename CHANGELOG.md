@@ -28,10 +28,17 @@
   when declared. Checks K28-K28i, 16 mutations with a control. Not new as an idea: policy engines (Cedar in AWS
   AgentCore Policy, OPA) and MCP proxies already check tool arguments; what is ours is that the check, the count and
   the decision live in the same record as the once-only action.
+- `call4agents audit` also lists the calls a rule refused (rule and reason) and each action's rules decision. The
+  export format is now `c4a-audit-2` and signs the refusals too; `c4a-audit-1` files still verify. Checks A8, A9 and
+  four mutations.
+- `call4agents spans <record> out.json`: the record as OpenTelemetry traces (OTLP/JSON), one `execute_tool` span per
+  action and per refused call, with the GenAI convention names and `c4a.*` attributes. An action in doubt is an
+  ERROR span with `error.type = c4a.in_doubt`. Arguments, error texts and refusal reasons only with `--with-args`.
+  Not signed, and not yet loaded into a real collector. Checks O1-O7, eight mutations with a control.
 
 **Fixed in the mutation inventory**
 - Two mutations (F key changes per attempt, K24) pointed at code the retry loop re-indented, and one (CT split
-  admission) matched twice after `claim_limited` was added. Updated; every target is found exactly once (131 after the rules mutations).
+  admission) matched twice after `claim_limited` was added. Updated; every target is found exactly once (143 after the rules, audit and spans mutations).
 - pytest plugin: installing call4agents adds the `c4a_crashtest` fixture, which runs `call4agents crashtest` on a
   script from your test suite and fails the test on RAN TWICE or NOT APPROVED. It refuses to start without
   `test_accounts=True`, because every action really runs, many times. Checks PT1-PT3 on the bundled demo agent,

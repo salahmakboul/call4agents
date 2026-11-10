@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Salah Eddine Makboul
 """call4agents audit - experimental. A signed export of a run record: who approved what, when, for which exact
-arguments, and what ran.
+arguments, what ran, which rules decided, and which calls a rule refused.
 
     call4agents audit <record> <out.json> [--run <id>]     needs the record's secret (C4A_SECRET or its `secret` file)
     call4agents audit-verify <out.json> [--secret-file f]  exit 0 only if nothing was changed
@@ -25,7 +25,10 @@ from typing import Any, Dict, List, Optional
 from call4agents.ledger import LedgerError, canonical
 from call4agents.ops import actions, open_record
 
-FORMAT = "c4a-audit-1"
+FORMAT = "c4a-audit-2"           # 2 adds "refusals" and each action's rules decision; 1 still verifies
+SIGNED = {"c4a-audit-1": ("format", "exported_at", "run", "count", "head", "actions", "decisions"),
+          "c4a-audit-2": ("format", "exported_at", "run", "count", "head", "actions", "decisions", "refusals")}
+KEY_LABEL = "c4a-audit-1"        # the export key is the same for every format
 LEFT_OUT = ("mac", "result")
 LIMITS = ("This shows the file has not changed since a holder of the secret signed it. Anyone with the secret can sign "
           "a false export, and it does not show the record was honest before the export.")
@@ -45,7 +48,7 @@ def find_secret(record: Optional[str] = None, secret_file: Optional[str] = None)
 
 
 def _key(secret: bytes) -> bytes:
-    return hmac.new(secret, FORMAT.encode(), hashlib.sha256).digest()      # never the same key that signs an approval
+    return hmac.new(secret, KEY_LABEL.encode(), hashlib.sha256).digest()      # never the same key that signs an approval
 
 
 def _link(previous: str, entry: Dict[str, Any]) -> str:
@@ -53,12 +56,12 @@ def _link(previous: str, entry: Dict[str, Any]) -> str:
 
 
 def _signature(secret: bytes, doc: Dict[str, Any]) -> str:
-    signed = {k: doc[k] for k in ("format", "exported_at", "run", "count", "head", "actions", "decisions")}
+    signed = {k: doc[k] for k in SIGNED[doc["format"]]}
     return hmac.new(_key(secret), canonical(signed).encode(), hashlib.sha256).hexdigest()
 
 
-def _chain(entries: List[Dict[str, Any]]) -> str:
-    head = FORMAT
+def _chain(entries: List[Dict[str, Any]], start: str = FORMAT) -> str:
+    head = start
     for e in entries:
         head = _link(head, {k: v for k, v in e.items() if k != "hash"})
         if e.get("hash") != head:
@@ -85,30 +88,38 @@ def build(record: str, secret: bytes, run: Optional[str] = None) -> Dict[str, An
                   "args": (e["payload"] or {}).get("args"), "by": (e["payload"] or {}).get("by")}
                  for e in entries if e["kind"] in ("approval", "denial")]
     used = {e["key"]: (e["payload"] or {}).get("approval") for e in entries if e["kind"] == "effect_approved"}
+    ruled: Dict[str, Any] = {}
+    for e in entries:
+        if e["kind"] == "tool_intent" and isinstance(e["payload"], dict) and "rules" in e["payload"]:
+            ruled.setdefault(e["key"].rsplit("#", 1)[0], e["payload"]["rules"])
+    refusals = [{"run_id": e["run_id"], "at": e["t"], "seq": e["seq"], "tool": p.get("tool"), "args": p.get("args"),
+                 "rule": p.get("rule"), "why": p.get("why"), "rules": p.get("source"), "digest": p.get("digest")}
+                for e in entries if e["kind"] == "rule_refused" for p in [e["payload"] or {}]]
     summary = []
     for a in actions(lg).values():
         if run is None or a["run_id"] == run:
             yes = by_seq.get(used.get(a["key"]))
             summary.append({"run_id": a["run_id"], "tool": a["tool"], "args": a["args"], "state": a["state"], "started": a["first_t"],
-                            "approved_at": yes["t"] if yes else None, "approved_by": (yes["payload"] or {}).get("by") if yes else None})
+                            "approved_at": yes["t"] if yes else None, "approved_by": (yes["payload"] or {}).get("by") if yes else None,
+                            "rules": ruled.get(a["key"])})
     head = FORMAT
     for e in entries:
         head = _link(head, e)
         e["hash"] = head
     doc = {"format": FORMAT, "exported_at": time.time(), "run": run, "count": len(entries), "head": head, "actions": summary,
-           "decisions": decisions, "entries": entries}
+           "decisions": decisions, "refusals": refusals, "entries": entries}
     doc["signature"] = _signature(secret, doc)
     return doc
 
 
 def verify(doc: Dict[str, Any], secret: bytes) -> None:
     """Raises LedgerError unless the export is exactly what was signed."""
-    if doc.get("format") != FORMAT:
+    if doc.get("format") not in SIGNED:
         raise LedgerError("not a Call4Agents audit export")
     entries = doc.get("entries")
     if not isinstance(entries, list) or doc.get("count") != len(entries):
         raise LedgerError("the number of entries does not match")
-    if _chain(entries) != doc.get("head"):
+    if _chain(entries, doc["format"]) != doc.get("head"):
         raise LedgerError("the end of the chain does not match")
     if not hmac.compare_digest(str(doc.get("signature")), _signature(secret, doc)):
         raise LedgerError("the signature does not match: the file was changed, or this is not its secret")
@@ -131,7 +142,7 @@ def main(argv: List[str]) -> int:
             doc = build(rest[0], secret, options.get("--run"))
             Path(rest[1]).write_text(json.dumps(doc, indent=1), encoding="utf-8")
             print(f"audit export (experimental): {doc['count']} entries, {len(doc['actions'])} actions, "
-                  f"{len(doc['decisions'])} decisions -> {rest[1]}")
+                  f"{len(doc['decisions'])} decisions, {len(doc['refusals'])} refused by a rule -> {rest[1]}")
             print(LIMITS)
             return 0
         if len(rest) != 1:
