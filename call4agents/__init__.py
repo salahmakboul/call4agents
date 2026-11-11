@@ -162,7 +162,11 @@ def _same_args(a: Any, b: Any) -> bool:
 def init(path: str = ".c4a/ledger.sqlite", secret: Optional[bytes] = None,
          replay_from: Optional[str] = None, old_secrets: Optional[list] = None,
          allow_network_drive: bool = False) -> Ledger:
-    """replay_from: a recorded run record. Model calls and effects then come from it (offline).
+    """Open (or create) the run record and the approval secret. Call it once, before any action.
+
+    path: a SQLite file (default .c4a/ledger.sqlite; the secret goes next to it in .c4a/secret).
+    secret: the approval secret as bytes; pass it when several processes or machines share one record.
+    replay_from: a recorded run record. Model calls and effects then come from it (offline).
     old_secrets: secrets you rotated away from; approvals they signed still count (C4A_OLD_SECRETS works too).
     path "postgresql://...": one run record shared by several machines (needs call4agents[postgres] and the
     same secret on every machine)."""
@@ -177,6 +181,7 @@ def init(path: str = ".c4a/ledger.sqlite", secret: Optional[bytes] = None,
 
 
 def current_ledger() -> Ledger:
+    """The record opened by c4a.init(). RuntimeError if init() was not called."""
     # Not named ledger(): that name would hide the call4agents.ledger module.
     if _LEDGER is None:
         raise RuntimeError("call c4a.init() first")
@@ -185,6 +190,9 @@ def current_ledger() -> Ledger:
 
 @contextlib.contextmanager
 def run(run_id: str):
+    """`with c4a.run("thread-42"):` - every action and approval inside belongs to this run. Use the id your
+    framework resumes with (a thread, conversation or session id), so a resumed run finds its record.
+    New threads do not inherit it: enter c4a.run there, or use contextvars.copy_context().run."""
     token = _RUN.set(run_id)
     try:
         yield

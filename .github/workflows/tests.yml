@@ -38,6 +38,10 @@ jobs:
       - run: python -m tests.test_crashtest
       - run: python -m tests.test_audit
       - run: python -m tests.test_spans
+      - run: python -m tests.test_recipes
+      - name: the API reference matches the code (signatures print the same way on one Python)
+        if: matrix.python == '3.12'
+        run: python docs/make_api.py --check
       - run: python -m tests.stress_c4a_ledger
       - name: big test (quick size)
         run: python -m tests.bigtest_c4a --quick

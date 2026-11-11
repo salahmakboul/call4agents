@@ -260,6 +260,18 @@ MUTATIONS = [
     ("A the approval key signs exports", AUDIT, 'return hmac.new(_key(secret), canonical(signed)', 'return hmac.new(b"public", canonical(signed)', "tests.test_audit"),
     ("S9 verify on a shared record not handled", "call4agents/ops.py", "integrity = PG_INTEGRITY if _is_pg(path) else",
      "integrity = \"?\" if _is_pg(path) else", "tests.test_shared_record"),
+    # --- RC: the four recipes in docs/RECIPES.md (real kills, fake providers)
+    ("control (no-op)", INIT, "def idempotency_key() -> str:", "def idempotency_key() -> str:", "tests.test_recipes"),
+    ("RC the key changes on each try", INIT, "    return k" + chr(10) * 3 + "def idempotency_headers",
+     "    return k + str(time.time())" + chr(10) * 3 + "def idempotency_headers", "tests.test_recipes"),
+    ("RC UNKNOWN taken as not done", INIT, "                found = reconcile(**call_args)" + chr(10),
+     "                found = reconcile(**call_args)" + chr(10) + "                found = None if found is UNKNOWN else found" + chr(10),
+     "tests.test_recipes"),
+    ("RC an ask rule allows", RULES, "            if value > _number(bound):" + chr(10) + "                return \"ask\"",
+     "            if value > _number(bound):" + chr(10) + "                return \"allow\"", "tests.test_recipes"),
+    ("RC a resume holds the limit again", LEDGER, 'if any(h["effect"] == effect for h in held):', "if False:",
+     "tests.test_recipes"),
+    ("RC retry_on ignored", INIT, "if retry_on and isinstance(exc, retry_on):", "if False:", "tests.test_recipes"),
     # --- atomic admission: splitting the commit must leave a detectable partial admission
     ("control (atomic SQLite)", LEDGER, 'conn.execute("BEGIN IMMEDIATE")', 'conn.execute("BEGIN IMMEDIATE")',
      "tests.test_atomic_admission"),
@@ -301,7 +313,7 @@ def copy_tree(dst: Path) -> None:
     for f in ("test_c4a_kit.py", "c4a_codec_types.py", "c4a_k18_child.py", "c4a_prove_sample.py", "test_idempotency.py",
               "test_c4a_production.py", "test_undo.py", "c4a_undo_child.py", "test_adapters.py",
               "test_shared_record.py", "test_tickets.py", "test_crashtest.py", "test_audit.py", "test_atomic_admission.py",
-              "test_pytest_plugin.py", "test_spans.py"):
+              "test_pytest_plugin.py", "test_spans.py", "test_recipes.py"):
         shutil.copy(ROOT / "tests" / f, dst / "tests" / f)
 
 
