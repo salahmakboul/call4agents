@@ -9,6 +9,8 @@ CT4 a call the clean run never made is reported as not approved.
 CT5 the old approval bypass (a crash after a yes is spent, then other arguments under the same key) is refused.
 CT6 a failing script and a script with no action stop with a clear message, exit 2. --watch adds an action.
 CT7 only with --require-frameworks: each real framework, without and with the guard.
+CT8 it refuses a real account: the command needs --test-accounts, and a live payment key (in the environment or
+    the script) or a provider in live mode stops it before the script runs, naming the variable, never the key.
 SC1-SC6 scan: finds real actions, leaves reads, guarded tools and non-tools alone, and says what it cannot see."""
 import importlib.util
 import os
@@ -126,7 +128,7 @@ def crash_checks(folder):
           not next(x for x in r["results"] if x["at"] == f"before {call}")["twice"], r["results"])
     check("CT1 a kill just after the action is a repeat",
           next(x for x in r["results"] if x["at"] == f"after {call}")["twice"] == [call], r["results"])
-    check("CT1 the command exits 1 and names the fix", main([bad]) == 1 and "c4a.effect" in r["fix"])
+    check("CT1 the command exits 1 and names the fix", main([bad, "--test-accounts"]) == 1 and "c4a.effect" in r["fix"])
 
     good = script(folder, "agent_good.py", GUARDED)
     r = crashtest(good)
@@ -135,7 +137,7 @@ def crash_checks(folder):
     check("CT2 the guard's own record writes are crash points too", r["crash_points"] > 6, r["crash_points"])
     check("CT2 a crash inside stops as in doubt, not as a lost action",
           any(x["in_doubt"] for x in r["results"]) and not found["lost"], found)
-    check("CT2 the command exits 0", main([good]) == 0)
+    check("CT2 the command exits 0", main([good, "--test-accounts"]) == 0)
 
     r = crashtest(script(folder, "agent_async.py", ASYNC))
     check("CT3 an async action is one call, not one per await", sum(r["actions"].values()) == 1, r["actions"])
@@ -146,11 +148,47 @@ def crash_checks(folder):
     approval_crash_check(folder)
 
     broken = script(folder, "agent_broken.py", "def pay(x):\n    pass\npay(1)\nraise ValueError('nope')\n")
-    check("CT6 a failing script: exit 2, not a clean result", main([broken]) == 2)
+    check("CT6 a failing script: exit 2, not a clean result", main([broken, "--test-accounts"]) == 2)
     quiet = script(folder, "agent_quiet.py", "def add(a, b):\n    return a + b\nadd(1, 2)\n")
-    check("CT6 no action seen: exit 2", "error" in crashtest(quiet) and main([quiet]) == 2)
+    check("CT6 no action seen: exit 2", "error" in crashtest(quiet) and main([quiet, "--test-accounts"]) == 2)
     check("CT6 --watch adds an action", crashtest(quiet, watch=["add"]).get("actions") == {"add(a=1, b=2)": 1})
     check("CT6 --demo finds the repeat without the guard and none with it", main(["--demo"]) == 0)
+    live_account_check(folder)
+
+
+def live_account_check(folder):
+    marker = Path(folder) / "ran.txt"
+    body = f"from pathlib import Path\ndef pay(amount):\n    Path({str(marker)!r}).write_text('ran')\npay(1)\n"
+    agent = script(folder, "agent_live.py", body)
+    live_key = "sk_" + "live_" + "4eC39HqLyjWDarjtT1zdp7dc"          # built here so no file holds a key-shaped text
+    saved = {k: os.environ.get(k) for k in ("STRIPE_SECRET_KEY", "PAYPAL_MODE")}
+    try:
+        check("CT8 without --test-accounts the command refuses and the script never runs",
+              main([agent, "--watch", "pay"]) == 2 and not marker.exists())
+        os.environ["STRIPE_SECRET_KEY"] = live_key
+        r = crashtest(agent, watch=["pay"])
+        check("CT8 a live key in the environment stops it, even with --test-accounts, and nothing runs",
+              main([agent, "--test-accounts", "--watch", "pay"]) == 2 and not marker.exists()
+              and r.get("live") == ["STRIPE_SECRET_KEY holds a live key"], r)
+        check("CT8 the refusal names the variable, never the key", live_key not in str(r), r)
+        del os.environ["STRIPE_SECRET_KEY"]
+        os.environ["PAYPAL_MODE"] = "live"
+        check("CT8 a payment provider in live mode stops it", crashtest(agent, watch=["pay"]).get("live") == ["PAYPAL_MODE=live"]
+              and not marker.exists())
+        os.environ["PAYPAL_MODE"] = "sandbox"
+        in_code = script(folder, "agent_live_code.py", body + f"KEY = {live_key!r}\n")
+        check("CT8 a live key written in the script stops it",
+              crashtest(in_code, watch=["pay"]).get("live") == ["the script contains a live key"] and not marker.exists())
+        os.environ["STRIPE_SECRET_KEY"] = "sk_" + "test_" + "4eC39HqLyjWDarjtT1zdp7dc"
+        r = crashtest(agent, watch=["pay"])
+        check("CT8 test keys and a sandbox mode still run (the refusal is not a blanket no)",
+              "error" not in r and marker.exists(), r.get("error"))
+    finally:
+        for k, v in saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
 
 
 def approval_crash_check(folder):

@@ -1,6 +1,6 @@
 # Call4Agents
 
-Call4Agents makes the actions of a Python agent safe to retry. You add it to the agent you already
+**One yes, one payment, even after a crash.** Call4Agents makes the actions of a Python agent safe to retry. You add it to the agent you already
 have: LangGraph, Pydantic AI, the OpenAI Agents SDK, an MCP server, or plain Python. It does not
 replace any of them.
 
@@ -16,7 +16,7 @@ action ran twice. Your agent does not need to use our guard first.
 ```
 pip install call4agents
 call4agents crashtest --demo          # a small agent, without and with the one-line fix
-call4agents crashtest your_agent.py   # yours (experimental; every action really runs, so use test accounts)
+call4agents crashtest your_agent.py --test-accounts   # yours (experimental; every action really runs: test accounts only)
 ```
 
 ![call4agents crashtest: a small agent is killed at every step and restarted. Without the guard its refund runs twice; with one line added it does not.](docs/crashtest.svg)
@@ -290,7 +290,7 @@ added to it, never changed or deleted.
 |---|---|
 | `call4agents quickstart` | the demo plus a crash and resume in each installed framework |
 | `call4agents incident` | three approval incidents, without and with the kit |
-| `call4agents crashtest <script>` | kills your agent at every step, restarts it, reports what ran twice or without approval (experimental) |
+| `call4agents crashtest <script> --test-accounts` | kills your agent at every step, restarts it, reports what ran twice or without approval (experimental) |
 | `call4agents scan <path>` | lists tools that send, pay, delete or write with no approval or once-only guard; runs nothing (experimental) |
 | `call4agents audit <record> <out.json> [--run id]` | a signed export: who approved what, when, for which arguments, and what ran (experimental) |
 | `call4agents audit-verify <out.json>` | exit 0 only if nothing in the export was changed |
@@ -310,7 +310,15 @@ added to it, never changed or deleted.
 
 ## Test your own agent (experimental)
 
-`call4agents crashtest your_agent.py` runs your script in a new empty folder, once cleanly, then once per crash
+**It refuses a real account.** Every action of your script really runs, many times. So the command asks you to say
+the script talks only to fakes, sandboxes or test accounts (`--test-accounts`; the pytest fixture asks for
+`test_accounts=True`, the Action for `test-accounts: "true"`). Even then it refuses to start, and runs nothing, when it
+sees a live payment key in the environment or in the script (Stripe secret or restricted live keys, Razorpay live
+keys) or a provider set to live mode (`PAYPAL_MODE=live`, `ADYEN_ENVIRONMENT=live`, `BRAINTREE_ENVIRONMENT`,
+`PLAID_ENV` or `SQUARE_ENVIRONMENT` set to `production`). It names the variable, never the key. It knows only these
+signs: for any other provider, test accounts stay your job (checks CT8, PT4).
+
+`call4agents crashtest your_agent.py --test-accounts` runs your script in a new empty folder, once cleanly, then once per crash
 point. It kills the process just before and just after each action, and just before each write saved to SQLite or
 to a file in that folder. Then it starts the script again and compares what ran with the clean run:
 
@@ -336,11 +344,11 @@ def test_refund_survives_a_crash(c4a_crashtest):
 The test fails on RAN TWICE or NOT APPROVED and shows the one-line fix. It refuses to start until you pass
 `test_accounts=True`, which says the script talks only to fakes, sandboxes or test accounts.
 
-In GitHub Actions (experimental; it installs the published 0.7.0 by default). Pin a release tag or a commit SHA:
+In GitHub Actions (experimental; it installs the published 0.7.1 by default). Pin a release tag or a commit SHA:
 
 ```yaml
 - uses: actions/checkout@v4
-- uses: salahmakboul/call4agents@v0.7.0
+- uses: salahmakboul/call4agents@v0.7.1
   with:
     script: agents/refund_agent.py
     test-accounts: "true"      # required: every action really runs, many times

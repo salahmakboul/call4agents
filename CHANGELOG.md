@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.1
+
+**Changed (safety)**
+- `call4agents crashtest <script>` now needs `--test-accounts`, like the pytest fixture and the GitHub Action
+  (`--demo` does not: its agent is fake). Every action of the script really runs, many times.
+- `crashtest` (command, fixture and Action) refuses to start, even with test accounts declared, when it sees a live
+  payment key in the environment or in the script (Stripe secret or restricted live keys, Razorpay live keys), or a
+  provider in live mode (`PAYPAL_MODE=live`, `ADYEN_ENVIRONMENT=live`, `BRAINTREE_ENVIRONMENT`, `PLAID_ENV` or
+  `SQUARE_ENVIRONMENT` set to `production`). Nothing runs; the message names the variable, never the key. Checks CT8
+  and PT4, six mutations with a control, and a CI step that runs the Action with `PAYPAL_MODE=live` on Linux, macOS
+  and Windows. It knows only these signs: a clean start is not proof that an account is a test one.
+
 ## 0.7.0
 
 **New (experimental)**

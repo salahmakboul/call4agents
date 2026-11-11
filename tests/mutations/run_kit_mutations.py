@@ -143,6 +143,16 @@ MUTATIONS = [
     ("SC an approval set up elsewhere reads as missing", SCAN, "file_approval = bool(FILE_APPROVAL.search(source))", "file_approval = False", "tests.test_crashtest"),
     ("SC a name alone reads as code", SCAN, 'effects, confidence = ["name suggests an action"], "name only"',
      'effects, confidence = ["name suggests an action"], "code"', "tests.test_crashtest"),
+    # --- CT8: the crash test refuses a real account
+    ("control (no-op)", CT, "def live_signs(", "def live_signs(", "tests.test_crashtest"),
+    ("CT8 the command runs without --test-accounts", CT, "    if not test_accounts:", "    if False:", "tests.test_crashtest"),
+    ("CT8 a live key in the environment is ignored", CT,
+     "if isinstance(value, str) and value.strip().startswith(LIVE_PREFIXES)]", "if False]", "tests.test_crashtest"),
+    ("CT8 live mode is ignored", CT, 'if str(env.get(name, "")).strip().lower() in modes]', "if False]", "tests.test_crashtest"),
+    ("CT8 a key in the script is ignored", CT, "if LIVE_IN_SOURCE.search(source):", "if False:", "tests.test_crashtest"),
+    ("CT8 a live sign does not stop the run", CT, "live = live_signs(source, os.environ)", "live = []", "tests.test_crashtest"),
+    ("CT8 the refusal shows the key", CT, 'found = [f"{name} holds a live key"', 'found = [f"{name}={value} holds a live key"',
+     "tests.test_crashtest"),
     ("K24 a cancel is not recorded", INIT, "result = await f(*args, **kwargs)\n                    except BaseException as exc:",
      "result = await f(*args, **kwargs)\n                    except Exception as exc:", "tests.test_c4a_kit"),
     # --- K25: reconcile can say "cannot tell yet"

@@ -24,12 +24,12 @@ def check(name, ok, detail=""):
         FAILED.append(name)
 
 
-def run_pytest(body, guard):
+def run_pytest(body, guard, extra=None):
     with tempfile.TemporaryDirectory(prefix="c4a-pytest-") as d:
         (Path(d) / "test_agent.py").write_text(body.replace("AGENT", repr(str(AGENT))), encoding="utf-8")
         # the kit under test, also when it is not installed (run from a checkout)
         kit_root = str(Path(call4agents.__file__).resolve().parent.parent)
-        env = dict(os.environ, AGENT_GUARD=guard,
+        env = dict(os.environ, **(extra or {}), AGENT_GUARD=guard,
                    PYTHONPATH=os.pathsep.join([kit_root] + [p for p in [os.environ.get("PYTHONPATH")] if p]))
         # Installed, pytest loads the plugin through its entry point (that is what users get); loading it
         # again with -p would register it twice. From a checkout, load it by name.
@@ -46,7 +46,7 @@ def main():
         if "--require-pytest" in sys.argv:
             print("  FAIL  pytest is not installed")
             return 1
-        print("  skip  PT1-PT3 (pytest not installed)")
+        print("  skip  PT1-PT4 (pytest not installed)")
         return 0
 
     print(f"  info  plugin loaded through {'the installed pytest11 entry point' if ENTRY_POINT else '-p (not installed)'}")
@@ -61,6 +61,11 @@ def main():
     code, out = run_pytest("def test_it(c4a_crashtest):\n    r = c4a_crashtest(AGENT, test_accounts=True)\n"
                            "    assert r['tested'] > 0 and r['actions']\n", "1")
     check("PT3 the guarded agent passes, after real crashes", code == 0 and "1 passed" in out, out[-800:])
+
+    code, out = run_pytest("def test_it(c4a_crashtest):\n    c4a_crashtest(AGENT, test_accounts=True)\n", "1",
+                           {"PAYPAL_MODE": "live"})
+    check("PT4 a payment provider in live mode: the fixture refuses even with test_accounts=True, and runs nothing",
+          code == 1 and "refused" in out and "PAYPAL_MODE=live" in out and "crash(es) tested" not in out, out[-800:])
 
     print(f"\n{len(FAILED)} pytest plugin check(s) failed" if FAILED else "\nall pytest plugin checks pass")
     return 1 if FAILED else 0

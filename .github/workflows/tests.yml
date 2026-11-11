@@ -104,8 +104,12 @@ jobs:
         run: python -m tests.test_crash_matrix
 
   action:
-    name: the GitHub Action on the demo agent
-    runs-on: ubuntu-latest
+    name: the GitHub Action on the demo agent (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -135,15 +139,28 @@ jobs:
           script: call4agents/examples/crashtest_agent.py
           test-accounts: "no"
           install: .
+      - name: a payment provider in live mode refuses, even with test-accounts
+        id: live
+        continue-on-error: true
+        uses: ./
+        env:
+          AGENT_GUARD: "1"
+          PAYPAL_MODE: live
+        with:
+          script: call4agents/examples/crashtest_agent.py
+          test-accounts: "true"
+          install: .
       - name: each case ended the way it should
         shell: bash
         env:
           UNGUARDED: ${{ steps.unguarded.outcome }}/${{ steps.unguarded.outputs.exit-code }}
           REFUSED: ${{ steps.refused.outcome }}/${{ steps.refused.outputs.exit-code }}
+          LIVE: ${{ steps.live.outcome }}/${{ steps.live.outputs.exit-code }}
         run: |
-          echo "unguarded: $UNGUARDED   refused: $REFUSED"
+          echo "unguarded: $UNGUARDED   refused: $REFUSED   live: $LIVE"
           test "$UNGUARDED" = "failure/1"
           test "$REFUSED" = "failure/"
+          test "$LIVE" = "failure/2"
 
   mutations:
     name: bug re-insertion checks

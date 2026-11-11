@@ -25,7 +25,7 @@ inputs:
   install:
     description: What pip installs (a version pin, or "." to test a checkout of call4agents itself).
     required: false
-    default: "call4agents==0.7.0"
+    default: "call4agents==0.7.1"
   python-version:
     description: Python version for the test.
     required: false
@@ -61,7 +61,7 @@ runs:
         WATCH: ${{ inputs.watch }}
         MAX: ${{ inputs.max-crashes }}
       run: |
-        args=("$SCRIPT" --max-crashes "$MAX")
+        args=("$SCRIPT" --test-accounts --max-crashes "$MAX")
         if [ -n "$WATCH" ]; then args+=(--watch "$WATCH"); fi
         code=0
         call4agents crashtest "${args[@]}" || code=$?

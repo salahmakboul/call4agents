@@ -9,7 +9,9 @@ script, and seen by a profile hook, so the code of your agent is not changed.
 
 The script must be able to restart: a fixed run or thread id, and saved state in the current folder. On a restart
 the environment has CRASHTEST_RESUME=1, so the script can also act out a changed call. It runs on your machine with
-your environment: point it at test accounts, because every action really runs, many times.
+your environment: point it at test accounts, because every action really runs, many times. The command asks you to
+say so (--test-accounts), and it refuses to start, even then, when it sees a live payment key in the environment or
+in the script, or a payment provider set to live mode (see live_signs).
 """
 import concurrent.futures
 import dis
@@ -32,6 +34,23 @@ from call4agents.scan import actions_in
 KILLED = 137
 HIDDEN_ARGS = {"self", "cls", "ctx", "context", "config", "runtime", "run_context", "tool_context", "state"}
 ADDRESS = re.compile(r" at 0x[0-9a-fA-F]+")
+LIVE_PREFIXES = ("sk_live_", "rk_live_", "rzp_live_")          # Stripe secret and restricted keys, Razorpay
+LIVE_MODES = {"PAYPAL_MODE": ("live",), "BRAINTREE_ENVIRONMENT": ("production",), "PLAID_ENV": ("production",),
+              "ADYEN_ENVIRONMENT": ("live",), "SQUARE_ENVIRONMENT": ("production",)}
+LIVE_IN_SOURCE = re.compile(r"\b(?:sk|rk|rzp)_live_[A-Za-z0-9]{6,}")
+
+
+def live_signs(source: str, env) -> list:
+    """What looks like a live payment account: names only, never a key's value. Any sign stops crashtest before
+    the script runs, because every action would really run, many times. It knows only these few signs: a clean
+    result says nothing about other providers, so test accounts stay your job."""
+    found = [f"{name} holds a live key" for name, value in env.items()
+             if isinstance(value, str) and value.strip().startswith(LIVE_PREFIXES)]
+    found += [f"{name}={env[name].strip()}" for name, modes in LIVE_MODES.items()
+              if str(env.get(name, "")).strip().lower() in modes]
+    if LIVE_IN_SOURCE.search(source):
+        found.append("the script contains a live key")
+    return sorted(found)
 
 
 def _shown(frame) -> str:
@@ -193,6 +212,10 @@ def fix_hint(source: str) -> str:
 
 def crashtest(script, watch=(), args=(), max_crashes=200, timeout=120, workers=None) -> dict:
     source = Path(script).read_text(encoding="utf-8", errors="replace")
+    live = live_signs(source, os.environ)
+    if live:
+        return {"error": "refused: this looks like a live account (" + "; ".join(live) + "). Every action would "
+                "really run, many times. Use test keys, a sandbox or fakes.", "live": live}
     watched = actions_in(source) | set(watch)
     work = tempfile.mkdtemp(prefix="c4a-crashtest-")
     try:
@@ -232,10 +255,10 @@ def demo() -> int:
     example = str(Path(__file__).resolve().parent / "examples" / "crashtest_agent.py")
     print("A small agent refunds a customer. Without the guard:\n")
     os.environ["AGENT_GUARD"] = "0"
-    without = main([example])
+    without = main([example, "--test-accounts"])
     print("\nThe same agent with the one line added:\n")
     os.environ["AGENT_GUARD"] = "1"
-    guarded = main([example])
+    guarded = main([example, "--test-accounts"])
     os.environ.pop("AGENT_GUARD")
     return 0 if (without, guarded) == (1, 0) else 1
 
@@ -246,7 +269,8 @@ def main(argv) -> int:
     if "--" in argv:
         script_args = argv[argv.index("--") + 1:]
         argv = argv[:argv.index("--")]
-    items = iter(a for a in argv if a != "--json")
+    test_accounts = "--test-accounts" in argv
+    items = iter(a for a in argv if a not in ("--json", "--test-accounts"))
     for a in items:
         if a == "--watch":
             watch += next(items, "").split(",")
@@ -257,7 +281,12 @@ def main(argv) -> int:
     if rest == ["--demo"]:
         return demo()
     if len(rest) != 1 or not Path(rest[0]).is_file():
-        print("usage: call4agents crashtest --demo | <agent script> [--watch name,name] [--max-crashes N] [--json] [-- script args]")
+        print("usage: call4agents crashtest --demo | <agent script> --test-accounts [--watch name,name] [--max-crashes N] "
+              "[--json] [-- script args]")
+        return 2
+    if not test_accounts:
+        print("crashtest refused: every action of the script really runs, many times. Point it at fakes, sandboxes or "
+              "test accounts, then add --test-accounts.")
         return 2
     report = crashtest(rest[0], watch, script_args, max_crashes)
     if as_json:
