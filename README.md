@@ -5,8 +5,17 @@ have: LangGraph, Pydantic AI, the OpenAI Agents SDK, an MCP server, or plain Pyt
 replace any of them.
 
 **Write-up, 5 November 2026:** [A "yes" is not exactly-once](docs/finding/). One approved payment, a crash
-right after it, a documented resume: 2 payments in LangGraph, Pydantic AI and the OpenAI Agents SDK. Script and
-every run's data included.
+right after it, a documented resume: 2 payments in LangGraph, Pydantic AI and the OpenAI Agents SDK, and later in
+Google ADK and Microsoft Agent Framework too. Script and every run's data included.
+
+**Taken up by others:**
+- the [hitl-spec](https://github.com/hitly-net/hitl-spec) draft (a human-in-the-loop specification) merged our
+  single-use rule ([PR 10](https://github.com/hitly-net/hitl-spec/pull/10)) and our replay-after-restart
+  conformance check ([PR 11](https://github.com/hitly-net/hitl-spec/pull/11));
+- the proposed OWASP MCP Security Testing Guide test for approval replay includes our restart step, measured
+  10 out of 10 by its author ([PR #63](https://github.com/OWASP/MCP-Security-Testing-Guide/pull/63), under review).
+
+Neither depends on this library.
 
 **In one minute:** [every problem it handles, the line for each, and what was measured](docs/ONE_MINUTE.md).
 
