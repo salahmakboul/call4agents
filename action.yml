@@ -25,7 +25,7 @@ inputs:
   install:
     description: What pip installs (a version pin, or "." to test a checkout of call4agents itself).
     required: false
-    default: "call4agents==0.6.0"
+    default: "call4agents==0.7.0"
   python-version:
     description: Python version for the test.
     required: false

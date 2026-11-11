@@ -180,17 +180,17 @@ Rules worth knowing before you start:
 - **If the function raises**, the action may or may not have happened (a timeout after the charge
   raises too). The next call raises `EffectInDoubt` and names the error. List errors that prove nothing
   happened with `retry_on=(ConnectionRefusedError,)`; after those, the next call runs the action again.
-- **Retries** (next release, experimental): `retries=3` tries again inside the same call, waiting 0.5, 1, 2 s
+- **Retries** (0.7.0, experimental): `retries=3` tries again inside the same call, waiting 0.5, 1, 2 s
   (`backoff=`), but only when the record decides the next try: an error in `retry_on`, a resend with the same key
   (`idempotent_for=`), or a provider check first (`reconcile=`). Any other error is raised at once, and `retries=`
   without one of those three is refused when you declare the action.
-- **Shared limits** (next release, experimental): `c4a.Limit("refunds", 500, cost=lambda amount, **_: amount,
+- **Shared limits** (0.7.0, experimental): `c4a.Limit("refunds", 500, cost=lambda amount, **_: amount,
   per=86400)` and `@c4a.effect(limit=...)`. Every process on the same record spends from one limit. The check and
   the hold are one transaction with the intent: 12 processes racing for a limit of 5 ran exactly 5, and with that
   lock taken out 9 to 12 ran (5 runs). An action over the limit raises `c4a.LimitReached`; nothing runs, nothing is recorded,
   and its approval stays unspent. The cost comes back only when the kit proves the action did not happen; an action
   in doubt keeps holding it. Every process must declare the same name, maximum and `per`.
-- **Rules** (next release, experimental): `@c4a.effect(rules=c4a.Rules.load("rules.json"))` with, per tool,
+- **Rules** (0.7.0, experimental): `@c4a.effect(rules=c4a.Rules.load("rules.json"))` with, per tool,
   `{"max": {"amount": 500}, "allow": {"currency": ["EUR"]}, "ask_over": {"amount": 100}, "per_run": 3}`. They are
   read against the call's bound arguments before a new attempt is admitted. A rule that says no raises
   `c4a.RuleRefused` (nothing runs; the refusal is recorded), `ask_over` asks for a "yes" for the exact call, and
@@ -271,7 +271,7 @@ added to it, never changed or deleted.
 3. If the process dies **between** the two writes, nobody knows whether the action happened. The kit
    raises `EffectInDoubt` instead of guessing. You can resolve it in two ways:
    - `reconcile=` asks the outside system whether the action happened. It returns the result (it
-     happened), `None` (it did not: the action runs once more), or, in the next release and experimental,
+     happened), `None` (it did not: the action runs once more), or, since 0.7.0 and experimental,
      `c4a.UNKNOWN` (the system can't tell yet, for example a search that lags behind writes or a
      transaction still pending: the action stays in doubt and the next try asks again). Return `None`
      only when the provider can really confirm the action did not happen;
@@ -326,7 +326,7 @@ your own with `--watch name,name`. **Every action really runs, many times, with 
 It does not see writes to PostgreSQL, Redis or a remote service as crash points, and it tests only the path your
 script takes. A clean result covers that path and those crash points, nothing more.
 
-In your test suite (in the next release, experimental): installing call4agents adds a pytest fixture.
+In your test suite (0.7.0, experimental): installing call4agents adds a pytest fixture.
 
 ```python
 def test_refund_survives_a_crash(c4a_crashtest):
@@ -336,11 +336,11 @@ def test_refund_survives_a_crash(c4a_crashtest):
 The test fails on RAN TWICE or NOT APPROVED and shows the one-line fix. It refuses to start until you pass
 `test_accounts=True`, which says the script talks only to fakes, sandboxes or test accounts.
 
-In GitHub Actions (experimental; it installs the published 0.6.0 by default). Pin a commit SHA instead of `main`:
+In GitHub Actions (experimental; it installs the published 0.7.0 by default). Pin a release tag or a commit SHA:
 
 ```yaml
 - uses: actions/checkout@v4
-- uses: salahmakboul/call4agents@main
+- uses: salahmakboul/call4agents@v0.7.0
   with:
     script: agents/refund_agent.py
     test-accounts: "true"      # required: every action really runs, many times
@@ -358,7 +358,7 @@ are in [docs/SCAN_RESULTS.md](docs/SCAN_RESULTS.md).
 ## Audit export (experimental)
 
 `call4agents audit <record> out.json` writes who approved what, when, for which exact arguments, what ran, which
-rules decided, and which calls a rule refused (next release). It uses the record's secret (`C4A_SECRET` or its `secret` file) and never creates one. `call4agents audit-verify
+rules decided, and which calls a rule refused. It uses the record's secret (`C4A_SECRET` or its `secret` file) and never creates one. `call4agents audit-verify
 out.json` fails if any value was changed or any entry was removed, added or moved.
 
 Limits: anyone with the secret can sign a false export, so this shows the file has not changed since a holder of the
@@ -366,7 +366,7 @@ secret signed it. It does not show that the record was honest before the export,
 party. A name appears only where one was recorded (`c4a.decide(ticket, "approve", by="sam")`). Action results are
 left out, but arguments are included, so treat the file as sensitive. Exports in the 0.6 format still verify.
 
-**For your tracing tool** (next release, experimental): `call4agents spans <record> out.json [--run <id>]` writes
+**For your tracing tool** (0.7.0, experimental): `call4agents spans <record> out.json [--run <id>]` writes
 OpenTelemetry traces as OTLP/JSON: one trace per run, one `execute_tool <tool>` span per action and per refused call,
 with `gen_ai.operation.name` and `gen_ai.tool.name` from the GenAI semantic conventions (still marked Development
 there) and the record's own facts under `c4a.*` (state, attempts, approval, rules decision). An action in doubt is
