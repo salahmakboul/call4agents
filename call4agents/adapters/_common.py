@@ -67,3 +67,36 @@ def wrap_tool(f: Callable, type_names: Tuple[str, ...], run_from: Callable[[Any]
             return inner(*args, **kwargs)
     call.c4a_name, call.c4a_fn, call.c4a_exclude = inner.c4a_name, f, inner.c4a_exclude
     return call
+
+
+def wrap_plain_tool(f: Callable, run_from: Callable[[], Optional[str]], what: str, options: dict) -> Callable:
+    """For frameworks that give a tool no context object (CrewAI, smolagents): every parameter is a real
+    argument, so none is left out of the key (a `context: str` parameter there is text the model wrote).
+    The run id comes from an active c4a.run(...), else run=lambda _: <id>, else run_from(), else a clear error."""
+    run_override = options.pop("run", None)
+    inner = c4a.effect(f, **options)
+
+    def find_run() -> str:
+        active = c4a._RUN.get()
+        if active is not None:
+            return active
+        rid = run_override(None) if run_override else run_from()
+        if not rid:
+            raise RuntimeError(f"call4agents could not find a run id for this {what} tool call: "
+                               f"wrap the run in `with c4a.run(<id>):` or pass run=lambda _: <id>")
+        return str(rid)
+
+    if inspect.iscoroutinefunction(f):
+        @functools.wraps(f)
+        async def acall(*args: Any, **kwargs: Any) -> Any:
+            with c4a.run(find_run()):
+                return await inner(*args, **kwargs)
+        acall.c4a_name, acall.c4a_fn, acall.c4a_exclude = inner.c4a_name, f, inner.c4a_exclude
+        return acall
+
+    @functools.wraps(f)
+    def call(*args: Any, **kwargs: Any) -> Any:
+        with c4a.run(find_run()):
+            return inner(*args, **kwargs)
+    call.c4a_name, call.c4a_fn, call.c4a_exclude = inner.c4a_name, f, inner.c4a_exclude
+    return call
