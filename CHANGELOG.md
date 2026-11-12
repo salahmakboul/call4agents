@@ -1,5 +1,43 @@
 # Changelog
 
+## Unreleased
+
+**Fixed (safety): two payments with a truthful `reconcile=` (Fix 17)**
+
+Every version up to 0.7.1 is affected if you use `reconcile=` or `idempotent_for=` and more than one caller can reach
+the same action. That covers threads, workers, or a resume that starts while the first call is still running. A crash
+followed by one resume is not affected.
+
+- **A call still running was treated like a crash.** If a call took longer than `wait=` (default 2 s), a second caller
+  asked `reconcile`. The provider truthfully answered "not done yet", and the second caller ran the action again:
+  2 payments. The record then showed `late_result`, but only after the second payment.
+  - Now each intent names its owner (host, process id and a per-process token). `reconcile` is asked, and a same-key
+    resend is made, only when that owner is provably gone: a dead process on this host, or this process with the
+    call no longer in progress. An owner on another machine, or another live process on this host, counts as running
+    for `lease=` seconds (new parameter, default 600) after the attempt started. Until then the caller gets
+    `EffectInDoubt` instead of a second payment.
+- **Two callers giving up the same attempt each started a new one.** When the first try raised, two callers that
+  asked `reconcile` at the same moment both got "not done". Each wrote a give-up row, and the attempt counter counted
+  both rows, so one caller took attempt 2 and the other attempt 3. Both ran: 2 payments, with **no warning**. The same
+  race could also give a shared limit's hold back twice.
+  - Now an attempt is given up once, in one transaction with its limit release, and the next attempt number is
+    "newest closed attempt + 1". Both callers race for the same next intent, and the unique index lets one of them win.
+- **Found by** our new TLA+ model of the protocol and the crash-safety benchmark (both still in progress), then
+  reproduced with the real library. In 5 repeats with real processes (one killed inside the call, then two
+  resuming at once, with a truthful `reconcile`): 0.7.1 charged twice in all 5, and the fix charged once in all 5.
+- Checks: K29a-e (threads, an error then two callers, give-up once, the owner rules, real processes) and seven
+  mutations with a control. The records stay compatible: intents just carry one more field, and records written
+  before this version keep the old behaviour, with no owner check.
+
+**Fixed: a write refused with "database is locked" under many writers (Fix 18)**
+- On a Windows CI runner, 20 parallel writers wrote 2,344 of 3,000 rows: some appends and some new connections
+  were refused at once, because SQLite does not use its busy timeout on every lock path. A write refused before an
+  action is safe (nothing runs). One refused after it leaves the action in doubt.
+  - Now a refused append or connection setup is tried again for up to 30 seconds. Its transaction rolled back, so
+    nothing is written twice. The WAL mode is set only when the file is not in WAL mode yet. Any other database
+    error is still raised at once.
+- Checks: P20 (an append refused twice, a connection refused twice, another error raised at once) and three mutations.
+
 ## 0.7.1
 
 **Changed (safety)**

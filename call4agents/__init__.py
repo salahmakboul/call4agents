@@ -23,6 +23,7 @@ import warnings
 from typing import Any, Callable, Dict, Optional, Tuple
 
 from call4agents import codec as _codec
+from call4agents import owner as _owner
 from call4agents import replay as _replay
 from call4agents.ledger import Ledger, LimitReached, TicketRefused, canonical, effect_key, intent_key
 from call4agents.rules import RuleRefused, Rules, gate_for
@@ -280,7 +281,7 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
            reconcile: Optional[Callable[..., Any]] = None, key: Optional[Callable[..., str]] = None,
            wait: float = 2.0, idempotent_for: Optional[float] = None, retry_on: tuple = (),
            exclude: tuple = (), undo: Optional[Callable[..., Any]] = None, retries: int = 0,
-           backoff: float = 0.5, limit: Optional["Limit"] = None, rules: Any = None):
+           backoff: float = 0.5, limit: Optional["Limit"] = None, rules: Any = None, lease: float = 600.0):
     """Mark a function that changes the outside world.
 
     - Once-only per (run, tool, exact arguments): a repeat returns the recorded result.
@@ -288,6 +289,12 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
       result (the effect happened) or None (it did not; then it runs once). Experimental: it can
       return c4a.UNKNOWN when the outside world cannot tell yet; the call then stays in doubt
       (EffectInDoubt, nothing recorded, nothing run) and the next try asks reconcile again.
+    - reconcile= and idempotent_for= are used only when the attempt's owner is provably not running it
+      any more (Fix 17): a dead process on this host, or this process with the call no longer in progress.
+      An owner on another machine, or a live process on this host, counts as running for `lease` seconds
+      (default 600) after the attempt started; until then the call raises EffectInDoubt instead of asking
+      the provider, because a call still running gets a truthful "not done yet". Set lease= to the longest
+      time one attempt of this action can take.
     - approval=True: runs only if c4a.approve(...) recorded a "yes" for these exact arguments.
       One "yes" covers ONE action: a retry or resume of the same action reuses it, a deliberate
       second action (new c4a_key) needs a new "yes". c4a.deny(...) cancels earlier "yes" answers,
@@ -332,6 +339,8 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
             raise TypeError("@c4a.effect on a lambda needs name=...: two lambdas in one place would share one key")
         tool = name or _tool_name(f)
         gate, per_run = gate_for(rules, tool) if rules is not None else (None, None)
+        if isinstance(lease, bool) or not isinstance(lease, (int, float)) or not lease > 0:
+            raise ValueError("lease= must be a number of seconds above 0")
         if not isinstance(retries, int) or isinstance(retries, bool) or retries < 0:
             raise ValueError("retries must be a whole number, 0 or more")
         if retries and not (retry_on or idempotent_for is not None or reconcile is not None):
@@ -440,8 +449,8 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
                 done = lg.latest("tool_done", k)
                 if done is not None:
                     return {"replay": _codec.decode(done["payload"]["result"])}
-                attempt = lg.count("tool_abandoned", k) + lg.count("tool_retry_same_key", k) + 1
-                if claim(attempt, {"tool": tool, "args": call_args}):
+                attempt = lg.next_attempt(k)
+                if claim(attempt, {"tool": tool, "args": call_args, "owner": _owner.me()}):
                     return {"key": k, "run_id": run_id, "attempt": attempt}
                 err = lg.latest("tool_error", k)
                 failed = err is not None and err["payload"].get("attempt") == attempt
@@ -452,13 +461,22 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
                     if done is not None:
                         return {"replay": _codec.decode(done["payload"]["result"])}
                     time.sleep(0.02)
+                if not failed and (idempotent_for is not None or reconcile is not None):
+                    # Fix 17: an intent with no result may be a crash OR a call still running. Asking the
+                    # provider now gets a truthful "not done yet", and running again would pay twice.
+                    busy = _owner.may_still_run(intent_key(k, attempt), lg.latest("tool_intent", intent_key(k, attempt)),
+                                                lease)
+                    if busy is not None:
+                        raise EffectInDoubt(tool, call_args, busy)
                 if idempotent_for is not None and reconcile is None:
                     first = lg.first_intent_time(k)
                     if first is not None and time.time() - first <= idempotent_for:
                         # The outside API still remembers this key: resending with the SAME key cannot
-                        # create a second effect. Record the retry, then claim the next attempt.
-                        lg.append(run_id, "tool_retry_same_key", k, {"attempt": attempt})
-                        if claim(attempt + 1, {"tool": tool, "args": call_args, "same_key_retry": True}):
+                        # create a second effect. Close this attempt once, then claim the next one.
+                        if not lg.give_up(run_id, k, attempt, "tool_retry_same_key"):
+                            continue                # another caller closed it first and owns the resend
+                        if claim(attempt + 1, {"tool": tool, "args": call_args, "same_key_retry": True,
+                                               "owner": _owner.me()}):
                             return {"key": k, "run_id": run_id, "attempt": attempt + 1}
                     raise EffectInDoubt(tool, call_args, why)
                 if reconcile is None:
@@ -469,9 +487,9 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
                 if found is not None:
                     lg.append(run_id, "tool_done", k, {"result": _codec.encode(found), "reconciled": True})
                     return {"replay": found}
-                lg.append(run_id, "tool_abandoned", k, {"attempt": attempt})   # it did not happen: one new try
-                for held in held_names(run_id):
-                    lg.release_limit(run_id, k, held)
+                # It did not happen: close this attempt and give its holds back, ONCE. Whoever closes it is
+                # not special: the next loop claims attempt + 1, and the unique intent lets one caller win.
+                lg.give_up(run_id, k, attempt, release=tuple(held_names(run_id)))
             raise EffectInDoubt(tool, call_args)
 
         def record_result(plan: Dict[str, Any], result: Any) -> None:
@@ -523,6 +541,8 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
                     if "replay" in plan:
                         return plan["replay"]
                     token = _EFFECT_KEY.set(plan["key"])
+                    running = intent_key(plan["key"], plan["attempt"])
+                    _owner.started(running)       # until recorded: another caller must not reconcile it
                     try:
                         result = await f(*args, **kwargs)
                     except BaseException as exc:
@@ -534,6 +554,7 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
                         record_result(plan, result)
                         return result
                     finally:
+                        _owner.finished(running)
                         _EFFECT_KEY.reset(token)
                     await asyncio.sleep(delay)
                     n += 1
@@ -550,6 +571,8 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
                 if "replay" in plan:
                     return plan["replay"]
                 token = _EFFECT_KEY.set(plan["key"])
+                running = intent_key(plan["key"], plan["attempt"])
+                _owner.started(running)           # until recorded: another caller must not reconcile it
                 try:
                     result = f(*args, **kwargs)
                 except BaseException as exc:
@@ -561,6 +584,7 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
                     record_result(plan, result)
                     return result
                 finally:
+                    _owner.finished(running)
                     _EFFECT_KEY.reset(token)
                 time.sleep(delay)
                 n += 1

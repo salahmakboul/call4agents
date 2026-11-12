@@ -38,7 +38,7 @@ def control():
     work = Path(tempfile.mkdtemp(prefix="c4a-recipe-control-"))
     script = work / "nokit.py"
     script.write_text(CONTROL, encoding="utf-8")
-    env = dict(os.environ)
+    env = recipes.child_env(False)      # the script is in a temp folder: it must find the package under test
     codes = []
     for crash in ("1", "0"):
         env[recipes.CRASH] = crash

@@ -12,7 +12,7 @@ Before a decorated effect runs, an *intent* row is written to the run record (SQ
 |---|---|
 | before the intent row | The effect runs once. It never ran before. |
 | after the done row | The recorded result is returned. The effect does not run again. |
-| **during the effect** (intent written, done not written) | **We cannot know** whether the email left. We raise `EffectInDoubt` and do **not** repeat it. If you pass `reconcile=`, your check asks the outside system: if it finds the effect, we record it; if it reports the effect missing, we run it once more. |
+| **during the effect** (intent written, done not written) | **We cannot know** whether the email left. We raise `EffectInDoubt` and do **not** repeat it. If you pass `reconcile=`, your check asks the outside system: if it finds the effect, we record it; if it reports the effect missing, we run it once more. We ask only when the caller that started it is provably gone (since Fix 17; see `lease=`): a call that is just slow is not a crash. |
 
 **Parallel callers:** many callers on the same effect at the same moment are serialised by a unique index on the intent. Exactly one runs it; the others wait for its result (up to `wait` seconds) or get `EffectInDoubt`. Measured in `tests/stress_c4a_ledger.py`: 14 callers, 1 email.
 

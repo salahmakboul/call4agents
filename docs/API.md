@@ -35,7 +35,7 @@ New threads do not inherit it: enter c4a.run there, or use contextvars.copy_cont
 ### `effect`
 
 ```python
-effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optional[str] = None, reconcile: Optional[Callable[..., Any]] = None, key: Optional[Callable[..., str]] = None, wait: float = 2.0, idempotent_for: Optional[float] = None, retry_on: tuple = (), exclude: tuple = (), undo: Optional[Callable[..., Any]] = None, retries: int = 0, backoff: float = 0.5, limit: Optional[ForwardRef('Limit')] = None, rules: Any = None)
+effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optional[str] = None, reconcile: Optional[Callable[..., Any]] = None, key: Optional[Callable[..., str]] = None, wait: float = 2.0, idempotent_for: Optional[float] = None, retry_on: tuple = (), exclude: tuple = (), undo: Optional[Callable[..., Any]] = None, retries: int = 0, backoff: float = 0.5, limit: Optional[ForwardRef('Limit')] = None, rules: Any = None, lease: float = 600.0)
 ```
 
 Mark a function that changes the outside world.
@@ -45,6 +45,12 @@ Mark a function that changes the outside world.
   result (the effect happened) or None (it did not; then it runs once). Experimental: it can
   return c4a.UNKNOWN when the outside world cannot tell yet; the call then stays in doubt
   (EffectInDoubt, nothing recorded, nothing run) and the next try asks reconcile again.
+- reconcile= and idempotent_for= are used only when the attempt's owner is provably not running it
+  any more (Fix 17): a dead process on this host, or this process with the call no longer in progress.
+  An owner on another machine, or a live process on this host, counts as running for `lease` seconds
+  (default 600) after the attempt started; until then the call raises EffectInDoubt instead of asking
+  the provider, because a call still running gets a truthful "not done yet". Set lease= to the longest
+  time one attempt of this action can take.
 - approval=True: runs only if c4a.approve(...) recorded a "yes" for these exact arguments.
   One "yes" covers ONE action: a retry or resume of the same action reuses it, a deliberate
   second action (new c4a_key) needs a new "yes". c4a.deny(...) cancels earlier "yes" answers,

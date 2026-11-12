@@ -215,12 +215,36 @@ class Ledger:
         a new action). A forked child gets its own: SQLite connections must not cross a fork."""
         conn = getattr(self._local, "conn", None)
         if conn is None or self._local.pid != os.getpid():
-            conn = sqlite3.connect(self.path, timeout=30)
-            conn.execute("PRAGMA journal_mode=WAL")
-            conn.execute("PRAGMA synchronous=FULL")      # an entry that returned is on disk before the effect runs
-            conn.execute("PRAGMA journal_size_limit=1048576")   # the WAL file shrinks back to 1 MB after a checkpoint
+            conn = self._when_free(self._open)
             self._local.conn, self._local.pid = conn, os.getpid()
         return conn
+
+    def _open(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self.path, timeout=30)
+        try:
+            # Switching the mode needs a lock that SQLite's busy timeout does not wait for: only switch when needed.
+            if str(conn.execute("PRAGMA journal_mode").fetchone()[0]).lower() != "wal":
+                conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=FULL")      # an entry that returned is on disk before the effect runs
+            conn.execute("PRAGMA journal_size_limit=1048576")   # the WAL file shrinks back to 1 MB after a checkpoint
+        except BaseException:
+            conn.close()
+            raise
+        return conn
+
+    def _when_free(self, fn: Any, patience: float = 30.0) -> Any:
+        """SQLite can answer "database is locked" at once, without waiting for its busy timeout, on some lock paths
+        (Windows CI, 20 writers: 2,344 of 3,000 rows written, 11 Nov). A refused write changed nothing (its transaction
+        rolled back), so it is tried again for up to `patience` seconds, then raised (Fix 18)."""
+        deadline, delay = time.monotonic() + patience, 0.01
+        while True:
+            try:
+                return fn()
+            except sqlite3.OperationalError as exc:
+                if time.monotonic() > deadline or "locked" not in str(exc) and "busy" not in str(exc):
+                    raise
+                time.sleep(delay)
+                delay = min(delay * 2, 0.2)
 
     def _load_secret(self) -> bytes:
         env = os.environ.get("C4A_SECRET")
@@ -251,8 +275,10 @@ class Ledger:
 
     # ------------------------------------------------------------ append / read
     def append(self, run_id: str, kind: str, key: str, payload: Any = None) -> int:
-        with self._lock, self._conn() as conn:
-            return self._insert(conn, run_id, kind, key, payload)
+        def once() -> int:
+            with self._lock, self._conn() as conn:
+                return self._insert(conn, run_id, kind, key, payload)
+        return self._when_free(once)
 
     def _insert(self, conn: Any, run_id: str, kind: str, key: str, payload: Any = None) -> int:
         cur = conn.execute("INSERT INTO entries (run_id, kind, key, payload, t) VALUES (?, ?, ?, ?, ?)",
@@ -366,6 +392,37 @@ class Ledger:
             for h in self._held_in(conn, name):
                 if h["effect"] == effect:
                     self._insert(conn, run_id, "limit_released", name, {"reservation": h["seq"], "effect": effect})
+
+    def give_up(self, run_id: str, effect: str, attempt: int, kind: str = "tool_abandoned",
+                payload: Optional[Dict[str, Any]] = None, release: Tuple[str, ...] = ()) -> bool:
+        """Close attempt `attempt` of `effect` ONCE: write `kind` (tool_abandoned or tool_retry_same_key) and give back
+        the limit holds named in `release`, in one transaction. False if another caller already closed this attempt
+        or a newer attempt exists: then that caller owns the next try, and this one must not start another (two
+        callers giving up the same attempt each started a new one: two payments, Fix 17)."""
+        with self._lock, self._conn() as conn:
+            self._begin_admission(conn)
+            for k in ("tool_abandoned", "tool_retry_same_key"):
+                for seq, text in conn.execute("SELECT seq, payload FROM entries WHERE kind = ? AND key = ?",
+                                              (k, effect)).fetchall():
+                    if (self._payload(seq, text) or {}).get("attempt") == attempt:
+                        return False
+            if self._latest_in(conn, "tool_intent", intent_key(effect, attempt + 1)) is not None:
+                return False
+            self._insert(conn, run_id, kind, effect, dict(payload or {}, attempt=attempt))
+            for name in release:
+                for h in self._held_in(conn, name):
+                    if h["effect"] == effect:
+                        self._insert(conn, run_id, "limit_released", name, {"reservation": h["seq"], "effect": effect})
+            return True
+
+    def next_attempt(self, effect: str) -> int:
+        """1 + the newest attempt that was closed (given up or resent). Counting rows instead let two callers that
+        closed the same attempt pick two different next attempts, so both ran (Fix 17)."""
+        with self._conn() as conn:
+            rows = conn.execute("SELECT seq, payload FROM entries WHERE key = ? AND kind IN "
+                                "('tool_abandoned', 'tool_retry_same_key')", (effect,)).fetchall()
+        closed = [(self._payload(s, t) or {}).get("attempt") for s, t in rows]
+        return 1 + max((a for a in closed if isinstance(a, int)), default=0)
 
     def first_intent_time(self, base_key: str) -> Optional[float]:
         """When the FIRST attempt of this effect was recorded (any attempt number), or None."""

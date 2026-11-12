@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import warnings
 from pathlib import Path
 
@@ -380,6 +381,50 @@ def main():
     except sqlite3.OperationalError:
         gave_up = True
     check("P19 a record that stays busy gives up instead of waiting for ever", gave_up)
+
+    # P20 (Fix 18) a write or a new connection refused at once with "database is locked" is tried again, not lost
+    lg20 = Ledger(str(Path(tempfile.mkdtemp(prefix="c4a-p20-")) / "a.sqlite"), secret=b"p" * 16)
+    refused = {"left": 2}
+    real_insert = lg20._insert
+
+    def locked_twice(conn, *a, **kw):
+        if refused["left"]:
+            refused["left"] -= 1
+            raise sqlite3.OperationalError("database is locked")
+        return real_insert(conn, *a, **kw)
+    lg20._insert = locked_twice
+    try:
+        lg20.append("p20", "note", "k", {"i": 1})
+        written = lg20.count("note", "k")
+    except sqlite3.OperationalError as exc:
+        written = str(exc)
+    check("P20 an append refused twice with 'database is locked' is written once", written == 1, written)
+    lg20._insert = real_insert
+    opens = {"left": 2}
+    real_open = lg20._open
+
+    def open_locked():
+        if opens["left"]:
+            opens["left"] -= 1
+            raise sqlite3.OperationalError("database is locked")
+        return real_open()
+    lg20._open = open_locked
+    lg20._local = __import__("threading").local()     # force a new connection
+    try:
+        reopened = lg20.count("note", "k") == 1
+    except sqlite3.OperationalError:
+        reopened = False
+    check("P20 a new connection refused twice while setting it up still opens", reopened)
+
+    def broken(*_):
+        raise sqlite3.OperationalError("no such table: entries")
+    t20 = time.monotonic()
+    try:
+        lg20._when_free(broken)
+        other = "hidden"
+    except sqlite3.OperationalError:
+        other = "raised" if time.monotonic() - t20 < 2 else "raised only after retrying"
+    check("P20 any other database error is raised at once, never retried", other == "raised", other)
 
     print(f"\n{len(FAILED)} production check(s) failed" if FAILED else "\nall production checks pass")
     return 1 if FAILED else 0

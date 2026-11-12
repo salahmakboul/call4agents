@@ -64,6 +64,15 @@ your mailbox, your booking system). It gives one of three answers:
 Only return `None` when the provider can really confirm it. A search index that lags behind writes should
 answer `UNKNOWN`, not `None`.
 
+**The kit asks only when the caller is gone.** An intent without a result can also mean that the call is still
+running, perhaps just slow. Then the provider truthfully says "not done yet", and running the action again would pay
+twice. So each intent names its owner: the machine, the process and a token for that process. The kit asks
+`reconcile` only when that owner is provably not running the call any more. That is either a process on this machine
+that has ended, or this process when the call is no longer in progress. An owner on another machine, or another
+live process on this machine, counts as running for `lease=` seconds (default 600) after the attempt started.
+Until then, the call raises `EffectInDoubt`. Set `lease=` to the longest time one attempt of the action can take.
+Versions before this rule (up to 0.7.1) asked too early: see the CHANGELOG, Fix 17.
+
 Two more ways to leave doubt:
 - `retry_on=(SomeError,)`: errors that prove nothing happened, such as a refused connection. After one of
   them, the next call runs the action again.

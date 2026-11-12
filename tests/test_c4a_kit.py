@@ -23,6 +23,166 @@ def fresh():
     return c4a.init(str(Path(tempfile.mkdtemp(prefix="c4a-test-")) / "ledger.sqlite"), secret=b"test-secret")
 
 
+K29_CHILD = """
+import os, sys, time
+from pathlib import Path
+import call4agents as c4a
+work, mode = Path(sys.argv[1]), sys.argv[2]
+c4a.init(str(work / "rec.sqlite"), secret=b"k29-secret")
+
+def pay(amount):
+    if mode == "die":
+        os._exit(9)                     # killed inside the call: nothing reached the bank
+    time.sleep(0.5)
+    with open(work / "bank.txt", "a") as f:
+        f.write("%s %s\\n" % (amount, os.getpid()))
+    return "paid"
+
+def charged(amount):
+    p = work / "bank.txt"
+    return "paid" if p.exists() and p.read_text().strip() else None
+
+pay = c4a.effect(pay, name="k29.pay", reconcile=charged)
+if mode == "race":
+    while not (work / "go").exists():
+        time.sleep(0.005)
+with c4a.run("k29"):
+    try:
+        print(pay(50))
+    except Exception as e:
+        print(type(e).__name__)
+"""
+
+
+def k29():
+    """K29 (Fix 17, found by the TLA+ model and the benchmark): reconcile= is asked only when the attempt's
+    owner is provably gone, and an attempt is given up once. Before: 2 payments with a truthful reconcile."""
+    import subprocess
+    import threading
+    import warnings
+    from call4agents import owner as c4a_owner
+
+    # a: one call is slower than wait=; a second caller must not ask the provider (it truthfully says "not yet")
+    fresh()
+    bank, out = [], []
+
+    def slow_pay(amount):
+        time.sleep(0.5)
+        bank.append(amount)
+        return "paid"
+    slow_pay = c4a.effect(slow_pay, name="k29.slow", reconcile=lambda amount: "paid" if bank else None, wait=0.1)
+
+    def caller(delay):
+        time.sleep(delay)
+        with c4a.run("k29a"), warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            try:
+                out.append(slow_pay(10))
+            except c4a.EffectInDoubt as exc:
+                out.append(str(exc))
+    ts = [threading.Thread(target=caller, args=(d,)) for d in (0.0, 0.05)]
+    [t.start() for t in ts]
+    [t.join() for t in ts]
+    check("K29a a call still running in this process is not reconciled: 1 payment, the other caller is in doubt",
+          bank == [10] and "paid" in out and any("still running in this process" in o for o in out), (bank, out))
+
+    # b: the first try raised (nothing happened); two callers then reconcile at the same moment
+    lg = fresh()
+    bank2, tries, out2 = [], {"n": 0}, []
+    both_in = threading.Barrier(2, timeout=5)
+
+    def flaky(amount):
+        tries["n"] += 1
+        if tries["n"] == 1:
+            raise ConnectionError("refused before sending")
+        time.sleep(0.2)
+        bank2.append(amount)
+        return "paid"
+
+    def check_bank(amount):
+        found = "paid" if bank2 else None
+        both_in.wait()
+        return found
+    flaky = c4a.effect(flaky, name="k29.flaky", reconcile=check_bank, wait=10.0)
+    with c4a.run("k29b"):
+        try:
+            flaky(10)
+        except ConnectionError:
+            pass
+
+    def caller2():
+        with c4a.run("k29b"):
+            try:
+                out2.append(flaky(10))
+            except Exception as exc:  # noqa: BLE001 - the type is the result
+                out2.append(type(exc).__name__)
+    ts = [threading.Thread(target=caller2) for _ in range(2)]
+    [t.start() for t in ts]
+    [t.join() for t in ts]
+    intents = [e for e in lg.entries() if e["kind"] == "tool_intent"]
+    check("K29b two callers giving up the same attempt start ONE new attempt: 1 payment, both get its result",
+          bank2 == [10] and out2 == ["paid", "paid"] and len(intents) == 2, (bank2, out2, len(intents)))
+
+    # c: giving up is once per attempt, and gives a limit's hold back once
+    lg = fresh()
+    lg.append("k29c", "limit_reserved", "lim", {"effect": "E", "cost": 5})
+    first = lg.give_up("k29c", "E", 1, release=("lim",))
+    second = lg.give_up("k29c", "E", 1, release=("lim",))
+    released = [e for e in lg.entries() if e["kind"] == "limit_released"]
+    check("K29c an attempt is given up once; its hold is released once; the next attempt is 2",
+          (first, second, len(released), lg.next_attempt("E")) == (True, False, 1, 2),
+          (first, second, len(released), lg.next_attempt("E")))
+    lg.append("k29c", "tool_abandoned", "E", {"attempt": 1})     # a duplicate, as records from before 0.8 can have
+    check("K29c a duplicate give-up row (older records) does not skip an attempt", lg.next_attempt("E") == 2,
+          lg.next_attempt("E"))
+
+    # d: the owner rules
+    now = time.time()
+    me = c4a_owner.me()
+    done_proc = subprocess.run([sys.executable, "-c", "import os; print(os.getpid())"], capture_output=True, text=True)
+    dead_pid = int(done_proc.stdout.strip())
+
+    def intent(owner, age):
+        return {"payload": {"owner": owner}, "t": now - age}
+    cases = {
+        "other host, young": c4a_owner.may_still_run("i", intent(dict(me, host=me["host"] + "-x"), 5), 600) is not None,
+        "other host, past the lease": c4a_owner.may_still_run("i", intent(dict(me, host=me["host"] + "-x"), 700), 600) is None,
+        "our pid, another process before us": c4a_owner.may_still_run("i", intent(dict(me, token="old"), 5), 600) is None,
+        "a dead process on this host": c4a_owner.may_still_run("i", intent(dict(me, pid=dead_pid, token="t"), 5), 600) is None,
+        "a live process on this host": c4a_owner.may_still_run("i", intent(dict(me, pid=__import__("os").getppid(), token="t"), 5), 600) is not None,
+        "this process, call finished": c4a_owner.may_still_run("i", intent(me, 5), 600) is None,
+        "written before 0.8 (no owner)": c4a_owner.may_still_run("i", {"payload": {}, "t": now}, 600) is None,
+    }
+    c4a_owner.started("i")
+    cases["this process, call in progress"] = c4a_owner.may_still_run("i", intent(me, 5), 600) is not None
+    c4a_owner.finished("i")
+    check("K29d the owner check: running only while it can be (pid, token, host, lease)", all(cases.values()),
+          [k for k, v in cases.items() if not v])
+    try:
+        c4a.effect(lambda: None, name="k29.bad", lease=0)
+        bad_lease = "accepted"
+    except ValueError:
+        bad_lease = "refused"
+    check("K29d lease=0 is refused when the action is declared", bad_lease == "refused", bad_lease)
+
+    # e: real processes: one killed inside the call, then two resume at the same moment (twice)
+    charges = []
+    for _ in range(2):
+        work = Path(tempfile.mkdtemp(prefix="c4a-k29-"))
+        (work / "child.py").write_text(K29_CHILD, encoding="utf-8")
+        env = dict(__import__("os").environ, PYTHONPATH=str(Path(c4a.__file__).resolve().parents[1]))
+        subprocess.run([sys.executable, str(work / "child.py"), str(work), "die"], env=env)
+        ps = [subprocess.Popen([sys.executable, str(work / "child.py"), str(work), "race"], env=env,
+                               stdout=subprocess.PIPE, text=True) for _ in range(2)]
+        time.sleep(1.0)
+        (work / "go").write_text("go")
+        [p.wait(timeout=60) for p in ps]
+        bank_file = work / "bank.txt"
+        charges.append(len(bank_file.read_text().splitlines()) if bank_file.exists() else 0)
+    check("K29e a kill, then two processes resume at once with a truthful reconcile: 1 charge each time",
+          charges == [1, 1], charges)
+
+
 def main():
     sent = []
 
@@ -1157,6 +1317,8 @@ def main():
     said = asyncio.run(k24_run())
     check("K24 a cancelled action is in doubt at once, names the cancel, and does not run again",
           "CancelledError" in said and k24 == ["A"], (said, k24))
+
+    k29()
 
     # K7 the core imports only the standard library
     import ast

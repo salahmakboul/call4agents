@@ -255,8 +255,15 @@ STORIES = {
 }
 
 
+def child_env(crash: bool) -> dict:
+    """The environment for a step's process: it imports THIS copy of call4agents, wherever it was started from."""
+    root = str(Path(c4a.__file__).resolve().parents[1])
+    path = os.pathsep.join(p for p in (root, os.environ.get("PYTHONPATH", "")) if p)
+    return dict(os.environ, PYTHONPATH=path, **{CRASH: "1" if crash else "0"})
+
+
 def step(work: Path, recipe: str, name: str, crash: bool = False) -> dict:
-    env = dict(os.environ, **{CRASH: "1" if crash else "0"})
+    env = child_env(crash)
     proc = subprocess.run([sys.executable, "-m", "call4agents.examples.recipes", "_step", recipe, str(work), name],
                           env=env, capture_output=True, text=True, timeout=120)
     if crash:
