@@ -24,11 +24,16 @@ def context_param(f: Callable, type_names: Tuple[str, ...]) -> Optional[str]:
     return None
 
 
+_LOOK_UP = object()
+
+
 def wrap_tool(f: Callable, type_names: Tuple[str, ...], run_from: Callable[[Any], Optional[str]],
-              what: str, options: dict) -> Callable:
+              what: str, options: dict, ctx_name: Any = _LOOK_UP) -> Callable:
     """c4a.effect(f) with the context excluded from the key; the run id comes from an active
-    c4a.run(...), else from run_from(ctx), else a clear error."""
-    ctx_name = context_param(f, type_names)
+    c4a.run(...), else from run_from(ctx), else a clear error. ctx_name: the context parameter (None:
+    there is none) when the adapter finds it the way its framework does; else it is looked up here."""
+    if ctx_name is _LOOK_UP:
+        ctx_name = context_param(f, type_names)
     run_override = options.pop("run", None)
     inner = c4a.effect(f, exclude=(ctx_name,) if ctx_name else (), **options)
 
