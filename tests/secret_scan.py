@@ -13,7 +13,14 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+def _worktree() -> Path:
+    """The git worktree this is run from (the pre-commit hook runs in the worktree being committed, e.g. the
+    gh-pages site); this file's own repository when run from outside any worktree."""
+    top = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True)
+    return Path(top.stdout.strip()) if top.returncode == 0 and top.stdout.strip() else Path(__file__).resolve().parents[1]
+
+
+ROOT = _worktree()
 PATTERNS = {
     "openai_key": r"sk-(?:proj-)?[A-Za-z0-9_-]{20,}",
     "anthropic_key": r"sk-ant-[A-Za-z0-9_-]{20,}",
