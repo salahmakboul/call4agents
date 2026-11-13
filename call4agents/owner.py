@@ -6,11 +6,13 @@ An intent without a result means "crashed" OR "still running". Asking reconcile=
 running gets a truthful "not done yet", and running the action again then pays twice. So before the kit asks
 reconcile, it checks the owner the intent names:
 
-- this very process (same host, pid and process token): running only while its call is in progress here;
-- another process on this host: running while that pid is alive (a reused pid counts as alive: safe side);
-- our pid with another token: the old owner is gone (a restarted container got the same pid);
-- another host, or a record from before 0.8 without an owner on another host: running until `lease`
-  seconds after the intent (how long one attempt can run at most), since we cannot see that machine.
+- our pid (this process, or an earlier one with the same pid, e.g. a restarted container): running only while
+  the call is in progress HERE, since only the owner of an attempt can run it;
+- another process on this host: running while that pid is alive, until `lease` seconds after the intent
+  (a reused pid counts as alive: the safe side);
+- another host: running until `lease` seconds after the intent (how long one attempt can run at most), since
+  we cannot see that machine;
+- a record written before the owner was recorded: no check, as before.
 
 Standard library only. Never sends a signal: on Windows os.kill(pid, 0) would END the process."""
 import os
@@ -85,8 +87,9 @@ def may_still_run(intent_key: str, intent: Optional[Dict[str, Any]], lease: floa
     if owner.get("host") != mine["host"]:
         return None if age >= lease else f"it may still be running on {owner.get('host')} (lease {lease:g} s)"
     if owner.get("pid") == mine["pid"]:
-        if owner.get("token") != TOKEN:
-            return None                                         # an earlier process with our pid: gone
+        # Our pid: either this process, or an earlier one that had the same pid (a restarted container). Only the
+        # owner of an attempt can be running it, so "in progress here" decides both cases; the token is kept in the
+        # record for people reading it, not for this check (a token test could never change the answer).
         with _LOCK:
             running = intent_key in _ACTIVE
         return "it is still running in this process" if running else None

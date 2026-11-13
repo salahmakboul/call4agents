@@ -64,8 +64,6 @@ MUTATIONS = [
      "tests.test_c4a_kit"),
     ("K29 the lease is ignored", "call4agents/owner.py", "        return None if age >= lease else f\"it may still be running on",
      "        return None if True else f\"it may still be running on", "tests.test_c4a_kit"),
-    ("K29 the process token is ignored", "call4agents/owner.py", '        if owner.get("token") != TOKEN:', "        if False:",
-     "tests.test_c4a_kit"),
     # --- K19: a record cannot make the codec call a function
     ("K19 codec calls whatever is named", "call4agents/codec.py", "    if not isinstance(obj, type):" + chr(10),
      "    return obj" + chr(10) + "    if not isinstance(obj, type):" + chr(10), "tests.test_c4a_kit"),
@@ -113,8 +111,8 @@ MUTATIONS = [
     # --- F: idempotency keys
     ("control (no-op)", INIT, "# The outside API still remembers", "# The outside API still remembers", "tests.test_idempotency"),
     ("F no lifetime check", INIT, "if first is not None and time.time() - first <= idempotent_for:", "if True:", "tests.test_idempotency"),
-    ("F key changes per attempt", INIT, 'token = _EFFECT_KEY.set(plan["key"])' + chr(10) + "                try:" + chr(10) + "                    result = f(",
-     'token = _EFFECT_KEY.set(plan["key"] + str(time.time()))' + chr(10) + "                try:" + chr(10) + "                    result = f(",
+    ("F key changes per attempt", INIT, 'token = _EFFECT_KEY.set(plan["key"])' + chr(10) + "                running = intent_key(",
+     'token = _EFFECT_KEY.set(plan["key"] + str(time.time()))' + chr(10) + "                running = intent_key(",
      "tests.test_idempotency"),
     ("F no same-key retry", INIT, "if idempotent_for is not None and reconcile is None:", "if False:", "tests.test_idempotency"),
     # --- S: one run record shared by several machines (PostgreSQL)
