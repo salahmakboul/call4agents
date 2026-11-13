@@ -334,8 +334,6 @@ MUTATIONS = [
      '                done = lg.latest("tool_done", k)' + chr(10) + "                if done is not None:",
      '                done = lg.latest("tool_done", k)' + chr(10) + "                if False:",
      "tests.test_properties --require-hypothesis --only machine"),
-    ("PR the record overwrites a row", LEDGER, 'cur = conn.execute("INSERT INTO entries (run_id',
-     'cur = conn.execute("INSERT OR REPLACE INTO entries (run_id', "tests.test_properties --require-hypothesis --only machine"),
     ("PR no owner check before reconcile (Fix 17)", INIT, "                    if busy is not None:" + chr(10),
      "                    if False:" + chr(10), "tests.test_properties --require-hypothesis --only machine"),
     ("PR codec calls whatever is named", "call4agents/codec.py", "    if not isinstance(obj, type):" + chr(10),

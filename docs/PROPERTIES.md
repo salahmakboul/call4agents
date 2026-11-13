@@ -19,13 +19,13 @@ Without Hypothesis the suite prints `skip` and passes; `--require-hypothesis` ma
 
 | group | CI run (each push, Linux, macOS, Windows, Python 3.12) | `--long` (weekly, Linux) |
 |---|---|---|
-| machine | 30 runs of up to 30 steps | 500 runs of up to 50 steps |
+| machine | 40 runs of up to 20 steps, plus a check that each of 15 paths was taken | 500 runs of up to 50 steps |
 | canonical, codec | 200 examples per property | 3,000 per property |
 | files | 200 damaged copies | 3,000 damaged copies |
 
 The CI run is derandomized: the same examples every time, so a failure in CI can be repeated on a laptop.
 The long run uses a new random seed each week and prints it. Measured on one Windows laptop: the CI run
-takes about 70 to 90 seconds.
+takes 20 seconds when the machine is idle, and 1.5 to 5 minutes when other heavy jobs run at the same time.
 
 ## The properties
 
