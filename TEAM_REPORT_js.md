@@ -26,7 +26,7 @@ Branch: team/js. New folder js/ (TypeScript port of the core + crash test + two 
 - Mutations: 18 mutations + a no-op control (the control runs ALL test files in the copy and must pass).
   First full run: control MISSED (ok), 17 caught, 1 MISSED: "ai-sdk run id = toolCallId" - A4 always ran
   inside c4a.run, so the adapter's own run-id path was never used (a decorative check). Fixed with A5 (no
-  c4a.run, run id from toolsContext); that mutation is now caught by A5. FINAL_MUTATION_RUN
+  c4a.run, run id from toolsContext); now caught by A5. Final full run on the rebased code: control MISSED, all 18 CAUGHT.
 - Which test catches which mutation: approval not spent J5; deny ignored J5,J6; a yes covers any arguments J5;
   admission not atomic (no transaction AND no unique one_use index) P5; canonical key order C2,X1; reconcile
   null treated as done J4,K29b; UNKNOWN treated as null J4; live key check removed CT8; --test-accounts check
