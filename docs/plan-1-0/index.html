@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The plan to 1.0 | Call4Agents docs</title>
+<meta name="description" content="Call4Agents 1.0 is a promise. In 1.0 and in every 1.x release:">
+<link rel="canonical" href="https://salahmakboul.github.io/call4agents/docs/plan-1-0/">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Call4Agents">
+<meta property="og:title" content="The plan to 1.0">
+<meta property="og:description" content="Call4Agents 1.0 is a promise. In 1.0 and in every 1.x release:">
+<meta property="og:url" content="https://salahmakboul.github.io/call4agents/docs/plan-1-0/">
+<meta property="og:image" content="https://salahmakboul.github.io/call4agents/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Call4Agents: without it, 2 emails after a crash; with it, 1.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="https://salahmakboul.github.io/call4agents/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://salahmakboul.github.io/call4agents/assets/site.css">
+<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "The plan to 1.0", "description": "Call4Agents 1.0 is a promise. In 1.0 and in every 1.x release:", "url": "https://salahmakboul.github.io/call4agents/docs/plan-1-0/", "dateModified": "2026-11-13", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Docs", "item": "https://salahmakboul.github.io/call4agents/docs/"}, {"@type": "ListItem", "position": 3, "name": "The plan to 1.0", "item": "https://salahmakboul.github.io/call4agents/docs/plan-1-0/"}]}]</script>
+</head>
+<body>
+<header class="container">
+<nav>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/"><strong>Call4Agents</strong></a></li></ul>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/docs/">Docs</a></li><li><a href="https://salahmakboul.github.io/call4agents/guides/">Guides</a></li><li><a href="https://github.com/salahmakboul/call4agents">GitHub</a></li><li><a href="https://pypi.org/project/call4agents/">PyPI</a></li></ul>
+</nav>
+</header>
+<main class="container">
+<nav aria-label="breadcrumb" class="crumbs"><ul><li><a href="https://salahmakboul.github.io/call4agents/">Home</a></li><li><a href="https://salahmakboul.github.io/call4agents/docs/">Docs</a></li><li>The plan to 1.0</li></ul></nav>
+<article class="doc"><h1>The plan to 1.0</h1>
+<p>Call4Agents 1.0 is a promise. In 1.0 and in every 1.x release:</p>
+<ul>
+<li>the stable API below keeps working;</li>
+<li>records written by any earlier version can still be read;</li>
+<li>a change that could run an action twice, or without its "yes", is never a minor release.</li>
+</ul>
+<p>This page says what will be stable, what stays experimental, what we merge or drop, and how you upgrade. It is a
+plan, not a release. Each item lists what must be true before it is called stable.</p>
+<h2>Stable in 1.0</h2>
+<p>These are the parts most users need. They change only in 2.0.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Part</th>
+<th>What it is</th>
+<th>Before 1.0</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>c4a.init</code>, <code>c4a.run</code></td>
+<td>the record and the run id</td>
+<td>done</td>
+</tr>
+<tr>
+<td><code>@c4a.effect</code></td>
+<td>once per (run, tool, exact arguments); <code>name=</code>, <code>key=</code>, <code>c4a_key=</code>, <code>exclude=</code>, <code>wait=</code></td>
+<td>done</td>
+</tr>
+<tr>
+<td><code>approval=True</code>, <code>c4a.approve</code>, <code>c4a.deny</code></td>
+<td>a "yes" bound to the exact arguments, spent by one action; a "no" revokes</td>
+<td>expiry (see below)</td>
+</tr>
+<tr>
+<td><code>reconcile=</code></td>
+<td>the provider says: here is the result / it did not happen (<code>None</code>) / it cannot tell yet (<code>c4a.UNKNOWN</code>)</td>
+<td><code>UNKNOWN</code> leaves "experimental"</td>
+</tr>
+<tr>
+<td><code>retry_on=</code>, <code>idempotent_for=</code>, <code>c4a.idempotency_key()</code></td>
+<td>errors that prove nothing happened; resending with the same key</td>
+<td>done</td>
+</tr>
+<tr>
+<td><code>retries=</code></td>
+<td>retry inside one call, only when the record decides the next try is safe</td>
+<td>leaves "experimental"</td>
+</tr>
+<tr>
+<td><code>ApprovalRequired</code>, <code>EffectInDoubt</code>, <code>KeyConflict</code></td>
+<td>the three errors</td>
+<td>done</td>
+</tr>
+<tr>
+<td>The record format</td>
+<td>entry kinds and schema version 1 (see <code>call4agents/ledger.py</code>)</td>
+<td>a written format page</td>
+</tr>
+<tr>
+<td><code>doctor</code>, <code>status</code>, <code>doubt</code>, <code>resolve</code>, <code>verify</code></td>
+<td>the on-call commands</td>
+<td>done</td>
+</tr>
+<tr>
+<td><code>crashtest</code>, the <code>c4a_crashtest</code> pytest fixture, the GitHub Action</td>
+<td>2 versus 1 in your own CI</td>
+<td>leaves "experimental"</td>
+</tr>
+<tr>
+<td>Adapters with real-framework tests</td>
+<td>LangGraph, Pydantic AI, OpenAI Agents SDK, MCP, and the new ones once their tests pass in CI on 3 systems</td>
+<td>per adapter</td>
+</tr>
+</tbody>
+</table></div>
+<p>"Leaves experimental" means four things:</p>
+<ul>
+<li>the documentation for it is complete;</li>
+<li>tests run against the real frameworks on Linux, macOS and Windows;</li>
+<li>the mutation runner catches every listed bug;</li>
+<li>at least one outside user has run it and told us what broke, or one release has passed with no open bug on it.</li>
+</ul>
+<h2>Changes before 1.0</h2>
+<p>These come from our own reading of the complaints that agent developers post in issue trackers and forums.
+Each one is a small change to the stable API, so it has to happen before 1.0, not after.</p>
+<ol>
+<li><strong>A "yes" can expire.</strong> Today <code>c4a.approve()</code> has no time limit; only tickets (<code>pause</code>/<code>decide</code>) have one.
+   1.0 adds <code>c4a.approve(..., ttl=SECONDS)</code>. Without <code>ttl</code>, it works as today.</li>
+<li><strong>A "yes" can be bound to the tool's version.</strong> If you pass <code>@c4a.effect(version="2")</code>, a "yes" given for
+   version 1 does not run version 2. Without <code>version</code>, nothing changes.</li>
+<li><strong>The person who decides is named, and can be checked.</strong> <code>decide(ticket, ..., by="anna")</code> stores <code>by</code> as text
+   and does not check it. 1.0 documents this plainly and adds an optional check function, so your login system
+   can check who is deciding.</li>
+<li><strong>The record path in throwaway containers.</strong> If the default <code>.c4a/</code> folder is inside a container that is
+   thrown away, the record is lost with it. <code>doctor</code> and <code>init</code> will warn when this looks likely.</li>
+<li><strong>The secret outside the agent's process.</strong> The approval secret lives in the agent's own process. 1.0
+   documents how to keep it in a separate signer, and supports one simple interface for that.</li>
+</ol>
+<h2>Stays experimental in 1.0</h2>
+<p>These work and are tested, but we have not seen enough real use to promise their exact form. They may change
+in a 1.x release, and the change will be in the CHANGELOG with a migration note.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Why it stays experimental</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Approval tickets (<code>c4a.pause</code>, <code>c4a.decide</code>, the adapters' <code>tickets()</code>/<code>results()</code>)</td>
+<td>no real approval UI has reported back yet</td>
+</tr>
+<tr>
+<td><code>c4a.Limit</code> (shared limits)</td>
+<td>used only in our tests</td>
+</tr>
+<tr>
+<td><code>c4a.Rules</code> (rules file)</td>
+<td>the rules language may grow</td>
+</tr>
+<tr>
+<td><code>audit</code> / <code>audit-verify</code></td>
+<td>format <code>c4a-audit-2</code> is new</td>
+</tr>
+<tr>
+<td><code>spans</code> (OpenTelemetry)</td>
+<td>not yet loaded into a real collector; the GenAI names are still in Development status</td>
+</tr>
+<tr>
+<td><code>scan</code></td>
+<td>gives false positives; useful as a hint only</td>
+</tr>
+<tr>
+<td>PostgreSQL record (beta)</td>
+<td>tested on one local server, not on real networks</td>
+</tr>
+</tbody>
+</table></div>
+<h2>Merge or drop</h2>
+<ol>
+<li><strong>One way to ask a person.</strong> There are two ways now: <code>pause</code>/<code>decide</code> (tickets), and the adapters'
+   <code>tickets()</code>/<code>results()</code>. We keep both names. Before 1.0, they should share one page and one set of
+   words, and there should be one example per framework.</li>
+<li><strong><code>undo</code>, <code>diff</code>, <code>prove</code>, <code>replay</code>.</strong> These are useful for testing, but they are not part of the
+   once-only promise. They move to their own "tools" page and stay out of the stable list. Nothing is removed
+   without a deprecation warning that lasts at least one minor release.</li>
+<li><strong>Less in the README.</strong> The README becomes a short front page. The detail moves to the docs site: concepts,
+   one guide per framework, the API reference, and recipes for payments, bookings, emails and refunds.</li>
+</ol>
+<h2>Proof</h2>
+<p>1.0 ships with three kinds of proof:</p>
+<ul>
+<li>a <strong>formal model</strong> of the protocol, checked with the TLA+ model checker (in progress; it already found the
+  double payment fixed in 0.7.2);</li>
+<li><strong>property-based tests and fuzzing</strong> of the record and the reconcile logic (in progress);</li>
+<li>a <strong>guarantees page</strong> that links each promise to its tests and its known limits: <a href="https://salahmakboul.github.io/call4agents/docs/guarantees/">GUARANTEES.md</a>.
+  The model and the property tests will be linked from it when they are published.</li>
+</ul>
+<p>A promise that has no check behind it is not on the guarantees page.</p>
+<h2>Upgrading</h2>
+<ul>
+<li><strong>0.7 to 0.8.</strong> Nothing is removed. New, optional parameters (<code>ttl=</code>, <code>version=</code>) are added. You may see
+  deprecation warnings for names that will move.</li>
+<li><strong>0.9.</strong> A release candidate. The API is frozen, and the only changes are bug fixes and documentation.</li>
+<li><strong>1.0.</strong> The same code as the last 0.9 release candidate that had no open bug for two weeks.</li>
+<li><strong>The record.</strong> Every record written since 0.1 can still be read. A record written by 1.0 can be read by
+  0.7 for the stable entry kinds; the new expiry and version information is stored in fields that 0.7 does
+  not read.</li>
+</ul>
+<h2>Also planned: JavaScript</h2>
+<p>A TypeScript version of the core and the crash test is being built. It covers the OpenAI Agents SDK for
+JavaScript and the Vercel AI SDK. Its keys are computed the same way as in Python. It gets its own version
+number and reaches 1.0 on its own schedule.</p><p><small>Source: <a href="https://github.com/salahmakboul/call4agents/blob/main/docs/PLAN_1_0.md">docs/PLAN_1_0.md</a> in the repository.</small></p></article>
+
+</main>
+<footer class="container"><hr><p><small>Call4Agents · Apache-2.0 · Copyright 2026 Salah Eddine Makboul ·
+<a href="https://github.com/salahmakboul/call4agents">Source on GitHub</a> · <a href="https://pypi.org/project/call4agents/">PyPI</a> · Site layout: Pico CSS (MIT).</small></p></footer>
+</body>
+</html>

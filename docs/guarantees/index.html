@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Guarantees | Call4Agents docs</title>
+<meta name="description" content="This page lists what Call4Agents promises. Each promise comes with:">
+<link rel="canonical" href="https://salahmakboul.github.io/call4agents/docs/guarantees/">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Call4Agents">
+<meta property="og:title" content="Guarantees">
+<meta property="og:description" content="This page lists what Call4Agents promises. Each promise comes with:">
+<meta property="og:url" content="https://salahmakboul.github.io/call4agents/docs/guarantees/">
+<meta property="og:image" content="https://salahmakboul.github.io/call4agents/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Call4Agents: without it, 2 emails after a crash; with it, 1.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="https://salahmakboul.github.io/call4agents/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://salahmakboul.github.io/call4agents/assets/site.css">
+<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "Guarantees", "description": "This page lists what Call4Agents promises. Each promise comes with:", "url": "https://salahmakboul.github.io/call4agents/docs/guarantees/", "dateModified": "2026-11-13", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Docs", "item": "https://salahmakboul.github.io/call4agents/docs/"}, {"@type": "ListItem", "position": 3, "name": "Guarantees", "item": "https://salahmakboul.github.io/call4agents/docs/guarantees/"}]}]</script>
+</head>
+<body>
+<header class="container">
+<nav>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/"><strong>Call4Agents</strong></a></li></ul>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/docs/">Docs</a></li><li><a href="https://salahmakboul.github.io/call4agents/guides/">Guides</a></li><li><a href="https://github.com/salahmakboul/call4agents">GitHub</a></li><li><a href="https://pypi.org/project/call4agents/">PyPI</a></li></ul>
+</nav>
+</header>
+<main class="container">
+<nav aria-label="breadcrumb" class="crumbs"><ul><li><a href="https://salahmakboul.github.io/call4agents/">Home</a></li><li><a href="https://salahmakboul.github.io/call4agents/docs/">Docs</a></li><li>Guarantees</li></ul></nav>
+<article class="doc"><h1>Guarantees</h1>
+<p>This page lists what Call4Agents promises. Each promise comes with:</p>
+<ul>
+<li>the conditions under which it holds;</li>
+<li>the checks that prove it, which you can rerun;</li>
+<li>what it does not cover.</li>
+</ul>
+<p>A promise with no check behind it is not on this page. Every check named here is also mutation-tested: we put the
+bug back on purpose, and the check must fail. You can rerun that with <code>python -m tests.mutations.run_kit_mutations</code>.</p>
+<p>The words used here are explained in <a href="https://salahmakboul.github.io/call4agents/docs/concepts/">CONCEPTS.md</a>.</p>
+<h2>G1. An action runs at most once</h2>
+<p><strong>The promise.</strong> For one run, one tool and the same arguments (or the same <code>c4a_key</code>), the function runs at most
+once. This holds when the process crashes, the framework retries or resumes, or several callers arrive at the same
+time. A later call returns the recorded result. If the kit cannot know whether the action happened, it raises
+<code>EffectInDoubt</code> and does not run it again.</p>
+<p><strong>Conditions:</strong></p>
+<ul>
+<li>The record is on a local disk. The kit refuses network drives, because SQLite locking is not reliable there. It
+  can also be a PostgreSQL database shared by every caller.</li>
+<li>Every caller uses the same record.</li>
+<li>If you pass <code>reconcile=</code>, it answers truthfully: the result when it happened, <code>None</code> only when it surely did not,
+  and <code>c4a.UNKNOWN</code> when it cannot tell yet.</li>
+<li>If you pass <code>idempotent_for=</code>, the outside API really removes repeated requests that carry the same key, for
+  that long.</li>
+<li>If you pass <code>lease=</code>, one attempt never runs longer than that.</li>
+</ul>
+<p><strong>Checks:</strong></p>
+<ul>
+<li>K1 and K1b: a repeated call runs once; another run is another action.</li>
+<li>K2: a crash during the action is "in doubt", and the action is not repeated.</li>
+<li>K3, K25 and K25b: the three answers of <code>reconcile</code> (the result, <code>None</code>, <code>UNKNOWN</code>).</li>
+<li>K26c: a resend with the same key; the provider charges once.</li>
+<li>K29a-e: a call still running is not treated as a crash, and two callers that give up the same attempt start
+  only one new one. This includes real processes: one is killed inside the call, then two resume at once.</li>
+<li>The crash matrix (<code>python -m tests.test_crash_matrix</code>) kills a real process before and after every write to the
+  record and inside the action, then kills the recovery too: 412 crashes, charged at most once at every point
+  (M1, M3, M6).</li>
+<li>The stress test: 14 callers of one action at once, 1 run.</li>
+<li>The big test (<code>python -m tests.bigtest_c4a</code>): 12 processes killed at random while they charge 300 orders
+  through a payment API that drops and delays answers. 0 double charges. Without the kit, 244 of 300 orders are
+  charged twice or more.</li>
+</ul>
+<p><strong>Not covered:</strong></p>
+<ul>
+<li>A <code>reconcile</code> that lies. If it says <code>None</code> although the action happened, the action runs again.</li>
+<li>An attempt that runs longer than <code>lease=</code> while its owner is alive on another machine or in another process.</li>
+<li>Power loss, as far as your disk or database does not keep a committed write (the record uses SQLite with
+  <code>synchronous=FULL</code>, or PostgreSQL's own durability settings).</li>
+<li>Records changed by hand.</li>
+<li>Versions up to 0.7.1, which could run an action twice with <code>reconcile=</code> or <code>idempotent_for=</code> when two callers
+  raced (Fix 17, in the CHANGELOG).</li>
+</ul>
+<h2>G2. A "yes" covers exactly the call that was shown, once</h2>
+<p><strong>The promise.</strong> An action with <code>approval=True</code> runs only if <code>c4a.approve</code> recorded a "yes" for exactly its
+tool and arguments.</p>
+<ul>
+<li>The "yes" is an HMAC, signed with the record's secret, over the tool and the arguments.</li>
+<li>It is spent by one action. A retry or resume of that same action reuses it. A different action needs a new
+  "yes", even under the same <code>c4a_key</code>.</li>
+<li>Spending the "yes" and writing the intent happen in one database transaction.</li>
+</ul>
+<p><strong>Conditions:</strong> the secret is kept away from whoever is not allowed to approve. Anyone who has the secret can
+sign a "yes".</p>
+<p><strong>Checks:</strong></p>
+<ul>
+<li>K5: a hand-written approval without the secret is refused.</li>
+<li>K17: one "yes" covers one action, and a deliberate second action needs a new one.</li>
+<li>K17d: 8 actions at once on one "yes": exactly one runs.</li>
+<li>K22: after a crash, a spent "yes" does not cover other arguments under the same key, and with two threads the
+  unapproved amount is refused.</li>
+<li>The atomic admission tests (<code>python -m tests.test_atomic_admission</code>, also on PostgreSQL): a failure before the
+  intent rolls the whole admission back, and processes crash before and after the commit.</li>
+<li>The crash matrix M2: a call nobody approved is never charged, at any crash point.</li>
+</ul>
+<p><strong>Not covered:</strong></p>
+<ul>
+<li>Whether the person understood what they approved: the kit binds the "yes" to the arguments you showed.</li>
+<li>A "yes" has no expiry yet. Approval tickets (<code>c4a.pause</code>) do have one. Expiry for <code>c4a.approve</code> is planned for
+  1.0 (see <a href="https://salahmakboul.github.io/call4agents/docs/plan-1-0/">PLAN_1_0.md</a>).</li>
+<li>A "yes" is not bound to the tool's version yet. This is also planned for 1.0.</li>
+</ul>
+<h2>G3. A "no" wins</h2>
+<p><strong>The promise.</strong> <code>c4a.deny</code> cancels every earlier "yes" for the same arguments. This includes an action that is in
+doubt: its retry needs a new "yes".</p>
+<p><strong>Checks:</strong></p>
+<ul>
+<li>K17b: a "no" after the "yes" is enforced.</li>
+<li>K17c: a "no" stops the retry of an approved action that is in doubt. As a control, without the "no" it retries
+  once.</li>
+<li>The atomic admission tests: a denial written while another process is admitting the action waits for that
+  commit, so it cannot slip between the check and the write.</li>
+</ul>
+<p><strong>Not covered:</strong> an action that already ran before the "no". The record shows that it ran; the kit cannot take it
+back. That is what <code>undo=</code> is for.</p>
+<h2>G4. A named action is never confused with another</h2>
+<p><strong>The promise.</strong> A <code>c4a_key</code> (or <code>key=</code>) used again with arguments that mean something else is a conflict, not a
+cache hit. Nothing runs, and you never get another call's result. Numbers that are equal (10, 10.0,
+<code>Decimal("10.00")</code>) count as the same.</p>
+<p><strong>Checks:</strong> K21 (three checks) and the crash matrix M4.</p>
+<h2>G5. The record tells the truth about itself</h2>
+<p><strong>The promise.</strong></p>
+<ul>
+<li>The record only grows: rows are added, never changed or deleted.</li>
+<li>A damaged record gives a clear error, never a silent wrong answer.</li>
+<li><code>call4agents verify</code> reports the record's integrity, format version and late results.</li>
+<li><code>call4agents doubt</code> lists every action that may or may not have happened.</li>
+</ul>
+<p><strong>Checks:</strong></p>
+<ul>
+<li>P1-P20 in <code>tests/test_c4a_production.py</code>, including a record from a newer version, a damaged file, a damaged
+  row, a busy file, and a write refused with "database is locked".</li>
+<li>The stress test: 5 kills during writes leave the file intact.</li>
+</ul>
+<p><strong>Not covered:</strong> someone with write access to the file who rewrites it on purpose. The audit export
+(<code>call4agents audit</code>) signs what was there when it was exported, not before.</p>
+<h2>How we look for what we missed</h2>
+<ul>
+<li><strong>Mutation testing:</strong> every check above must fail when its bug is put back. Each batch includes a no-op
+  control, which must not fail.</li>
+<li><strong>A formal model of the protocol</strong> (TLA+, in progress). It already found the double payment fixed in Fix 17,
+  which our tests had missed because they crashed only one caller.</li>
+<li><strong>Property-based tests and fuzzing</strong> of the record and the reconcile logic (in progress). They found that some
+  damaged rows gave a raw Python error instead of a clear one.</li>
+<li><strong>A crash-safety benchmark</strong> that any framework can run on itself (in progress).</li>
+</ul>
+<p>When a promise turns out to be wrong, the CHANGELOG says so: which versions are affected, who is affected, and the
+fix. Fix 17 is one example.</p><p><small>Source: <a href="https://github.com/salahmakboul/call4agents/blob/main/docs/GUARANTEES.md">docs/GUARANTEES.md</a> in the repository.</small></p></article>
+
+</main>
+<footer class="container"><hr><p><small>Call4Agents · Apache-2.0 · Copyright 2026 Salah Eddine Makboul ·
+<a href="https://github.com/salahmakboul/call4agents">Source on GitHub</a> · <a href="https://pypi.org/project/call4agents/">PyPI</a> · Site layout: Pico CSS (MIT).</small></p></footer>
+</body>
+</html>

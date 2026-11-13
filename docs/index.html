@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Documentation | Call4Agents</title>
+<meta name="description" content="Call4Agents 0.7.2 documentation: concepts, recipes for payments, bookings, emails and refunds, the API reference, framework guides and the production guide.">
+<link rel="canonical" href="https://salahmakboul.github.io/call4agents/docs/">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Call4Agents">
+<meta property="og:title" content="Documentation">
+<meta property="og:description" content="Call4Agents 0.7.2 documentation: concepts, recipes for payments, bookings, emails and refunds, the API reference, framework guides and the production guide.">
+<meta property="og:url" content="https://salahmakboul.github.io/call4agents/docs/">
+<meta property="og:image" content="https://salahmakboul.github.io/call4agents/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Call4Agents: without it, 2 emails after a crash; with it, 1.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="https://salahmakboul.github.io/call4agents/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://salahmakboul.github.io/call4agents/assets/site.css">
+<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "Documentation", "description": "Call4Agents 0.7.2 documentation: concepts, recipes for payments, bookings, emails and refunds, the API reference, framework guides and the production guide.", "url": "https://salahmakboul.github.io/call4agents/docs/", "dateModified": "2026-11-13", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Docs", "item": "https://salahmakboul.github.io/call4agents/docs/"}]}]</script>
+</head>
+<body>
+<header class="container">
+<nav>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/"><strong>Call4Agents</strong></a></li></ul>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/docs/">Docs</a></li><li><a href="https://salahmakboul.github.io/call4agents/guides/">Guides</a></li><li><a href="https://github.com/salahmakboul/call4agents">GitHub</a></li><li><a href="https://pypi.org/project/call4agents/">PyPI</a></li></ul>
+</nav>
+</header>
+<main class="container">
+<nav aria-label="breadcrumb" class="crumbs"><ul><li><a href="https://salahmakboul.github.io/call4agents/">Home</a></li><li>Docs</li></ul></nav>
+<h1>Documentation</h1><p>Call4Agents 0.7.2. Every page is rendered from the <a href="https://github.com/salahmakboul/call4agents/tree/main/docs">docs folder of the repository</a>, so the site and the code say the same thing. Start with the concepts, then pick a recipe.</p><ul><li><a href="https://salahmakboul.github.io/call4agents/docs/one-minute/"><strong>Call4Agents in one minute</strong></a><br><small>One yes, one payment, even after a crash. Call4Agents sits between your agent&#x27;s decision and the real action. It writes the call down before it runs and...</small></li><li><a href="https://salahmakboul.github.io/call4agents/docs/concepts/"><strong>Concepts</strong></a><br><small>This page explains the few ideas that Call4Agents is built on. With them, you can tell what will happen to any action, in any crash. Each idea links to...</small></li><li><a href="https://salahmakboul.github.io/call4agents/docs/guarantees/"><strong>Guarantees</strong></a><br><small>This page lists what Call4Agents promises. Each promise comes with:</small></li><li><a href="https://salahmakboul.github.io/call4agents/docs/recipes/"><strong>Recipes: payments, bookings, emails, refunds</strong></a><br><small>Each recipe is a real, runnable program: python -m call4agents.examples.recipes &lt;name&gt;. It runs the real kit and kills the process at the worst moment,...</small></li><li><a href="https://salahmakboul.github.io/call4agents/docs/api/"><strong>API reference</strong></a><br><small>This page is generated from the code by python docs/makeapi.py. Do not edit it by hand; CI fails if it is out of date. Import the package as import...</small></li><li><a href="https://salahmakboul.github.io/call4agents/docs/frameworks/google-adk/"><strong>Google ADK</strong></a><br><small>Call4Agents makes an ADK tool act at most once per session, tool and exact arguments, and can bind ADK&#x27;s tool confirmation to the exact arguments the...</small></li><li><a href="https://salahmakboul.github.io/call4agents/docs/frameworks/agent-framework/"><strong>Microsoft Agent Framework (Python)</strong></a><br><small>Call4Agents makes an Agent Framework tool act at most once per session, tool and exact arguments, and can bind the framework&#x27;s tool approval to the exact...</small></li><li><a href="https://salahmakboul.github.io/call4agents/docs/production/"><strong>Running Call4Agents in production</strong></a><br><small>This page says what the kit guarantees in a real product, what it costs, how to run it, and what is still not proven. The numbers below were measured on...</small></li><li><a href="https://salahmakboul.github.io/call4agents/docs/idempotency-keys/"><strong>Idempotency keys for outside APIs</strong></a><br><small>Your agent calls a payment API. The API charges the card. Your process dies before it can record the answer. On resume, the agent does not know whether...</small></li><li><a href="https://salahmakboul.github.io/call4agents/docs/threat-model/"><strong>Call4Agents v0.1 threat model</strong></a><br><small>This covers the two v0.1 guarantees: once-only side effects and approvals bound to exact arguments. Everything here runs inside your agent&#x27;s own process,...</small></li><li><a href="https://salahmakboul.github.io/call4agents/docs/plan-1-0/"><strong>The plan to 1.0</strong></a><br><small>Call4Agents 1.0 is a promise. In 1.0 and in every 1.x release:</small></li></ul>
+
+</main>
+<footer class="container"><hr><p><small>Call4Agents · Apache-2.0 · Copyright 2026 Salah Eddine Makboul ·
+<a href="https://github.com/salahmakboul/call4agents">Source on GitHub</a> · <a href="https://pypi.org/project/call4agents/">PyPI</a> · Site layout: Pico CSS (MIT).</small></p></footer>
+</body>
+</html>

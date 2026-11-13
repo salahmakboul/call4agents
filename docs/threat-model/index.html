@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Call4Agents v0.1 threat model | Call4Agents docs</title>
+<meta name="description" content="This covers the two v0.1 guarantees: once-only side effects and approvals bound to exact arguments. Everything here runs inside your agent&#x27;s own process,...">
+<link rel="canonical" href="https://salahmakboul.github.io/call4agents/docs/threat-model/">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Call4Agents">
+<meta property="og:title" content="Call4Agents v0.1 threat model">
+<meta property="og:description" content="This covers the two v0.1 guarantees: once-only side effects and approvals bound to exact arguments. Everything here runs inside your agent&#x27;s own process,...">
+<meta property="og:url" content="https://salahmakboul.github.io/call4agents/docs/threat-model/">
+<meta property="og:image" content="https://salahmakboul.github.io/call4agents/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Call4Agents: without it, 2 emails after a crash; with it, 1.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="https://salahmakboul.github.io/call4agents/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://salahmakboul.github.io/call4agents/assets/site.css">
+<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "Call4Agents v0.1 threat model", "description": "This covers the two v0.1 guarantees: once-only side effects and approvals bound to exact arguments. Everything here runs inside your agent's own process,...", "url": "https://salahmakboul.github.io/call4agents/docs/threat-model/", "dateModified": "2026-11-13", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Docs", "item": "https://salahmakboul.github.io/call4agents/docs/"}, {"@type": "ListItem", "position": 3, "name": "Call4Agents v0.1 threat model", "item": "https://salahmakboul.github.io/call4agents/docs/threat-model/"}]}]</script>
+</head>
+<body>
+<header class="container">
+<nav>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/"><strong>Call4Agents</strong></a></li></ul>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/docs/">Docs</a></li><li><a href="https://salahmakboul.github.io/call4agents/guides/">Guides</a></li><li><a href="https://github.com/salahmakboul/call4agents">GitHub</a></li><li><a href="https://pypi.org/project/call4agents/">PyPI</a></li></ul>
+</nav>
+</header>
+<main class="container">
+<nav aria-label="breadcrumb" class="crumbs"><ul><li><a href="https://salahmakboul.github.io/call4agents/">Home</a></li><li><a href="https://salahmakboul.github.io/call4agents/docs/">Docs</a></li><li>Call4Agents v0.1 threat model</li></ul></nav>
+<article class="doc"><h1>Call4Agents v0.1 threat model</h1>
+<p>This covers the two v0.1 guarantees: <strong>once-only side effects</strong> and <strong>approvals bound to exact arguments</strong>. Everything here runs inside your agent's own process, on your machine.</p>
+<h2>What "once-only" means</h2>
+<p><strong>At most once, with "in doubt" flagged.</strong> It does not mean exactly once.</p>
+<p>Before a decorated effect runs, an <em>intent</em> row is written to the run record (SQLite, <code>synchronous=FULL</code>). A <em>done</em> row with the result is written right after it returns.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>A crash happens...</th>
+<th>What happens on the next attempt</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>before the intent row</td>
+<td>The effect runs once. It never ran before.</td>
+</tr>
+<tr>
+<td>after the done row</td>
+<td>The recorded result is returned. The effect does not run again.</td>
+</tr>
+<tr>
+<td><strong>during the effect</strong> (intent written, done not written)</td>
+<td><strong>We cannot know</strong> whether the email left. We raise <code>EffectInDoubt</code> and do <strong>not</strong> repeat it. If you pass <code>reconcile=</code>, your check asks the outside system: if it finds the effect, we record it; if it reports the effect missing, we run it once more. We ask only when the caller that started it is provably gone (since Fix 17; see <code>lease=</code>): a call that is just slow is not a crash.</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Parallel callers:</strong> many callers on the same effect at the same moment are serialised by a unique index on the intent. Exactly one runs it; the others wait for its result (up to <code>wait</code> seconds) or get <code>EffectInDoubt</code>. Measured in <code>tests/stress_c4a_ledger.py</code>: 14 callers, 1 email.</p>
+<p><strong>The default key</strong> is (run id, tool name, canonical arguments). A deliberate second identical action needs <code>c4a_key="..."</code>.</p>
+<h2>Where the approval secret lives</h2>
+<ol>
+<li>The <code>C4A_SECRET</code> environment variable, if it is set.</li>
+<li>Otherwise a 32-byte random file, <code>.c4a/secret</code>, created next to the run record. We set its mode to 0600; on Windows that mode is not enforced, so rely on the folder's access rights.</li>
+<li>Or <code>c4a.init(secret=...)</code> in code.</li>
+</ol>
+<p>The secret never enters the model's context, the run record, or any log.</p>
+<h2>What the signed approval protects against</h2>
+<p>An approval is stored as <code>HMAC-SHA256(secret, tool + canonical arguments)</code>. At execution time the MAC is recomputed from the arguments <strong>about to run</strong>, and the call is refused unless the two match.</p>
+<ul>
+<li><strong>Arguments changed after the "yes":</strong></li>
+<li>edited saved state (Pydantic AI, LangGraph and LangChain HITL in our tests);</li>
+<li>a model asked again after a restart (LangGraph one-node);</li>
+<li>a forged unkeyed fingerprint (OpenAI Agents SDK).</li>
+<li><strong>A hand-written or edited approval row:</strong> without the secret, nobody can produce a valid MAC (kit check K5).</li>
+<li><strong>Replaying an approval in another run:</strong> approvals are scoped to the run id.</li>
+<li><strong>Using one "yes" twice:</strong> each approval can be spent by one action only, and a later <code>deny</code> cancels it (K17).</li>
+<li><strong>A crafted run record used for replay or diff:</strong> the record stores result types by class name. The kit
+  only rebuilds real dataclasses and real classes with <code>model_validate</code> and <code>model_dump</code>. A record naming a
+  function (for example <code>os:system</code>) is refused before anything is called (K19). Opening a record still imports the module it names, so replay or diff only record files you trust.</li>
+</ul>
+<h2>What it cannot protect against</h2>
+<ul>
+<li><strong>Anyone who can read the secret</strong> (same user, same machine, a leaked env var). They can sign any approval. Keep the secret out of shared folders and repositories, and rotate it by deleting <code>.c4a/secret</code>.</li>
+<li><strong>A bad "yes":</strong> if the person approves the wrong thing, or is shown misleading text, the signature binds exactly that wrong thing.</li>
+<li><strong>Code that calls the effect undecorated,</strong> or deletes the run record.</li>
+<li><strong>Effects outside the decorated function:</strong> a tool that also writes somewhere else, or sub-processes.</li>
+<li><strong>Lying about the effect:</strong> we record what the function returned, not what really happened in the outside world.</li>
+<li><strong>A crash during the effect:</strong> we flag it as in doubt; we cannot resolve it without your <code>reconcile</code>.</li>
+<li><strong>Prompt injection, sandboxing, identity and tokens:</strong> out of scope.</li>
+<li><strong>Several machines:</strong> the run record is a local SQLite file, so once-only holds only for callers that share that one file.</li>
+</ul>
+<h2>How each claim is checked (offline)</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Check</th>
+<th>What it shows</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tests/test_c4a_kit.py</code> K1–K19</td>
+<td>Each check is mutation-proven (<code>python -m tests.mutations.run_kit_mutations</code>)</td>
+</tr>
+<tr>
+<td><code>tests/stress_c4a_ledger.py</code></td>
+<td>Parallel writers, kills mid-write, simultaneous callers</td>
+</tr>
+<tr>
+<td><code>python -m call4agents demo</code></td>
+<td>The demo</td>
+</tr>
+</tbody>
+</table></div>
+<p>All are synthetic: fake tools, fake crashes (<code>os._exit</code>), no real email or payment system.</p><p><small>Source: <a href="https://github.com/salahmakboul/call4agents/blob/main/docs/THREAT_MODEL.md">docs/THREAT_MODEL.md</a> in the repository.</small></p></article>
+
+</main>
+<footer class="container"><hr><p><small>Call4Agents · Apache-2.0 · Copyright 2026 Salah Eddine Makboul ·
+<a href="https://github.com/salahmakboul/call4agents">Source on GitHub</a> · <a href="https://pypi.org/project/call4agents/">PyPI</a> · Site layout: Pico CSS (MIT).</small></p></footer>
+</body>
+</html>

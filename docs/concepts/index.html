@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Concepts | Call4Agents docs</title>
+<meta name="description" content="This page explains the few ideas that Call4Agents is built on. With them, you can tell what will happen to any action, in any crash. Each idea links to...">
+<link rel="canonical" href="https://salahmakboul.github.io/call4agents/docs/concepts/">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Call4Agents">
+<meta property="og:title" content="Concepts">
+<meta property="og:description" content="This page explains the few ideas that Call4Agents is built on. With them, you can tell what will happen to any action, in any crash. Each idea links to...">
+<meta property="og:url" content="https://salahmakboul.github.io/call4agents/docs/concepts/">
+<meta property="og:image" content="https://salahmakboul.github.io/call4agents/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Call4Agents: without it, 2 emails after a crash; with it, 1.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="https://salahmakboul.github.io/call4agents/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://salahmakboul.github.io/call4agents/assets/site.css">
+<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "Concepts", "description": "This page explains the few ideas that Call4Agents is built on. With them, you can tell what will happen to any action, in any crash. Each idea links to...", "url": "https://salahmakboul.github.io/call4agents/docs/concepts/", "dateModified": "2026-11-13", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Docs", "item": "https://salahmakboul.github.io/call4agents/docs/"}, {"@type": "ListItem", "position": 3, "name": "Concepts", "item": "https://salahmakboul.github.io/call4agents/docs/concepts/"}]}]</script>
+</head>
+<body>
+<header class="container">
+<nav>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/"><strong>Call4Agents</strong></a></li></ul>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/docs/">Docs</a></li><li><a href="https://salahmakboul.github.io/call4agents/guides/">Guides</a></li><li><a href="https://github.com/salahmakboul/call4agents">GitHub</a></li><li><a href="https://pypi.org/project/call4agents/">PyPI</a></li></ul>
+</nav>
+</header>
+<main class="container">
+<nav aria-label="breadcrumb" class="crumbs"><ul><li><a href="https://salahmakboul.github.io/call4agents/">Home</a></li><li><a href="https://salahmakboul.github.io/call4agents/docs/">Docs</a></li><li>Concepts</li></ul></nav>
+<article class="doc"><h1>Concepts</h1>
+<p>This page explains the few ideas that Call4Agents is built on. With them, you can tell what will happen
+to any action, in any crash. Each idea links to the code that does it.</p>
+<h2>The problem in one picture</h2>
+<p>An agent decides to act, and a tool sends the email, charges the card or books the room. Then the process
+dies before the framework saves that the tool ran. The framework resumes from its last save, and the tool
+runs again. This is called <em>at-least-once</em> execution. It is the normal behaviour of durable agent frameworks,
+not a bug in them. For reading data it is fine. For a payment, it means two payments.</p>
+<p>Call4Agents keeps its own small record of each action, outside the framework's saved state. The tool's next
+call reads that record before it does anything.</p>
+<h2>The run</h2>
+<p>Every action belongs to a <strong>run</strong>: <code>with c4a.run("thread-42"):</code>. Use the id your framework resumes with, such
+as a LangGraph thread id, a Pydantic AI conversation id or a session id. A resumed run then finds its own
+record. The framework adapters find this id for you.</p>
+<h2>The action and its key</h2>
+<p><code>@c4a.effect</code> marks a function that changes the outside world. One call of it is one <strong>action</strong>. An action
+is named by its key: the run, the tool's name (module + function) and the exact arguments, written in one
+stable text form. Two calls with the same key are the same action. Two calls with a different amount are two
+different actions.</p>
+<p>If you really want a second identical action (a second email with the same text), give it its own name:
+<code>send_email("bob", "hi", c4a_key="second")</code>.</p>
+<h2>The record: intent first, result after</h2>
+<p>For each action the record gets two rows. The rows are only ever added, never changed or deleted.</p>
+<ol>
+<li><strong>intent</strong>: written <em>before</em> the function runs. Only one caller can write it, because the database
+   enforces it with a unique index. That caller runs the action. Every other caller waits for its result
+   (up to <code>wait=</code> seconds, default 2), and then raises <code>EffectInDoubt</code> instead of running it.</li>
+<li><strong>done</strong>: written right <em>after</em> the function returns, with the result.</li>
+</ol>
+<p>On the next call of the same action:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>What the record shows</th>
+<th>What happens</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>a <code>done</code> row</td>
+<td>the recorded result is returned. Nothing runs.</td>
+</tr>
+<tr>
+<td>no row</td>
+<td>the action runs.</td>
+</tr>
+<tr>
+<td>an <code>intent</code> row but no <code>done</code> row</td>
+<td>the action is <strong>in doubt</strong>: see below</td>
+</tr>
+</tbody>
+</table></div>
+<h2>In doubt, and the three answers</h2>
+<p>An intent without a result means that the process died, or the function raised, while the action ran. The
+action may have happened, or it may not. Running it again could pay twice. Not running it could lose the
+payment. So by default the kit does neither: it raises <code>EffectInDoubt</code>, and a person or a check decides.</p>
+<p>You can give the kit a check: <code>reconcile=</code>, a function that asks the outside world (your payment provider,
+your mailbox, your booking system). It gives one of three answers:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>reconcile returns</th>
+<th>Meaning</th>
+<th>What happens</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>the result</td>
+<td>it happened</td>
+<td>the result is recorded, nothing runs again</td>
+</tr>
+<tr>
+<td><code>None</code></td>
+<td>it surely did not happen</td>
+<td>the action runs once more</td>
+</tr>
+<tr>
+<td><code>c4a.UNKNOWN</code></td>
+<td>the provider cannot tell yet</td>
+<td>still in doubt; nothing runs; the next try asks again</td>
+</tr>
+</tbody>
+</table></div>
+<p>Only return <code>None</code> when the provider can really confirm it. A search index that lags behind writes should
+answer <code>UNKNOWN</code>, not <code>None</code>.</p>
+<p><strong>The kit asks only when the caller is gone.</strong> An intent without a result can also mean that the call is still
+running, perhaps just slow. Then the provider truthfully says "not done yet", and running the action again would pay
+twice. So each intent names its owner: the machine, the process and a token for that process. The kit asks
+<code>reconcile</code> only when that owner is provably not running the call any more. That is either a process on this machine
+that has ended, or this process when the call is no longer in progress. An owner on another machine, or another
+live process on this machine, counts as running for <code>lease=</code> seconds (default 600) after the attempt started.
+Until then, the call raises <code>EffectInDoubt</code>. Set <code>lease=</code> to the longest time one attempt of the action can take.
+Versions before this rule (up to 0.7.1) asked too early: see the CHANGELOG, Fix 17.</p>
+<p>Two more ways to leave doubt:
+- <code>retry_on=(SomeError,)</code>: errors that prove nothing happened, such as a refused connection. After one of
+  them, the next call runs the action again.
+- <code>idempotent_for=SECONDS</code>: the outside API removes duplicate requests that carry the same key (Stripe keeps
+  keys for 24 hours). The function sends <code>c4a.idempotency_key()</code>, and an action in doubt is resent with the
+  same key. It is the API, not luck, that prevents the second charge. After that time, the action stays in doubt.</p>
+<h2>A "yes" bound to the exact arguments</h2>
+<p><code>@c4a.effect(approval=True)</code> runs only after <code>c4a.approve(tool, **args)</code> has recorded a "yes" for exactly
+those arguments.</p>
+<ul>
+<li>The "yes" is signed (HMAC with the record's secret) over the tool and the arguments. A "yes" to
+  <code>pay(10, "alice")</code> cannot run <code>pay(9999, "mallory")</code>.</li>
+<li><strong>One yes, one action.</strong> The "yes" is spent by one action. A retry or resume of that same action reuses
+  it. A deliberate second action needs a new "yes".</li>
+<li><strong>A "no" wins.</strong> <code>c4a.deny(tool, **args)</code> cancels the earlier "yes" answers for those arguments, also for an
+  action that is in doubt.</li>
+<li>Spending the "yes" and writing the intent happen in <strong>one database transaction</strong>. Eight callers racing on
+  one "yes": exactly one runs.</li>
+</ul>
+<h2>Waiting for a person (tickets, experimental)</h2>
+<p>When a person decides later, perhaps in another process, <code>c4a.pause(tool, **args)</code> returns a ticket. You show
+the ticket next to the call. <code>c4a.decide(ticket, "approve" | "deny", by=...)</code> turns it into a "yes" or a "no",
+only for the arguments the ticket was issued for. The ticket holds no arguments, so nothing a client sends back
+can change them. A ticket expires (its <code>ttl</code>) and is decided only once.</p>
+<h2>What the kit cannot know</h2>
+<ul>
+<li>If your <code>reconcile=</code> lies (answers <code>None</code> although the payment happened), the action runs twice. The kit
+  trusts the answer you give it.</li>
+<li>If the function changes the world <em>and then</em> does something that can fail before it returns, the record
+  sees the failure, not the change. That is why an error means "in doubt" unless you list it in <code>retry_on</code>.</li>
+<li>The record is only as durable as its disk. A hard kill is covered; a power cut is covered as far as SQLite's
+  or PostgreSQL's own durability settings cover it.</li>
+</ul>
+<p>The exact list of what is proven, and how, is in <a href="https://salahmakboul.github.io/call4agents/docs/guarantees/">GUARANTEES.md</a>.</p><p><small>Source: <a href="https://github.com/salahmakboul/call4agents/blob/main/docs/CONCEPTS.md">docs/CONCEPTS.md</a> in the repository.</small></p></article>
+
+</main>
+<footer class="container"><hr><p><small>Call4Agents · Apache-2.0 · Copyright 2026 Salah Eddine Makboul ·
+<a href="https://github.com/salahmakboul/call4agents">Source on GitHub</a> · <a href="https://pypi.org/project/call4agents/">PyPI</a> · Site layout: Pico CSS (MIT).</small></p></footer>
+</body>
+</html>

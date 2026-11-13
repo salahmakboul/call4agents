@@ -13,3 +13,5 @@ h1,h2{text-wrap:balance}
 pre{overflow-x:auto}.table-wrap{overflow-x:auto}
 .demo svg{max-width:100%;height:auto;display:block}
 .crumbs{font-size:.85rem}
+.doc table{font-size:.88rem;font-variant-numeric:tabular-nums}
+.doc h2{margin-top:2rem}

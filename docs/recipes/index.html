@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Recipes: payments, bookings, emails, refunds | Call4Agents docs</title>
+<meta name="description" content="Each recipe is a real, runnable program: python -m call4agents.examples.recipes &lt;name&gt;. It runs the real kit and kills the process at the worst moment,...">
+<link rel="canonical" href="https://salahmakboul.github.io/call4agents/docs/recipes/">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Call4Agents">
+<meta property="og:title" content="Recipes: payments, bookings, emails, refunds">
+<meta property="og:description" content="Each recipe is a real, runnable program: python -m call4agents.examples.recipes &lt;name&gt;. It runs the real kit and kills the process at the worst moment,...">
+<meta property="og:url" content="https://salahmakboul.github.io/call4agents/docs/recipes/">
+<meta property="og:image" content="https://salahmakboul.github.io/call4agents/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Call4Agents: without it, 2 emails after a crash; with it, 1.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="https://salahmakboul.github.io/call4agents/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://salahmakboul.github.io/call4agents/assets/site.css">
+<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "Recipes: payments, bookings, emails, refunds", "description": "Each recipe is a real, runnable program: python -m call4agents.examples.recipes <name>. It runs the real kit and kills the process at the worst moment,...", "url": "https://salahmakboul.github.io/call4agents/docs/recipes/", "dateModified": "2026-11-13", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Docs", "item": "https://salahmakboul.github.io/call4agents/docs/"}, {"@type": "ListItem", "position": 3, "name": "Recipes: payments, bookings, emails, refunds", "item": "https://salahmakboul.github.io/call4agents/docs/recipes/"}]}]</script>
+</head>
+<body>
+<header class="container">
+<nav>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/"><strong>Call4Agents</strong></a></li></ul>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/docs/">Docs</a></li><li><a href="https://salahmakboul.github.io/call4agents/guides/">Guides</a></li><li><a href="https://github.com/salahmakboul/call4agents">GitHub</a></li><li><a href="https://pypi.org/project/call4agents/">PyPI</a></li></ul>
+</nav>
+</header>
+<main class="container">
+<nav aria-label="breadcrumb" class="crumbs"><ul><li><a href="https://salahmakboul.github.io/call4agents/">Home</a></li><li><a href="https://salahmakboul.github.io/call4agents/docs/">Docs</a></li><li>Recipes: payments, bookings, emails, refunds</li></ul></nav>
+<article class="doc"><h1>Recipes: payments, bookings, emails, refunds</h1>
+<p>Each recipe is a real, runnable program: <code>python -m call4agents.examples.recipes &lt;name&gt;</code>. It runs the real kit
+and kills the process at the worst moment, right after the outside world changed and before the result was
+saved. The outside world is a small fake provider kept in a file, so it survives the kill like a real one.
+<code>python -m tests.test_recipes</code> checks every number on this page in CI, and the mutation runner checks that
+those checks fail when the protection is removed.</p>
+<p>The four recipes cover the four kinds of outside world you will meet:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Your provider...</th>
+<th>Use</th>
+<th>Recipe</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>removes repeated requests that carry the same key (Stripe, Adyen, PayPal)</td>
+<td><code>idempotent_for=</code> + <code>c4a.idempotency_key()</code></td>
+<td>payments, refunds</td>
+</tr>
+<tr>
+<td>can be asked "did this happen?", but may lag</td>
+<td><code>reconcile=</code> returning the result, <code>None</code> or <code>c4a.UNKNOWN</code></td>
+<td>bookings</td>
+</tr>
+<tr>
+<td>can neither remove repeats nor be asked</td>
+<td><code>retry_on=</code> for errors that prove nothing happened; a person for the rest</td>
+<td>emails</td>
+</tr>
+<tr>
+<td>must not go over an amount, per day or per run</td>
+<td><code>c4a.Limit</code>, <code>c4a.Rules</code></td>
+<td>refunds</td>
+</tr>
+</tbody>
+</table></div>
+<h2>Payments: an API with idempotency keys</h2>
+<pre><code class="language-python">@c4a.effect(approval=True, idempotent_for=24 * 3600)
+def pay(amount: int, to: str) -&gt; dict:
+    return bank.create_charge(amount, to, idempotency_key=c4a.idempotency_key())
+
+with c4a.run(&quot;order-7&quot;):
+    c4a.approve(pay, amount=42, to=&quot;acme&quot;)    # when the person says yes to what they saw
+    pay(amount=42, to=&quot;acme&quot;)
+</code></pre>
+<p>What happens:</p>
+<ol>
+<li>The bank charges 42, and the process is killed before the result is saved.</li>
+<li>The resume finds an intent with no result. The bank remembers keys for 24 hours, so the kit resends the
+   request with the same key. The bank sees the repeat and returns the first charge, <code>ch_1</code>.</li>
+<li>The agent then tries <code>pay(amount=4200, to="acme")</code>. It is refused: the "yes" was for 42.</li>
+</ol>
+<p>Result: <strong>1 charge</strong>, and the resume returns <code>ch_1</code>. With HTTP, <code>c4a.idempotency_headers()</code> gives you
+<code>{"Idempotency-Key": ...}</code>.</p>
+<h2>Bookings: ask the provider, and accept "I can't tell yet"</h2>
+<pre><code class="language-python">def find(guest: str, night: str):
+    hit = hotel.search(guest=guest, night=night)
+    if hotel.search_is_behind():
+        return c4a.UNKNOWN      # cannot tell yet: never a reason to book again
+    return hit                  # the booking, or None if it surely did not happen
+
+@c4a.effect(reconcile=find)
+def book(guest: str, night: str) -&gt; dict:
+    return hotel.book(guest, night)
+</code></pre>
+<p>What happens:</p>
+<ol>
+<li>The hotel books, and the process is killed.</li>
+<li>The first resume asks <code>find</code>. The hotel's search lags behind its writes, so <code>find</code> returns <code>c4a.UNKNOWN</code>. Nothing
+   runs, nothing is recorded, and the call raises <code>EffectInDoubt</code>.</li>
+<li>The second resume asks again. This time the search sees the booking, so the kit records it and returns it.</li>
+</ol>
+<p>Result: <strong>1 booking</strong>. If <code>find</code> had returned <code>None</code> on the first resume, the room would have been booked twice.
+That is why <code>None</code> must mean "surely did not happen".</p>
+<h2>Emails: no key, no way to ask</h2>
+<pre><code class="language-python">@c4a.effect(retry_on=(ConnectionRefusedError,))
+def send_email(to: str, subject: str) -&gt; str:
+    return smtp.send(to, subject)
+</code></pre>
+<p>What happens:</p>
+<ol>
+<li>The mail server refuses the connection. That error proves nothing was sent, because it is listed in
+   <code>retry_on</code>, so the next call may run again. It sends the welcome email once.</li>
+<li>The invoice email is sent, and the process is killed. There is no key and no way to ask, so the resume
+   raises <code>EffectInDoubt</code> and does <strong>not</strong> send it again.</li>
+<li>A person checks the Sent folder and records the answer:
+   <code>call4agents doubt .c4a/ledger.sqlite</code> lists the action, and
+   <code>call4agents resolve .c4a/ledger.sqlite &lt;key&gt; done "seen in the Sent folder"</code> records it.</li>
+<li>The next call returns the recorded answer and sends nothing.</li>
+</ol>
+<p>Result: <strong>2 emails for 2 messages</strong>. If a duplicate email is fine for you and a lost one is not, resolve with
+<code>not-done</code> instead, and the next call sends it once more.</p>
+<h2>Refunds: a shared limit, a "yes" over 100, nothing over 400</h2>
+<pre><code class="language-python">daily = c4a.Limit(&quot;refunds-per-day&quot;, 500, cost=lambda order, amount: amount, per=86400)
+rules = c4a.Rules({&quot;refund&quot;: {&quot;max&quot;: {&quot;amount&quot;: 400}, &quot;ask_over&quot;: {&quot;amount&quot;: 100}}})
+
+@c4a.effect(name=&quot;refund&quot;, limit=daily, rules=rules, idempotent_for=24 * 3600)
+def refund(order: str, amount: int) -&gt; dict:
+    return shop.refund(order, amount, idempotency_key=c4a.idempotency_key())
+</code></pre>
+<p>What happens:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Call</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>refund A, 80</td>
+<td>runs: under 100, no "yes" needed</td>
+</tr>
+<tr>
+<td>refund B, 300</td>
+<td><code>ApprovalRequired</code>: over 100</td>
+</tr>
+<tr>
+<td>after <code>c4a.approve(refund, order="B", amount=300)</code>: refund B, killed after the shop refunded, then resumed</td>
+<td>the resume resends with the same key and gets <code>re_2</code> back. The limit is held once, not twice</td>
+</tr>
+<tr>
+<td>refund C, 200, approved</td>
+<td><code>LimitReached</code>: 80 + 300 + 200 is over 500. Nothing runs, and its "yes" stays unspent</td>
+</tr>
+<tr>
+<td>refund D, 450</td>
+<td><code>RuleRefused</code>: over the 400 rule. Nothing runs, and the refusal is recorded</td>
+</tr>
+</tbody>
+</table></div>
+<p>Result: <strong>2 refunds, 380 in total</strong>. Every process that uses the same record shares the same limit. The check
+and the hold are in one transaction with the intent, so two workers cannot both take the last 100.</p>
+<h2>Run them</h2>
+<p>The recipes ship with the package from the next release. Until then, run them from a checkout of the repository.</p>
+<pre><code class="language-bash">pip install call4agents
+python -m call4agents.examples.recipes          # all four, about 6 seconds
+python -m call4agents.examples.recipes refunds  # one
+</code></pre>
+<p><code>Limit</code> and <code>Rules</code> are experimental (see <a href="https://salahmakboul.github.io/call4agents/docs/plan-1-0/">PLAN_1_0.md</a>). The other parts used here are stable.</p><p><small>Source: <a href="https://github.com/salahmakboul/call4agents/blob/main/docs/RECIPES.md">docs/RECIPES.md</a> in the repository.</small></p></article>
+
+</main>
+<footer class="container"><hr><p><small>Call4Agents · Apache-2.0 · Copyright 2026 Salah Eddine Makboul ·
+<a href="https://github.com/salahmakboul/call4agents">Source on GitHub</a> · <a href="https://pypi.org/project/call4agents/">PyPI</a> · Site layout: Pico CSS (MIT).</small></p></footer>
+</body>
+</html>

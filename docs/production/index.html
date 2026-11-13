@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Running Call4Agents in production | Call4Agents docs</title>
+<meta name="description" content="This page says what the kit guarantees in a real product, what it costs, how to run it, and what is still not proven. The numbers below were measured on...">
+<link rel="canonical" href="https://salahmakboul.github.io/call4agents/docs/production/">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Call4Agents">
+<meta property="og:title" content="Running Call4Agents in production">
+<meta property="og:description" content="This page says what the kit guarantees in a real product, what it costs, how to run it, and what is still not proven. The numbers below were measured on...">
+<meta property="og:url" content="https://salahmakboul.github.io/call4agents/docs/production/">
+<meta property="og:image" content="https://salahmakboul.github.io/call4agents/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Call4Agents: without it, 2 emails after a crash; with it, 1.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="https://salahmakboul.github.io/call4agents/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://salahmakboul.github.io/call4agents/assets/site.css">
+<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "Running Call4Agents in production", "description": "This page says what the kit guarantees in a real product, what it costs, how to run it, and what is still not proven. The numbers below were measured on...", "url": "https://salahmakboul.github.io/call4agents/docs/production/", "dateModified": "2026-11-13", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Docs", "item": "https://salahmakboul.github.io/call4agents/docs/"}, {"@type": "ListItem", "position": 3, "name": "Running Call4Agents in production", "item": "https://salahmakboul.github.io/call4agents/docs/production/"}]}]</script>
+</head>
+<body>
+<header class="container">
+<nav>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/"><strong>Call4Agents</strong></a></li></ul>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/docs/">Docs</a></li><li><a href="https://salahmakboul.github.io/call4agents/guides/">Guides</a></li><li><a href="https://github.com/salahmakboul/call4agents">GitHub</a></li><li><a href="https://pypi.org/project/call4agents/">PyPI</a></li></ul>
+</nav>
+</header>
+<main class="container">
+<nav aria-label="breadcrumb" class="crumbs"><ul><li><a href="https://salahmakboul.github.io/call4agents/">Home</a></li><li><a href="https://salahmakboul.github.io/call4agents/docs/">Docs</a></li><li>Running Call4Agents in production</li></ul></nav>
+<article class="doc"><h1>Running Call4Agents in production</h1>
+<p>This page says what the kit guarantees in a real product, what it costs, how to run it, and what is
+still not proven. The numbers below were measured on one Windows 10 machine (Python 3.12, local SSD).
+You can reproduce them with the commands shown. They will differ on your hardware.</p>
+<h2>What it costs</h2>
+<p><code>python -m tests.bench_c4a 2000</code>:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th>median</th>
+<th>p99</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>a plain Python call (no kit)</td>
+<td>0.2 µs</td>
+<td>0.4 µs</td>
+</tr>
+<tr>
+<td>a <strong>new</strong> action (intent + result written to disk with a full sync)</td>
+<td>1.9 ms</td>
+<td>6.0 ms</td>
+</tr>
+<tr>
+<td>a <strong>repeated</strong> action (recorded result returned)</td>
+<td>45 µs</td>
+<td>91 µs</td>
+</tr>
+<tr>
+<td>approve + spend the "yes" + run the action</td>
+<td>5.0 ms</td>
+<td>14 ms</td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li><strong>Memory:</strong> about 45 bytes kept per action (tracemalloc). The record lives on disk, not in memory.</li>
+<li><strong>Disk:</strong> about 275 bytes per row in the main file. An action is 2 rows: the intent and the result.
+  An approval adds 2 to 3 rows. The write-ahead file next to the record grows to about 4 MB, then is
+  folded back in and shrunk to 1 MB.</li>
+<li><strong>Before this release,</strong> a new action cost 22 ms (median), because a new database connection was
+  opened for every read and write. Connections are now reused per thread. The durability rule did not
+  change: the intent is on disk before the action runs.</li>
+</ul>
+<p>If the action itself calls a network API (tens to hundreds of ms), the kit's 2 ms is small. If you
+call very cheap local functions thousands of times per second, it is not small. Decorate only the
+calls that change the outside world.</p>
+<h2>What the big test shows</h2>
+<p>Run <code>python -m tests.bigtest_c4a</code>. It takes about 75 seconds, makes 0 LLM calls and uses no network
+outside this machine.</p>
+<p><strong>A. Chaos.</strong>
+- <strong>Setup:</strong> 12 processes × 6 rounds charge the same 300 orders at the same time through a fake payment
+  API. The API answers late (25% of requests) and drops answers after charging (15%).
+- <strong>Disruption:</strong> 46 of the 72 worker processes were killed at random points: before the call, after
+  the API charged but before the record, or between actions. Half-way through, the approval secret was
+  changed.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th>without the kit (control)</th>
+<th>with the kit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>orders charged twice or more</td>
+<td><strong>244 of 300</strong> (up to 6 times)</td>
+<td><strong>0</strong></td>
+</tr>
+<tr>
+<td>orders charged and recorded</td>
+<td>300</td>
+<td>300 / 300</td>
+</tr>
+<tr>
+<td>approved refunds run twice / without approval</td>
+<td>–</td>
+<td>0 / 0 (30 refunds, approvals from before the secret change)</td>
+</tr>
+<tr>
+<td>left in doubt at the end</td>
+<td>–</td>
+<td>0</td>
+</tr>
+<tr>
+<td>record integrity</td>
+<td>–</td>
+<td>ok</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>B. Long run.</strong>
+- 20,639 actions in one record, across 12 kills. On every restart, the 50 previous actions were called
+  again on purpose.
+- The secret changed half-way.
+- Result: <strong>0 actions sent twice</strong>, integrity ok, 41,278 rows, 11.4 MB main file.
+- <code>archive</code> moved the finished run out in 1.5 s.</p>
+<p><strong>C. Bad input.</strong> Each of these either worked or gave a clear error, with no unclear crash:
+- random bytes as a record;
+- a record cut in half;
+- another program's SQLite file;
+- a hand-edited row with broken JSON;
+- a 10 MB argument;
+- emoji, right-to-left and NUL characters;
+- NaN and infinity;
+- an argument nested 5,000 deep;
+- a socket object as an argument.</p>
+<p><strong>What the big test does not cover:</strong>
+- <strong>several real machines:</strong> all processes ran on one machine;
+- <strong>other systems at full size:</strong> the full-size run above was on Windows 10. On Linux and macOS, CI runs
+  the same test at a smaller size (<code>--quick</code>) on every change;
+- <strong>real payment providers:</strong> the API was a fake one;
+- <strong>power loss:</strong> not simulated. We rely on SQLite's full sync, and we did not test a power cut.</p>
+<h2>Running it</h2>
+<p><strong>Where the record lives.</strong> The record is one SQLite file. Put it on a <strong>local disk</strong>, shared by every
+process on that machine that runs the same agents.
+- <strong>Network drives are refused,</strong> because SQLite's locking is not reliable there. On Windows: a network
+  share. On Linux: mount types NFS, SMB/CIFS, sshfs and 9p, read from <code>/proc/mounts</code> (check P5 runs on
+  every change). On macOS, network drives are <strong>not</strong> detected; keep the record on a local disk.
+  Pass <code>allow_network_drive=True</code> only if you know your drive is safe.
+- <strong>Several machines need one shared record, and that is not supported yet.</strong> Once-only holds per
+  record file. If two machines can run the same action, give each action an explicit <code>c4a_key</code>. Make
+  sure the outside API honours idempotency keys (<code>idempotent_for=</code>), so it drops the duplicate.</p>
+<p><strong>On call.</strong> Nobody needs to read the database:</p>
+<pre><code>call4agents status  .c4a/ledger.sqlite                 # rows, actions, in doubt, integrity
+call4agents doubt   .c4a/ledger.sqlite --fail-if-any   # list; exit 3 if any (for cron / alerts)
+call4agents resolve .c4a/ledger.sqlite 3fa9c2 not-done &quot;provider dashboard shows no charge&quot;
+call4agents resolve .c4a/ledger.sqlite 7b01de done     &quot;charge ch_123 exists&quot;
+call4agents verify  .c4a/ledger.sqlite                 # exit 1 on damage or on a late result
+</code></pre>
+<ul>
+<li><strong><code>not-done</code>:</strong> the next call runs the action again.</li>
+<li><strong><code>done</code>:</strong> the next call returns without running it.</li>
+<li><strong>Every resolution is a new row,</strong> stamped "operator", with your note.</li>
+<li><strong>A late result:</strong> if an action you marked <code>not-done</code> later returns after all, it is recorded as
+  <code>LATE RESULT (may have happened twice)</code> and Python raises a warning. <code>verify</code> fails on it. Check the
+  outside system by hand.</li>
+</ul>
+<p><strong>Growth.</strong> <code>call4agents archive &lt;record&gt; &lt;archive.sqlite&gt; 30</code> moves runs older than 30 days, in one
+transaction, into an archive file with the same format.
+- <strong>What stays:</strong> a run with anything in doubt, or with a late result, is never moved.
+- <strong>The record format is versioned.</strong> A record written by a newer kit is refused, with a message to upgrade.</p>
+<p><strong>Changing the secret.</strong>
+1. Set the new one with <code>C4A_SECRET</code>, or <code>c4a.init(secret=...)</code>.
+2. List the old one in <code>C4A_OLD_SECRETS</code> (comma-separated), or <code>c4a.init(old_secrets=[...])</code>.</p>
+<p>Approvals signed with the old secret keep working, and new approvals use the new secret. When no open
+approval is older than the change, remove the old secret.</p>
+<p><strong>What is stored.</strong> The record keeps each action's arguments and results, and each approval's
+arguments, <strong>in plain text</strong>. Treat it like your database: set access rights, back it up, and use
+<code>archive</code> for retention. The approval secret file (<code>.c4a/secret</code>) must not be readable by anyone who
+should not approve actions.</p>
+<h2>Errors you may see, and what they mean</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Error</th>
+<th>Meaning</th>
+<th>What to do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>EffectInDoubt ... (crash during the effect)</code></td>
+<td>the process died while the action ran</td>
+<td><code>call4agents doubt</code>, get an authoritative answer from the provider (a read that finds nothing can lag), <code>resolve</code></td>
+</tr>
+<tr>
+<td><code>EffectInDoubt ... (it raised TimeoutError(...))</code></td>
+<td>the function raised; the action may or may not have happened</td>
+<td>same; or list errors that prove "nothing happened" in <code>retry_on=</code></td>
+</tr>
+<tr>
+<td><code>ApprovalRequired</code></td>
+<td>no unused "yes" for exactly these arguments in this run</td>
+<td>ask the person again</td>
+</tr>
+<tr>
+<td><code>RuntimeError: no current run</code></td>
+<td>called outside <code>with c4a.run(...)</code>, or in a thread that lost it</td>
+<td>enter <code>c4a.run</code> in that thread</td>
+</tr>
+<tr>
+<td><code>TypeError: ... no stable text form</code></td>
+<td>an argument would give a different key after a restart</td>
+<td>pass plain values or <code>c4a_key=</code></td>
+</tr>
+<tr>
+<td><code>LedgerError: ... newer Call4Agents</code></td>
+<td>the record was written by a newer kit</td>
+<td>upgrade; never downgrade a record</td>
+</tr>
+<tr>
+<td><code>LedgerError: ... network drive</code></td>
+<td>the record is not on a local disk</td>
+<td>move it, or <code>allow_network_drive=True</code></td>
+</tr>
+<tr>
+<td><code>LedgerError: row N ... is damaged</code></td>
+<td>someone edited the file, or it is corrupted</td>
+<td><code>call4agents verify</code>, restore from backup</td>
+</tr>
+</tbody>
+</table></div>
+<h2>Platforms</h2>
+<p>The systems and Python versions tested on every change are listed at the top of the
+<a href="https://github.com/salahmakboul/call4agents/blob/main/README.md#call4agents">README</a>. They come from the continuous tests in <code>.github/workflows/tests.yml</code>. Anything not
+listed there is not tested.</p>
+<ul>
+<li><strong>async (<code>asyncio</code>):</strong> tested (async effects, concurrent calls in one event loop, the async LangGraph adapter).</li>
+<li><strong>Streaming (generators):</strong> refused on purpose. A generator's work would run after its result was recorded.</li>
+<li><strong>Several machines sharing one record:</strong> not supported. See "Where the record lives" above.</li>
+</ul><p><small>Source: <a href="https://github.com/salahmakboul/call4agents/blob/main/docs/PRODUCTION.md">docs/PRODUCTION.md</a> in the repository.</small></p></article>
+
+</main>
+<footer class="container"><hr><p><small>Call4Agents · Apache-2.0 · Copyright 2026 Salah Eddine Makboul ·
+<a href="https://github.com/salahmakboul/call4agents">Source on GitHub</a> · <a href="https://pypi.org/project/call4agents/">PyPI</a> · Site layout: Pico CSS (MIT).</small></p></footer>
+</body>
+</html>

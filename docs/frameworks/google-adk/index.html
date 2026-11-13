@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Google ADK | Call4Agents docs</title>
+<meta name="description" content="Call4Agents makes an ADK tool act at most once per session, tool and exact arguments, and can bind ADK&#x27;s tool confirmation to the exact arguments the...">
+<link rel="canonical" href="https://salahmakboul.github.io/call4agents/docs/frameworks/google-adk/">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Call4Agents">
+<meta property="og:title" content="Google ADK">
+<meta property="og:description" content="Call4Agents makes an ADK tool act at most once per session, tool and exact arguments, and can bind ADK&#x27;s tool confirmation to the exact arguments the...">
+<meta property="og:url" content="https://salahmakboul.github.io/call4agents/docs/frameworks/google-adk/">
+<meta property="og:image" content="https://salahmakboul.github.io/call4agents/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Call4Agents: without it, 2 emails after a crash; with it, 1.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="https://salahmakboul.github.io/call4agents/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://salahmakboul.github.io/call4agents/assets/site.css">
+<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "Google ADK", "description": "Call4Agents makes an ADK tool act at most once per session, tool and exact arguments, and can bind ADK's tool confirmation to the exact arguments the...", "url": "https://salahmakboul.github.io/call4agents/docs/frameworks/google-adk/", "dateModified": "2026-11-13", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Docs", "item": "https://salahmakboul.github.io/call4agents/docs/"}, {"@type": "ListItem", "position": 3, "name": "Google ADK", "item": "https://salahmakboul.github.io/call4agents/docs/frameworks/google-adk/"}]}]</script>
+</head>
+<body>
+<header class="container">
+<nav>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/"><strong>Call4Agents</strong></a></li></ul>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/docs/">Docs</a></li><li><a href="https://salahmakboul.github.io/call4agents/guides/">Guides</a></li><li><a href="https://github.com/salahmakboul/call4agents">GitHub</a></li><li><a href="https://pypi.org/project/call4agents/">PyPI</a></li></ul>
+</nav>
+</header>
+<main class="container">
+<nav aria-label="breadcrumb" class="crumbs"><ul><li><a href="https://salahmakboul.github.io/call4agents/">Home</a></li><li><a href="https://salahmakboul.github.io/call4agents/docs/">Docs</a></li><li>Google ADK</li></ul></nav>
+<article class="doc"><h1>Google ADK</h1>
+<p>Call4Agents makes an ADK tool act at most once per session, tool and exact arguments, and can bind
+ADK's tool confirmation to the exact arguments the person saw.</p>
+<h2>Install</h2>
+<pre><code class="language-bash">pip install call4agents google-adk
+</code></pre>
+<p>Tested with google-adk 2.14.0 (the newest release on 12 November 2026), Python 3.12.</p>
+<h2>Example</h2>
+<pre><code class="language-python">import call4agents as c4a
+from call4agents.adapters import google_adk as c4a_adk
+from google.adk.agents import LlmAgent
+from google.adk.tools import ToolContext
+
+c4a.init()                                   # the run record: ./.c4a/ledger.sqlite
+
+@c4a_adk.effect                              # once per session, tool and exact arguments
+def send_email(to: str, body: str, tool_context: ToolContext) -&gt; str:
+    &quot;&quot;&quot;Send an email.&quot;&quot;&quot;
+    ...
+
+agent = LlmAgent(name=&quot;mailer&quot;, model=..., tools=[send_email])
+</code></pre>
+<p>A runnable version with a scripted model (no API key, no network):
+<code>python -m call4agents.examples.google_adk_tool</code>. It sends the same message twice in one session:
+2 emails without the kit, 1 with it.</p>
+<h2>Where the run id comes from</h2>
+<p>From the ADK session in the tool context: app name, user id and session id together
+(<code>c4a_adk.run_id(session)</code> shows it). We use the session, not the invocation id:</p>
+<ul>
+<li>a resumed invocation (<code>runner.run_async(..., invocation_id=...)</code>) runs in the same session;</li>
+<li>a message sent again after a timeout or a crash runs in the same session, but gets a NEW invocation
+  id. With the invocation id as run id, that retry would send again (the tests check this).</li>
+</ul>
+<p>The cost: in one session, the same tool with the same arguments acts once. For a deliberate second
+identical action, pass <code>c4a_key="..."</code> at call time.</p>
+<p>The tool context is left out of the key. The adapter finds it the way ADK does (a parameter typed as
+<code>ToolContext</code> / <code>Context</code>, or named <code>tool_context</code>), so a model argument named <code>context</code> stays in the
+key. An active <code>with c4a.run(...)</code> wins over the session. A tool with no context parameter needs
+<code>with c4a.run(...)</code> around the run, or it stops with a clear error.</p>
+<h2>Tool confirmation</h2>
+<pre><code class="language-python">from google.adk.tools import FunctionTool
+
+guarded = c4a_adk.effect(approval=True)(send_email)
+tool = FunctionTool(guarded, require_confirmation=True)
+
+# ADK asks with an adk_request_confirmation function call; show its arguments to the person, then:
+answer = c4a_adk.confirm(call, True, tools=[tool], session=session)   # or False for a no
+runner.run_async(user_id=..., session_id=..., new_message=answer)
+</code></pre>
+<p><code>confirm()</code> records <code>c4a.approve</code> (or <code>c4a.deny</code>) for exactly the arguments in the confirmation
+call, then returns the answer for ADK. When the tool runs, Call4Agents checks the yes against the
+arguments it really runs with. It refuses a tool not wrapped with <code>approval=True</code>, because the yes
+would then bind nothing.</p>
+<h2>What is tested</h2>
+<p><code>python -m tests.test_adapters_more2 --require-frameworks</code> (real ADK, scripted model, offline; a
+socket guard fails the run on any non-loopback connection):</p>
+<ul>
+<li>same message twice in one session: 2 sends without the kit (control), plain <code>c4a.effect</code> fails,
+  the adapter sends 1;</li>
+<li><code>approval=True</code>: no yes is refused; a yes for other arguments is refused; a yes for the exact
+  arguments sends 1, and a retry does not send again;</li>
+<li>ADK confirmation with <code>confirm()</code>: a yes sends 1; the stored call (the model's call and ADK's copy)
+  changed to another address after the yes is refused; without the kit the same change sends to the
+  new address (control); a no after the yes, with the old yes reaching ADK, is refused;</li>
+<li><code>call4agents crashtest</code> on <code>tests/crashtest_agents/adk_agent.py</code> (SQLite session; on restart the app
+  sends the message again): a repeat is found without the guard, none with it.</li>
+</ul>
+<p>Each check is mutation-proven (<code>python -m tests.mutations.run_kit_mutations --adapters-more2</code>).</p>
+<h2>Known limits</h2>
+<ul>
+<li>Only the session and the arguments ADK passes are known. The changed-call test edits an in-memory
+  session; it is not a test of ADK's SQL or Vertex session stores.</li>
+<li><code>confirm()</code> takes the arguments from the confirmation call as the model sent them. If ADK converts
+  a value before the call (for example a string into a number for an <code>int</code> parameter), the yes may not
+  match, and the call is refused (it fails closed).</li>
+<li>A crash during the send leaves the call in doubt: the next try raises <code>EffectInDoubt</code> unless you
+  pass <code>reconcile=</code> (see docs/IDEMPOTENCY.md).</li>
+<li>ADK issue #7148 ("deny not enforced" for custom tools) is closed. In 2.14.0 the source applies the
+  confirmation gate to every tool whose <code>check_require_confirmation</code> returns True, and a no returns
+  "This tool call is rejected." We read this in the source; we did not test custom <code>BaseTool</code> classes
+  that ask for confirmation only from inside <code>run_async</code>. With <code>approval=True</code>, a no recorded by
+  <code>confirm()</code> is enforced by Call4Agents in any case.</li>
+<li>Live (streaming) tools and long-running tools are not tested.</li>
+</ul><p><small>Source: <a href="https://github.com/salahmakboul/call4agents/blob/main/docs/frameworks/google_adk.md">docs/frameworks/google_adk.md</a> in the repository.</small></p></article>
+
+</main>
+<footer class="container"><hr><p><small>Call4Agents · Apache-2.0 · Copyright 2026 Salah Eddine Makboul ·
+<a href="https://github.com/salahmakboul/call4agents">Source on GitHub</a> · <a href="https://pypi.org/project/call4agents/">PyPI</a> · Site layout: Pico CSS (MIT).</small></p></footer>
+</body>
+</html>

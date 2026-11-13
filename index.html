@@ -19,31 +19,34 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="https://salahmakboul.github.io/call4agents/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="https://salahmakboul.github.io/call4agents/assets/site.css">
-<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareSourceCode", "name": "Call4Agents", "description": "Python library that makes AI agent tool calls safe to retry: once-only actions, approvals bound to exact arguments, undo. LangGraph, Pydantic AI, OpenAI SDK, MCP.", "codeRepository": "https://github.com/salahmakboul/call4agents", "programmingLanguage": "Python", "license": "https://www.apache.org/licenses/LICENSE-2.0", "url": "https://salahmakboul.github.io/call4agents/", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "runtimePlatform": "Python 3.10+", "softwareVersion": "0.6.0"}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareSourceCode", "name": "Call4Agents", "description": "Python library that makes AI agent tool calls safe to retry: once-only actions, approvals bound to exact arguments, undo. LangGraph, Pydantic AI, OpenAI SDK, MCP.", "codeRepository": "https://github.com/salahmakboul/call4agents", "programmingLanguage": "Python", "license": "https://www.apache.org/licenses/LICENSE-2.0", "url": "https://salahmakboul.github.io/call4agents/", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "runtimePlatform": "Python 3.10+", "softwareVersion": "0.7.2"}</script>
 </head>
 <body>
 <header class="container">
 <nav>
 <ul><li><a href="https://salahmakboul.github.io/call4agents/"><strong>Call4Agents</strong></a></li></ul>
-<ul><li><a href="https://salahmakboul.github.io/call4agents/guides/">Guides</a></li><li><a href="https://github.com/salahmakboul/call4agents">GitHub</a></li><li><a href="https://pypi.org/project/call4agents/">PyPI</a></li></ul>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/docs/">Docs</a></li><li><a href="https://salahmakboul.github.io/call4agents/guides/">Guides</a></li><li><a href="https://github.com/salahmakboul/call4agents">GitHub</a></li><li><a href="https://pypi.org/project/call4agents/">PyPI</a></li></ul>
 </nav>
 </header>
 <main class="container">
 
 
 <section>
-<p class="tag">Open source · Python · Apache-2.0</p>
+<p class="tag">Open source · Python · Apache-2.0 · version 0.7.2</p>
 <h1>Stop AI agents from repeating actions after a crash, retry or resume</h1>
-<p>Call4Agents is a small Python library for agents that send emails, take payments or change data. It sits on top
-of LangGraph, Pydantic AI, the OpenAI Agents SDK, MCP servers or plain Python. Each action runs once even if the
-agent crashes, retries or resumes; a human "yes" covers only the exact action that was shown; and you can undo a
-run. Standard library only.</p>
+<p><strong>One yes, one payment, even after a crash.</strong> Call4Agents is a small Python library for agents that
+send emails, take payments or change data. It sits on top of LangGraph, Pydantic AI, the OpenAI Agents SDK, Google ADK,
+Microsoft Agent Framework, MCP servers or plain Python. Each action runs once even if the agent crashes, retries or
+resumes; a human "yes" covers only the exact action that was shown, once; and a later "no" is enforced. Standard
+library only.</p>
 <pre><code>pip install call4agents
 call4agents quickstart   # offline, no API keys: 2 emails without the kit, 1 with it</code></pre>
+<p><a href="https://salahmakboul.github.io/call4agents/docs/">Read the documentation</a>: concepts, recipes for payments, bookings, emails and refunds, and
+the API reference.</p>
 </section>
 <section>
 <h2>Does your agent repeat an action after a crash?</h2>
-<p><code>call4agents crashtest your_agent.py</code> kills your agent at every step, restarts it, and tells you which
+<p><code>call4agents crashtest your_agent.py --test-accounts</code> kills your agent at every step, restarts it, and tells you which
 action ran twice. Your agent does not need to use the kit first. This is real output of
 <code>call4agents crashtest --demo</code>, on a small example agent. The command is experimental, and every action
 really runs, so use test accounts.</p>
@@ -96,7 +99,7 @@ text{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",mo
 <li><strong>Approvals bound to exact arguments:</strong> one "yes" covers one action; a later "no" is enforced.</li>
 <li><strong>Idempotency keys</strong> that stay the same across crashes, for Stripe-style APIs.</li>
 <li><strong>Undo:</strong> reverse a run newest first, each undo once only.</li>
-<li><strong>Adapters</strong> for LangGraph, Pydantic AI, the OpenAI Agents SDK and MCP, tested on Linux, macOS and Windows with Python 3.10 to 3.13.</li>
+<li><strong>Adapters</strong> for LangGraph, Pydantic AI, the OpenAI Agents SDK, Google ADK, Microsoft Agent Framework and MCP, tested on Linux, macOS and Windows with Python 3.10 to 3.13.</li>
 </ul>
 </section>
 <section>
@@ -105,7 +108,7 @@ text{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",mo
 </section>
 <section>
 <h2>Honest limits</h2>
-<p>Version 0.6, early. Not yet proven with real payment systems in production. Several machines can share one
+<p>Version 0.7.2, early. Not yet proven with real payment systems in production. Several machines can share one
 run record in PostgreSQL; that is tested with separate processes and one local server, not yet on real
 networks. Every number on this site can be reproduced from the
 <a href="https://github.com/salahmakboul/call4agents">repository</a>.</p>
