@@ -21,15 +21,25 @@ Branch: team/js. New folder js/ (TypeScript port of the core + crash test + two 
     npm run mutations        # node test/mutations.mjs
 
 ## Measured (Windows 10, Node 24.19.0, Python 3.12 for the fixture; only Windows could be run here)
-- npm test: MEASURED_TESTS
-- Mutations: MEASURED_MUTATIONS
+- npm test: 37 tests, 37 pass, 0 skipped (core 15, process 6, canonical 4, crosslang 3, crashtest 4,
+  adapters 5), about 31-58 s. Run after rebasing onto main 4860dd0 (0.7.3).
+- Mutations: 18 mutations + a no-op control (the control runs ALL test files in the copy and must pass).
+  First full run: control MISSED (ok), 17 caught, 1 MISSED: "ai-sdk run id = toolCallId" - A4 always ran
+  inside c4a.run, so the adapter's own run-id path was never used (a decorative check). Fixed with A5 (no
+  c4a.run, run id from toolsContext); that mutation is now caught by A5. FINAL_MUTATION_RUN
+- Which test catches which mutation: approval not spent J5; deny ignored J5,J6; a yes covers any arguments J5;
+  admission not atomic (no transaction AND no unique one_use index) P5; canonical key order C2,X1; reconcile
+  null treated as done J4,K29b; UNKNOWN treated as null J4; live key check removed CT8; --test-accounts check
+  removed CT8; no owner check before reconcile K29a,K30; marked running after the claim (Fix 19 undone) K30;
+  attempt given up twice K29c; attempts counted not numbered K29c; live pid counts as gone K29d; lease ignored
+  K29d; openai-agents run id = tool call id A1,A2; ai-sdk run id = toolCallId A5.
 - Cross-language fixture: 35 of 35 argument vectors give the same canonical text and the same sha256 key as
   the Python kit (main, 0.7.3 code). Two known differences are asserted: Python 10.0 -> "10.0" vs JS "10";
   1e16 -> Python "1e+16", JS refuses (TypeError).
 - Cross-language record (feasible, done): a Python "yes" is spent by JS and Python then replays the JS result
   without running; a JS "yes" + finished call is replayed by Python; a Python-recorded call is replayed by JS;
   a JS "no" cancels a Python "yes" (Python gets ApprovalRequired). Both kits give the same host name (X4).
-- Sizes: dist .js 79.2 kB (13 files), .d.ts 16.5 kB; dist folder 143 kB on disk.
+- Sizes: dist .js 79.2 kB (12 files, 79,174 bytes), .d.ts 16.5 kB (16,543 bytes); dist folder 143 kB on disk.
 
 ## Proven (by the tests above, on Windows)
 - Once-only, replay, error -> in doubt at once, retryOn, reconcile result / null / UNKNOWN / undefined refused,
