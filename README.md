@@ -1,8 +1,8 @@
 # Call4Agents
 
 **One yes, one payment, even after a crash.** Call4Agents makes the actions of a Python agent safe to retry. You add it to the agent you already
-have: LangGraph, Pydantic AI, the OpenAI Agents SDK, Google ADK, Microsoft Agent Framework, an MCP server, or plain
-Python. It does not replace any of them.
+have: LangGraph, Pydantic AI, the OpenAI Agents SDK, Google ADK, Microsoft Agent Framework, CrewAI, LlamaIndex,
+smolagents, an MCP server, or plain Python. It does not replace any of them.
 
 **Write-up, 5 November 2026:** [A "yes" is not exactly-once](docs/finding/). One approved payment, a crash
 right after it, a documented resume: 2 payments in LangGraph, Pydantic AI and the OpenAI Agents SDK, and later in
@@ -557,6 +557,12 @@ next to every batch of mutations. Rerun them with `python -m tests.mutations.run
   damaged record files. On 0.7.1 they find the double payment by themselves.
 - [The guarantees](docs/GUARANTEES.md): each promise with its conditions, the checks behind it, and what it does not
   cover.
+- [An open crash-safety benchmark](bench/README.md):
+  - eight failure scenarios plus two controls, run with real process kills against a plain loop, LangGraph, the
+    OpenAI Agents SDK and Pydantic AI;
+  - each framework is run in its documented default and with Call4Agents; [results](bench/RESULTS.md);
+  - where a framework already passes a scenario on its own, the results say so;
+  - any framework can add itself.
 
 **Not proven:**
 - real payment or email systems, and production traffic;
@@ -565,8 +571,8 @@ next to every batch of mutations. Rerun them with `python -m tests.mutations.run
   and one local PostgreSQL server), and managed platforms such as LangGraph Cloud;
 - an independent code review (see [docs/REVIEWED.md](docs/REVIEWED.md));
 - `crashtest` and `scan` on real production agents;
-- frameworks other than the six with adapters (LangGraph, Pydantic AI, the OpenAI Agents SDK, MCP, Google ADK,
-  Microsoft Agent Framework); the decorator itself works in any framework;
+- frameworks other than the nine with adapters (LangGraph, Pydantic AI, the OpenAI Agents SDK, MCP, Google ADK,
+  Microsoft Agent Framework, CrewAI, LlamaIndex, smolagents); the decorator itself works in any framework;
 - approval tickets with real users and real approval UIs (experimental: tested with fake models only).
 
 ## Costs and limits
