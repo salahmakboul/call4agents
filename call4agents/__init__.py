@@ -34,7 +34,7 @@ __all__ = ["init", "run", "effect", "approve", "deny", "current_ledger", "idempo
            "undo", "UndoFailed", "ReplayMismatch", "ReplayMissing", "ApprovalRequired", "EffectInDoubt", "Ledger",
            "pause", "decide", "TicketRefused", "KeyConflict", "UNKNOWN", "Limit", "LimitReached",
            "Rules", "RuleRefused"]
-__version__ = "0.7.2"
+__version__ = "0.7.3"
 
 _LEDGER: Optional[Ledger] = None
 _RUN: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("c4a_run", default=None)

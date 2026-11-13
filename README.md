@@ -353,11 +353,11 @@ def test_refund_survives_a_crash(c4a_crashtest):
 The test fails on RAN TWICE or NOT APPROVED and shows the one-line fix. It refuses to start until you pass
 `test_accounts=True`, which says the script talks only to fakes, sandboxes or test accounts.
 
-In GitHub Actions (experimental; it installs the published 0.7.2 by default). Pin a release tag or a commit SHA:
+In GitHub Actions (experimental; it installs the published 0.7.3 by default). Pin a release tag or a commit SHA:
 
 ```yaml
 - uses: actions/checkout@v4
-- uses: salahmakboul/call4agents@v0.7.2
+- uses: salahmakboul/call4agents@v0.7.3
   with:
     script: agents/refund_agent.py
     test-accounts: "true"      # required: every action really runs, many times
