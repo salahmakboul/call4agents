@@ -34,7 +34,7 @@ try:
     import hypothesis
     from hypothesis import HealthCheck, given, settings
     from hypothesis import strategies as st
-    from hypothesis.stateful import RuleBasedStateMachine, invariant, rule, run_state_machine_as_test
+    from hypothesis.stateful import RuleBasedStateMachine, initialize, invariant, rule, run_state_machine_as_test
     HAVE_HYPOTHESIS = True
 except ImportError:                     # pragma: no cover - the skip path
     HAVE_HYPOTHESIS = False
@@ -369,14 +369,15 @@ def make_machine():
                 return ("result", None)
             if s["state"] == "fresh":
                 return ("runs", "admit") if self.live_unspent(item) else ("approval", None)
-            denied_since = self.last_denial(item) > s["spend_ev"]
+            if self.last_denial(item) > s["spend_ev"]:
+                return ("approval", None)       # a "no" since the yes was spent: refused before reconcile is asked
             if s["proven"]:
-                return ("approval", None) if denied_since else ("runs", "admit")
+                return ("runs", "admit")
             if mode == "lagging":
                 return ("doubt", "reconcile")
             if self.provider.get(k):
                 return ("reconciled", "reconcile")
-            return ("approval", "reconcile") if denied_since else ("runs", "reconcile")
+            return ("runs", "reconcile")
 
         # ---------------------------------------------------------- rules
         @rule(item=st.sampled_from(ITEMS))
@@ -454,7 +455,33 @@ def make_machine():
               behaviors=st.lists(st.sampled_from(BEHAVIORS), min_size=1, max_size=2),
               mode=st.sampled_from(("truthful", "lagging")), retries=st.booleans())
         def call(self, item, key, behaviors, mode, retries):
+            count("rule call")
             self._call(item, key, behaviors, mode, retries)
+
+        # The same rule twice: Hypothesis picks rules with equal weight, and a plain call is the step most bugs
+        # need (with one copy, 30 derandomized runs once had no call at all and missed 8 mutations, 13 Nov).
+        @rule(item=st.sampled_from(ITEMS), key=st.sampled_from(KEYS),
+              behaviors=st.lists(st.sampled_from(BEHAVIORS), min_size=1, max_size=2),
+              mode=st.sampled_from(("truthful", "lagging")), retries=st.booleans())
+        def call_again(self, item, key, behaviors, mode, retries):
+            count("rule call")
+            self._call(item, key, behaviors, mode, retries)
+
+        @initialize(item=st.sampled_from(ITEMS), behavior=st.sampled_from(BEHAVIORS))
+        def start(self, item, behavior):
+            """Every run starts with one approved call of a drawn behavior, so each run has something in play."""
+            self.approve(item)
+            self._call(item, None, [behavior], "truthful", False)
+
+        @rule(item=st.sampled_from(ITEMS), deny_first=st.booleans(), behavior=st.sampled_from(BEHAVIORS),
+              mode=st.sampled_from(("truthful", "lagging")))
+        def approve_then_call(self, item, deny_first, behavior, mode):
+            """A yes (sometimes cancelled by a no) and then a call: the short path to most approval bugs."""
+            count("rule approve_then_call")
+            self.approve(item)
+            if deny_first:
+                self.deny(item)
+            self._call(item, None, [behavior], mode, False)
 
         @rule(data=st.data(), mode=st.sampled_from(("truthful", "lagging")))
         def resume(self, data, mode):
@@ -1216,6 +1243,13 @@ def run_machine(cfg):
     except Exception as exc:      # noqa: BLE001
         check(label, False, f"{type(exc).__name__}: {str(exc)[:600]}")
         print(notes(exc))
+        return
+    # A passing run proves little if it never took the paths the bugs live on: each must have run at least once.
+    need = [f"event admit {b}" for b in BEHAVIORS] + [
+        "event reconcile None", "event reconcile found", "event reconcile UNKNOWN", "rule approve_then_call",
+        "still_running_and_a_racer: EffectInDoubt", "two_threads: returned", "two_resumes: returned"]
+    missing = [n for n in need if not COUNTS.get(n)]
+    check(f"machine: the run took every path at least once ({len(need)} paths)", not missing, missing)
 
 
 def main(argv=None):
@@ -1235,7 +1269,7 @@ def main(argv=None):
         SEED["n"] = a.seed if a.seed is not None else random.randrange(2 ** 32)
         cfg = {"machine_examples": 500, "steps": 50, "examples": 3000, "derandomize": False}
     else:
-        cfg = {"machine_examples": 30, "steps": 30, "examples": 200, "derandomize": True}
+        cfg = {"machine_examples": 40, "steps": 20, "examples": 200, "derandomize": True}
     print(f"hypothesis {hypothesis.__version__}, {'long' if a.long else 'default'} run, "
           + (f"seed {SEED['n']} (rerun: --long --seed {SEED['n']})" if SEED["n"] is not None
              else "derandomized (the same examples every run)"), flush=True)
