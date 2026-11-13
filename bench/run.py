@@ -440,7 +440,30 @@ def write_markdown(doc: Dict[str, Any], path: Path, json_name: str) -> None:
         o = load(s)
         lines.append(f"- **{o.title}** (bench/subjects/{SUBJECTS_AND_CONTROLS[s].split(':')[0].rsplit('.', 1)[1]}.py). "
                      f"Default: {o.default_config}. With call4agents: {o.kit_config}.")
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+
+
+def redact(obj: Any, base: Optional[Path] = None) -> Any:
+    """The same data without local folder names (the temp folder, this checkout, the home folder): a results file
+    is published, and an error line or a kit path would otherwise carry the user's paths."""
+    places = [(str(base), "<work>")] if base else []
+    places += [(str(ROOT), "<repo>"), (tempfile.gettempdir(), "<tmp>"), (str(Path.home()), "<home>")]
+    pairs = []
+    for real, name in places:
+        pairs += [(real, name), (real.replace("\\", "\\\\"), name), (real.replace("\\", "/"), name)]
+    pairs.sort(key=lambda p: -len(p[0]))
+
+    def clean(v: Any) -> Any:
+        if isinstance(v, str):
+            for real, name in pairs:
+                v = v.replace(real, name)
+            return v
+        if isinstance(v, list):
+            return [clean(x) for x in v]
+        if isinstance(v, dict):
+            return {k: clean(x) for k, x in v.items()}
+        return v
+    return clean(obj)
 
 
 def controls_gate(cells: List[Dict[str, Any]]) -> None:
@@ -532,7 +555,8 @@ def main(argv: List[str]) -> int:
     out = Path(opts["out"])
     out.mkdir(parents=True, exist_ok=True)
     name = f"{date}-{platform.system().lower()}.json"
-    (out / name).write_text(json.dumps(doc, indent=1), encoding="utf-8")
+    doc = redact(doc, base)
+    (out / name).write_text(json.dumps(doc, indent=1), encoding="utf-8", newline="\n")
     print(f"\nwrote {out / name} ({doc['seconds']} s)")
     if opts["markdown"]:
         md = ROOT / "bench" / "RESULTS.md" if out.resolve() == (ROOT / "bench" / "results").resolve() else out / "RESULTS.md"
