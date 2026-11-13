@@ -106,7 +106,6 @@ the kit and runs the suite. A no-op control must be MISSED.
 | `UNKNOWN` is read as `None` | machine |
 | the result row is written twice | machine |
 | a finished call is not replayed | machine |
-| the record overwrites a row | machine |
 | no owner check before reconcile (Fix 17) | machine |
 | the codec calls whatever a record names | codec |
 | a tuple comes back as a list | codec |
