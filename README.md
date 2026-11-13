@@ -547,6 +547,17 @@ A dash means the case was not tested in that framework.
 Each guard is mutation-tested: when its bug is put back, its check fails. A no-op control is run
 next to every batch of mutations. Rerun them with `python -m tests.mutations.run_kit_mutations`.
 
+**Checked beyond tests:**
+- [A formal model of the protocol](docs/FORMAL_MODEL.md), checked with TLC:
+  - it covers several workers, crashes at any point, approvals, denials, reconcile and same-key resends;
+  - 9 configurations pass;
+  - 13 seeded bugs are each caught with their named property;
+  - it found two real double payments that our tests had missed (fixed in 0.7.2 and 0.7.3).
+- [Property-based tests](docs/PROPERTIES.md) with Hypothesis: random runs with racing callers, keys, the codec and
+  damaged record files. On 0.7.1 they find the double payment by themselves.
+- [The guarantees](docs/GUARANTEES.md): each promise with its conditions, the checks behind it, and what it does not
+  cover.
+
 **Not proven:**
 - real payment or email systems, and production traffic;
 - systems and Python versions not listed at the top of this page;
