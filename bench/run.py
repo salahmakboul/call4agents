@@ -55,15 +55,19 @@ STEP_TIMEOUT = 180
 class Cell:
     """One scenario of one subject in one variant, in its own folder."""
 
-    def __init__(self, subject: str, kit: bool, scenario: str, base: Path) -> None:
-        self.subject, self.kit, self.scenario = subject, kit, scenario
+    def __init__(self, subject: str, variant: str, scenario: str, base: Path, kit_path: Optional[str] = None) -> None:
+        self.subject, self.variant, self.scenario = subject, variant, scenario
+        self.kit = variant != "default"
+        self.kit_path = kit_path              # the folder that holds the call4agents package of this variant
         self.work = Path(tempfile.mkdtemp(prefix=f"bench-{subject}-{scenario}-", dir=base))
         self.steps: List[Dict[str, Any]] = []
 
     def step(self, step: str, run_id: str = "run-A", arg: Optional[dict] = None, fault: str = "",
              lookup: str = "truth", delay: float = 0.0, barrier: Optional[str] = None, repeat: int = 1,
              wait: bool = True):
-        env = {**os.environ, "PYTHONPATH": os.pathsep.join(filter(None, [str(ROOT), os.environ.get("PYTHONPATH")])),
+        # The kit of this variant comes FIRST on the path, so `import call4agents` finds that version.
+        path = [self.kit_path, str(ROOT)] if self.kit_path else [str(ROOT)]
+        env = {**os.environ, "PYTHONPATH": os.pathsep.join(filter(None, path + [os.environ.get("PYTHONPATH", "")])),
                "PYTHONDONTWRITEBYTECODE": "1", "BENCH_FAULT": fault, "BENCH_LOOKUP": lookup,
                "BENCH_DELAY": str(delay), "BENCH_BARRIER": barrier or ""}
         cmd = [sys.executable, "-m", "bench.child", self.subject, "1" if self.kit else "0", step, str(self.work),
@@ -80,13 +84,17 @@ class Cell:
             proc.kill()
             out, err = proc.communicate()
             out += "\nBENCH_ERROR StepTimeout: the step ran longer than the benchmark allows"
-        result, error = None, ""
+        result, error, kit = None, "", None
         for line in out.splitlines():
             if line.startswith("BENCH_RESULT "):
                 result = json.loads(line[len("BENCH_RESULT "):])
             elif line.startswith("BENCH_ERROR "):
                 error = line[len("BENCH_ERROR "):]
+            elif line.startswith("BENCH_KIT "):
+                kit = line[len("BENCH_KIT "):]
         record = {"step": step, "code": proc.returncode, "result": result, "error": error}
+        if kit is not None:
+            record["kit"] = kit           # which call4agents the step really imported (checked in run_cell)
         if proc.returncode not in (0, KILLED) and not error:
             record["error"] = "exited " + str(proc.returncode) + ": " + (err.strip().splitlines() or [""])[-1][:200]
         self.steps.append(record)
@@ -152,7 +160,7 @@ def play(cell: Cell) -> Dict[str, Any]:
         first = cell.step("start", fault="kill_before_action")
         expect(first["code"] == KILLED and len(cell.charges()) == 0, "the kill before the action was not reached")
         go = str(cell.work / "go")
-        procs = [cell.step("resume", delay=0.5, barrier=go, wait=False) for _ in range(2)]
+        procs = [cell.step("resume", delay=1.0, barrier=go, wait=False) for _ in range(2)]
         deadline = time.monotonic() + 120
         while len(list(cell.work.glob("go.ready.*"))) < 2 and time.monotonic() < deadline:
             time.sleep(0.01)
@@ -214,21 +222,37 @@ def counted(scenario: str, charges: List[Dict[str, Any]]) -> int:
     return len(charges)
 
 
-def run_cell(subject: str, kit: bool, scenario: str, repeats: int, base: Path, keep: bool = False) -> Dict[str, Any]:
+def wrong_kit(cell: Cell) -> List[str]:
+    """A step that used another call4agents than its variant names (or any, in the default variant)."""
+    out = []
+    for s in cell.steps:
+        used = s.get("kit")
+        if used is None:
+            continue
+        if not cell.kit:
+            out.append(f"the default variant imported call4agents ({used})")
+        elif Path(used.split(" ", 1)[1]).resolve() != Path(cell.kit_path).resolve():
+            out.append(f"step {s['step']} used call4agents {used}, not the one in {cell.kit_path}")
+    return out
+
+
+def run_cell(subject: str, variant: str, scenario: str, repeats: int, base: Path, keep: bool = False,
+             kit_path: Optional[str] = None) -> Dict[str, Any]:
     obj = load(subject)
-    out: Dict[str, Any] = {"subject": subject, "variant": "call4agents" if kit else "default", "scenario": scenario}
+    kit = variant != "default"
+    out: Dict[str, Any] = {"subject": subject, "variant": variant, "scenario": scenario}
     reason = obj.not_applicable(scenario, kit)
     if reason:
         return {**out, "status": "n/a", "reason": reason, "repeats": []}
     reps = []
     for _ in range(repeats):
-        cell = Cell(subject, kit, scenario, base)
+        cell = Cell(subject, variant, scenario, base, kit_path)
         try:
             r = play(cell)
             reps.append({"count": counted(scenario, r["charges"]), "actions": len(r["charges"]),
                          "amounts": [c["amount"] for c in r["charges"]], "runs": [c["run_id"] for c in r["charges"]],
                          "processes": len({c["pid"] for c in r["charges"]}), "pass": judge(scenario, r["charges"]),
-                         "invalid": r["problems"], "ended": r["ended"], "steps": cell.steps})
+                         "invalid": r["problems"] + wrong_kit(cell), "ended": r["ended"], "steps": cell.steps})
         finally:
             if not keep:
                 shutil.rmtree(cell.work, ignore_errors=True)
@@ -267,16 +291,66 @@ def version(dist: str) -> Optional[str]:
         return None
 
 
-def environment(subjects: List[str]) -> Dict[str, Any]:
-    import call4agents
+def _git(*args: str) -> Optional[str]:
     try:
-        commit = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True,
-                                timeout=20).stdout.strip() or None
+        r = subprocess.run(["git", *args], cwd=ROOT, capture_output=True, timeout=60)
     except (OSError, subprocess.SubprocessError):
-        commit = None
+        return None
+    return r.stdout.decode("utf-8", "replace").strip() if r.returncode == 0 else None
+
+
+def kit_version(path: Path) -> str:
+    """__version__ as written in that copy of call4agents/__init__.py (read, not imported)."""
+    for line in (path / "call4agents" / "__init__.py").read_text(encoding="utf-8").splitlines():
+        if line.startswith("__version__ = "):
+            return line.split("=", 1)[1].strip().strip("\"'")
+    return "?"
+
+
+def release_kit(release: str, base: Path) -> Dict[str, Any]:
+    """The released call4agents `release` in its own folder: from the git tag v<release> when the checkout has it,
+    else from PyPI (pip install --no-deps --target). Only the package folder, so `bench` still comes from here."""
+    import tarfile
+    dest = base / f"kit-{release}"
+    dest.mkdir(parents=True, exist_ok=True)
+    tag = f"v{release}"
+    try:
+        r = subprocess.run(["git", "archive", "--format=tar", tag, "call4agents"], cwd=ROOT, capture_output=True,
+                           timeout=120)
+        ok = r.returncode == 0 and r.stdout
+    except (OSError, subprocess.SubprocessError):
+        ok = False
+    if ok:
+        tar = base / f"kit-{release}.tar"
+        tar.write_bytes(r.stdout)
+        with tarfile.open(tar) as t:
+            t.extractall(dest, filter="data") if hasattr(tarfile, "data_filter") else t.extractall(dest)
+        source = f"git tag {tag} ({_git('rev-parse', '--short', tag + '^{commit}')})"
+    else:
+        p = subprocess.run([sys.executable, "-m", "pip", "install", "--quiet", "--no-deps", "--target", str(dest),
+                            f"call4agents=={release}"], capture_output=True, text=True, timeout=600)
+        if p.returncode != 0:
+            raise SystemExit(f"could not get call4agents {release} (no tag {tag}, pip failed: {p.stderr[-300:]})")
+        source = f"PyPI call4agents=={release}"
+    found = kit_version(dest)
+    if found != release:
+        raise SystemExit(f"the copy of call4agents {release} says it is {found}")
+    return {"path": str(dest), "version": found, "source": source, "label": f"call4agents {found} (release)"}
+
+
+def head_kit() -> Dict[str, Any]:
+    commit = _git("rev-parse", "--short", "HEAD")
+    dirty = bool(_git("status", "--porcelain", "--", "call4agents"))
+    v = kit_version(ROOT)
+    where = f"{commit}{' + uncommitted changes' if dirty else ''}" if commit else "this folder"
+    return {"path": str(ROOT), "version": v, "source": f"this checkout ({where})",
+            "label": f"call4agents head ({commit or 'local'})"}
+
+
+def environment(subjects: List[str], kits: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
     return {"python": platform.python_version(), "os": platform.system(), "os_release": platform.release(),
-            "machine": platform.machine(), "call4agents": call4agents.__version__,
-            "call4agents_from": str(Path(call4agents.__file__).resolve().parent), "repo_commit": commit,
+            "machine": platform.machine(), "repo_commit": _git("rev-parse", "--short", "HEAD"),
+            "kits": {k: {x: v for x, v in info.items() if x != "path"} for k, info in kits.items()},
             "packages": {d: version(d) for s in subjects for d in load(s).packages}}
 
 
@@ -291,76 +365,100 @@ def summary(cell: Dict[str, Any]) -> str:
     return f"{word} {parts}"
 
 
+def label(doc: Dict[str, Any], variant: str) -> str:
+    return "default" if variant == "default" else doc["environment"]["kits"][variant]["label"]
+
+
 def write_markdown(doc: Dict[str, Any], path: Path, json_name: str) -> None:
     env = doc["environment"]
     cells = {(c["subject"], c["variant"], c["scenario"]): c for c in doc["cells"]}
-    subjects = doc["subjects"]
-    scen = doc["scenarios"]
+    subjects, scen, variants = doc["subjects"], doc["scenarios"], doc["variants"]
+    kits = [v for v in variants if v != "default"]
     lines = ["# Results", "",
              f"Measured on **{env['os']} only** ({env['os']} {env['os_release']}, {env['machine']}), "
-             f"Python {env['python']}, call4agents {env['call4agents']}, on {doc['date']}. "
-             f"Raw data: [results/{json_name}](results/{json_name}).", "",
+             f"Python {env['python']}, on {doc['date']}. Raw data: [results/{json_name}](results/{json_name}).", "",
              "Other systems are not measured yet. The CI workflow (.github/workflows/bench.yml) runs the same "
              "benchmark on Linux, macOS and Windows and keeps the JSON as an artifact; it does not change this file.", "",
-             "Each cell is `status repeats: count`. The count is what the fake bank recorded: actions in total "
-             "(S1, S2, S3, S5, S7, C1, C2), actions with amount 5000 (S4), actions in run B (S8), actions (S6). "
+             "Each cell is `status repeats: count`. The count is what the fake bank recorded: all actions (C1, C2, "
+             "S1, S2, S3, S5, S6, S7), actions with amount 5000 (S4), actions in run B (S8). "
              f"Crash cells (S1, S3, S7) ran {doc['repeat']} times each, the others once. The pass rules are in "
              "[scenarios.md](scenarios.md).", "",
-             "Versions: " + ", ".join(f"{k} {v}" for k, v in sorted(env["packages"].items()) if v) + ".", ""]
-    head = "| subject | variant | " + " | ".join(scen) + " |"
-    lines += [head, "|" + "---|" * (len(scen) + 2)]
+             "Framework versions: " + ", ".join(f"{k} {v}" for k, v in sorted(env["packages"].items()) if v) + ".", ""]
+    for k in kits:
+        info = env["kits"][k]
+        lines.append(f"- **{info['label']}**: call4agents {info['version']} from {info['source']}.")
+    lines += ["", "| subject | variant | " + " | ".join(scen) + " |", "|" + "---|" * (len(scen) + 2)]
     for s in subjects:
-        title = load(s).title
-        for variant in ("default", "call4agents"):
-            row = [summary(cells[(s, variant, x)]) if (s, variant, x) in cells else "-" for x in scen]
-            lines.append(f"| {title} | {variant} | " + " | ".join(row) + " |")
+        for v in variants:
+            row = [summary(cells[(s, v, x)]) if (s, v, x) in cells else "-" for x in scen]
+            lines.append(f"| {load(s).title} | {label(doc, v)} | " + " | ".join(row) + " |")
     lines += ["", "Scenarios: " + "; ".join(f"**{k}** {TITLES[k]}" for k in scen) + ".", ""]
 
     native = [(s, x) for s in subjects for x in scen if x.startswith("S")
               and cells.get((s, "default", x), {}).get("status") == "pass"]
     lines += ["## Passed without call4agents", ""]
     if native:
-        lines += ["These framework defaults already pass a scenario on their own. call4agents is not needed for them:", ""]
+        lines += ["These framework defaults pass a scenario on their own. call4agents is not needed for them:", ""]
         for s, x in native:
             lines.append(f"- **{load(s).title}**, {x} ({TITLES[x]}): {summary(cells[(s, 'default', x)])}.")
     else:
         lines.append("None.")
-    own = [(s, x) for s in subjects for x in scen
-           if cells.get((s, "call4agents", x), {}).get("status") in ("fail", "invalid")]
     lines += ["", "## Failed with call4agents", ""]
-    if own:
-        for s, x in own:
-            lines.append(f"- **{load(s).title}**, {x}: {summary(cells[(s, 'call4agents', x)])}.")
-    else:
+    own = [(s, k, x) for k in kits for s in subjects for x in scen
+           if cells.get((s, k, x), {}).get("status") in ("fail", "invalid")]
+    for s, k, x in own:
+        lines.append(f"- **{load(s).title}**, {label(doc, k)}, {x} ({TITLES[x]}): {summary(cells[(s, k, x)])}.")
+    if not own:
         lines.append("None in this run.")
+    if len(kits) == 2:
+        old, new = kits
+        changed = [(s, x) for s in subjects for x in scen
+                   if cells.get((s, old, x), {}).get("status") != cells.get((s, new, x), {}).get("status")]
+        lines += ["", f"## Different between {label(doc, old)} and {label(doc, new)}", ""]
+        for s, x in changed:
+            lines.append(f"- **{load(s).title}**, {x}: {summary(cells[(s, old, x)])} -> {summary(cells[(s, new, x)])}.")
+        if not changed:
+            lines.append("No cell changed.")
     lines += ["", "## How each run ended", "",
               "A pass on the count does not mean the run finished. A run that stops in doubt waits for a person or "
               "for the provider to answer.", ""]
     for s in subjects:
-        for variant in ("default", "call4agents"):
+        for v in variants:
             for x in scen:
-                c = cells.get((s, variant, x))
+                c = cells.get((s, v, x))
                 if not c:
                     continue
                 if c["status"] == "n/a":
-                    lines.append(f"- {load(s).title} / {variant} / {x}: N/A. {c['reason']}")
+                    lines.append(f"- {load(s).title} / {label(doc, v)} / {x}: N/A. {c['reason']}")
                     continue
                 how = Counter(r["ended"] for r in c["repeats"])
-                bad = [p for r in c["repeats"] for p in r["invalid"]]
-                text = ", ".join(f"{v} ({k}/{len(c['repeats'])})" for v, k in how.items())
-                lines.append(f"- {load(s).title} / {variant} / {x}: {summary(c)}; ended: {text}"
+                bad = [p for r in c["repeats"] for p in r["invalid"]] + c.get("invalid_because", [])
+                text = ", ".join(f"{e} ({n}/{len(c['repeats'])})" for e, n in how.items())
+                lines.append(f"- {load(s).title} / {label(doc, v)} / {x}: {summary(c)}; ended: {text}"
                              + (f"; INVALID: {bad[0]}" if bad else ""))
     lines += ["", "## What the subjects do", ""]
     for s in subjects:
         o = load(s)
-        lines.append(f"- **{o.title}** (bench/subjects/{SUBJECTS[s].split(':')[0].rsplit('.', 1)[1]}.py). "
+        lines.append(f"- **{o.title}** (bench/subjects/{SUBJECTS_AND_CONTROLS[s].split(':')[0].rsplit('.', 1)[1]}.py). "
                      f"Default: {o.default_config}. With call4agents: {o.kit_config}.")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def controls_gate(cells: List[Dict[str, Any]]) -> None:
+    """A subject whose control fails cannot pass anything that control stands for: an approval path that never
+    runs a call (C2) would 'pass' S4, S6 and S8 for free; a run that never acts (C1) would pass nothing real."""
+    status = {(c["subject"], c["variant"], c["scenario"]): c["status"] for c in cells}
+    for c in cells:
+        need = "C2" if c["scenario"] in APPROVAL - {"C2"} else ("C1" if c["scenario"] in CRASH | {"S2"} else None)
+        if need and c["status"] == "pass" and status.get((c["subject"], c["variant"], need), "pass") != "pass":
+            c["status"] = "invalid"
+            c["invalid_because"] = [f"control {need} did not pass for this subject and variant"]
+
+
 def parse(argv: List[str]) -> Dict[str, Any]:
     opts: Dict[str, Any] = {"subjects": list(SUBJECTS), "scenarios": list(SCENARIOS), "repeat": 5, "workers": 4,
-                            "out": str(ROOT / "bench" / "results"), "markdown": True, "require": False, "keep": False}
+                            "out": str(ROOT / "bench" / "results"), "markdown": True, "require": False, "keep": False,
+                            "release": "0.7.1", "head": True}
     items = iter(argv)
     for a in items:
         if a == "--subjects":
@@ -373,6 +471,12 @@ def parse(argv: List[str]) -> Dict[str, Any]:
             opts["workers"] = int(next(items))
         elif a == "--out":
             opts["out"] = next(items)
+        elif a == "--release":
+            opts["release"] = next(items)
+        elif a == "--no-release":
+            opts["release"] = None
+        elif a == "--no-head":
+            opts["head"] = False
         elif a == "--no-markdown":
             opts["markdown"] = False
         elif a == "--require-frameworks":
@@ -398,38 +502,49 @@ def main(argv: List[str]) -> int:
         else:
             print(f"skip  {s}: not installed")
     base = Path(tempfile.mkdtemp(prefix="c4a-bench-"))
-    jobs = [(s, kit, x) for s in subjects for kit in (False, True) for x in opts["scenarios"]]
+    kits: Dict[str, Dict[str, Any]] = {}
+    if opts["release"]:
+        kits[f"call4agents-{opts['release']}"] = release_kit(opts["release"], base)
+    if opts["head"]:
+        kits["call4agents-head"] = head_kit()
+    variants = ["default"] + list(kits)
+    for k, info in kits.items():
+        print(f"variant {k}: call4agents {info['version']} from {info['source']}")
+    jobs = [(s, v, x) for s in subjects for v in variants for x in opts["scenarios"]]
     started = time.time()
     with concurrent.futures.ThreadPoolExecutor(opts["workers"]) as pool:
-        futures = {pool.submit(run_cell, s, kit, x, opts["repeat"] if x in CRASH else 1, base, opts["keep"]): (s, kit, x)
-                   for s, kit, x in jobs}
+        futures = [pool.submit(run_cell, s, v, x, opts["repeat"] if x in CRASH else 1, base, opts["keep"],
+                               kits[v]["path"] if v in kits else None) for s, v, x in jobs]
         cells = []
         for f in concurrent.futures.as_completed(futures):
             c = f.result()
             cells.append(c)
-            print(f"  {c['subject']:14} {c['variant']:12} {c['scenario']:3} {summary(c)}", flush=True)
+            print(f"  {c['subject']:14} {c['variant']:18} {c['scenario']:3} {summary(c)}", flush=True)
     if not opts["keep"]:
         shutil.rmtree(base, ignore_errors=True)
     order = {k: i for i, k in enumerate(jobs)}
-    cells.sort(key=lambda c: order[(c["subject"], c["variant"] == "call4agents", c["scenario"])])
+    cells.sort(key=lambda c: order[(c["subject"], c["variant"], c["scenario"])])
+    controls_gate(cells)
     date = datetime.date.today().isoformat()
     doc = {"format": "c4a-bench-1", "date": date, "seconds": round(time.time() - started, 1), "repeat": opts["repeat"],
-           "subjects": subjects, "scenarios": opts["scenarios"], "environment": environment(subjects), "cells": cells}
+           "subjects": subjects, "scenarios": opts["scenarios"], "variants": variants,
+           "environment": environment(subjects, kits), "cells": cells}
     out = Path(opts["out"])
     out.mkdir(parents=True, exist_ok=True)
     name = f"{date}-{platform.system().lower()}.json"
     (out / name).write_text(json.dumps(doc, indent=1), encoding="utf-8")
     print(f"\nwrote {out / name} ({doc['seconds']} s)")
     if opts["markdown"]:
-        md = ROOT / "bench" / "RESULTS.md" if Path(opts["out"]).resolve() == (ROOT / "bench" / "results").resolve() \
-            else out / "RESULTS.md"
+        md = ROOT / "bench" / "RESULTS.md" if out.resolve() == (ROOT / "bench" / "results").resolve() else out / "RESULTS.md"
         write_markdown(doc, md, name)
         print(f"wrote {md}")
     invalid = [c for c in cells if c["status"] == "invalid"]
     for c in invalid:
-        print(f"INVALID {c['subject']} {c['variant']} {c['scenario']}: {c['repeats'][0]['invalid'] if c['repeats'] else ''}")
+        why = (c["repeats"][0]["invalid"] if c["repeats"] else []) + c.get("invalid_because", [])
+        print(f"INVALID {c['subject']} {c['variant']} {c['scenario']}: {why}")
     return 1 if invalid else 0
 
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))
+

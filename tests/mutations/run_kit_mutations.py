@@ -18,6 +18,7 @@ PG = "call4agents/stores/postgres.py"
 PYT = "call4agents/adapters/pytest_plugin.py"
 RULES = "call4agents/rules.py"
 SPANS = "call4agents/spans.py"
+BENCH, BENCH_ENV = "bench/run.py", "bench/subject.py"
 
 # (name, file, old text, new text, suite)
 MUTATIONS = [
@@ -365,6 +366,26 @@ MUTATIONS = [
      "tests.test_formal_trace"),
 ]
 
+# Opt-in batch (--bench): the open benchmark must see a duplicate, a wrong amount, a count kept per process and a
+# broken setup (bench/selfcheck.py). Standard library only; about 30 s per entry.
+BENCH_BATCH = [
+    ("control (no-op)", BENCH, "def judge(scenario", "def judge(scenario", "bench.selfcheck"),
+    ("BENCH a duplicate passes", BENCH, "        return n == 1" + chr(10), "        return n >= 1" + chr(10), "bench.selfcheck"),
+    ("BENCH the count is capped at one", BENCH, "    return len(charges)" + chr(10) * 3 + "def wrong_kit",
+     "    return min(1, len(charges))" + chr(10) * 3 + "def wrong_kit", "bench.selfcheck"),
+    ("BENCH the amount is not read", BENCH, 'return not any(c["amount"] == CHANGED["amount"] for c in charges)',
+     "return True", "bench.selfcheck"),
+    ("BENCH one bank per process", BENCH_ENV, 'db = sqlite3.connect(self.work / "bank.sqlite"',
+     'db = sqlite3.connect(self.work / f"bank-{os.getpid()}.sqlite"', "bench.selfcheck"),
+    ("BENCH the kill is never injected", BENCH_ENV, '        if self.fault == "kill_after_action":' + chr(10) + "            os._exit(KILLED)",
+     '        if self.fault == "kill_after_action":' + chr(10) + "            pass", "bench.selfcheck"),
+    ("BENCH a broken setup is not flagged", BENCH, '    if any(r["invalid"] for r in reps):', "    if False:", "bench.selfcheck"),
+    ("BENCH failed controls do not gate", BENCH, '        if need and c["status"] == "pass"',
+     '        if False and need and c["status"] == "pass"', "bench.selfcheck"),
+    ("BENCH the kit in use is not checked", BENCH, "        elif Path(used.split(\" \", 1)[1]).resolve() != Path(cell.kit_path).resolve():",
+     "        elif False:", "bench.selfcheck"),
+]
+
 # This opt-in batch requires the PostgreSQL dependencies already installed by CI.
 # Keep the default mutation inventory and its historical count unchanged.
 PG_ADMISSION = [
@@ -427,6 +448,7 @@ def copy_tree(dst: Path) -> None:
               "test_pytest_plugin.py", "test_spans.py", "test_recipes.py", "test_properties.py",
               "test_formal_trace.py"):
         shutil.copy(ROOT / "tests" / f, dst / "tests" / f)
+    shutil.copytree(ROOT / "bench", dst / "bench", ignore=shutil.ignore_patterns("__pycache__", "results", "*.md"))
 
 
 def main() -> int:
@@ -434,11 +456,14 @@ def main() -> int:
         return postgres_admission()
     if sys.argv[1:] == ["--adapters-more2"]:
         return adapters_more2()
+    if sys.argv[1:] == ["--bench"]:
+        return bench_batch()
     only = None              # --suite NAME: only the entries whose suite starts with NAME (default: all)
     if len(sys.argv) == 3 and sys.argv[1] == "--suite":
         only = sys.argv[2]
     elif len(sys.argv) != 1:
-        print("usage: python -m tests.mutations.run_kit_mutations [--postgres-admission | --adapters-more2 | --suite NAME]")
+        print("usage: python -m tests.mutations.run_kit_mutations "
+              "[--postgres-admission | --adapters-more2 | --bench | --suite NAME]")
         return 2
     bad = 0
     for name, rel, old, new, suite in MUTATIONS:
@@ -462,6 +487,37 @@ def main() -> int:
             bad += caught != expected
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
+    print("\nall mutations behave as expected" if not bad else f"\n{bad} mutation result(s) not as expected")
+    return 1 if bad else 0
+
+
+def bench_batch() -> int:
+    """The open benchmark's counting (bench/selfcheck.py). Standard library only. Run it WITHOUT PYTHONPATH.
+    A mutant counts as caught only when a self-check prints FAIL (a crash of the suite is reported as BAD)."""
+    if os.environ.get("PYTHONPATH"):
+        print("BAD PYTHONPATH is set: unset it, or the suite tests the original benchmark instead of the mutant")
+        return 1
+    bad = 0
+    for name, rel, old, new, suite in BENCH_BATCH:
+        with tempfile.TemporaryDirectory(prefix="c4a-mut-bench-", ignore_cleanup_errors=True) as tmp:
+            root = Path(tmp)
+            copy_tree(root)
+            path = root / rel
+            text = path.read_text(encoding="utf-8")
+            if text.count(old) != 1:
+                print(f"  ??    {name:36} pattern not found once (the code moved: update this script)")
+                bad += 1
+                continue
+            path.write_text(text.replace(old, new), encoding="utf-8")
+            r = subprocess.run([sys.executable, "-m", *suite.split()], cwd=root, capture_output=True, text=True,
+                               timeout=1200)
+            fails = [l.strip()[4:].strip()[:60] for l in r.stdout.splitlines() if l.strip().startswith("FAIL")]
+            caught = r.returncode != 0 and bool(fails)
+            expected = not name.startswith("control")
+            crashed = r.returncode != 0 and not fails
+            print(f"  {'ok  ' if caught == expected and not crashed else 'BAD '}  {name:36} "
+                  f"{'SUITE CRASHED: ' + r.stderr.strip()[-200:] if crashed else 'CATCHES ' + ' | '.join(fails) if caught else 'MISSES'}")
+            bad += caught != expected or crashed
     print("\nall mutations behave as expected" if not bad else f"\n{bad} mutation result(s) not as expected")
     return 1 if bad else 0
 

@@ -23,7 +23,7 @@ class LangGraphGraph(Subject):
     name = "langgraph"
     title = "LangGraph"
     packages = ("langgraph", "langgraph-checkpoint-sqlite")
-    requires = ("langgraph", "langgraph.checkpoint.sqlite")
+    requires = ("langgraph", "langgraph.graph", "langgraph.checkpoint.sqlite")
     default_config = ("StateGraph + SqliteSaver, resume with invoke(None, config); approval with interrupt() in a "
                       "node before the tool and Command(resume=...); no RetryPolicy")
     kit_config = ("the bank call wrapped in call4agents.adapters.langgraph.effect(approval=..., reconcile=bank "
@@ -92,8 +92,8 @@ class LangGraphGraph(Subject):
 
     def resume(self, env: Env) -> Any:
         graph, cfg = self._graph(env, approval=False)
-        if not graph.get_state(cfg).next:
-            return {"finished": True}
+        # Always invoke(None): after a kill during the background checkpoint write, get_state().next can be empty
+        # while saved task writes still route to the tool, and invoke(None) does resume it (seen on 2026-11-12).
         graph.invoke(None, cfg)
         return {"finished": True}
 

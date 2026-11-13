@@ -177,14 +177,17 @@ class Env:
         while not Path(go).exists() and time.monotonic() < deadline:
             time.sleep(0.005)
 
-    # --- a place to save small JSON for the subject
+    # --- where a subject saves its state. Two runs can share one folder (S8), so every file is per run.
+    def path(self, name: str) -> Path:
+        return self.work / f"{self.run_id}.{name}"
+
     def save(self, name: str, value: Any) -> None:
-        tmp = self.work / f".{name}.tmp"
+        tmp = self.path(f"{name}.tmp")
         tmp.write_text(json.dumps(value), encoding="utf-8")
-        os.replace(tmp, self.work / name)
+        os.replace(tmp, self.path(name))
 
     def load(self, name: str, default: Any = None) -> Any:
-        p = self.work / name
+        p = self.path(name)
         return json.loads(p.read_text(encoding="utf-8")) if p.exists() else default
 
 
