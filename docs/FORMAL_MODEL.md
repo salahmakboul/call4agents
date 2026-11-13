@@ -113,6 +113,15 @@ reconciling the same crashed attempt at the same time also write two rows.)
 
 The progress properties use weak fairness for the workers only; crashes and the person are not fair.
 
+How they map to the promises in [GUARANTEES.md](GUARANTEES.md):
+
+| Promise | Checked by |
+| --- | --- |
+| G1 An action runs at most once | `AtMostOnce` (and `DoneIsTrue`, `AppendOnly`, which it relies on). Holds for separate processes; NOT for threads of one process in the window described above (`finding_threads_window`), which G1's conditions do not mention yet. |
+| G2 A "yes" covers exactly the call that was shown, once | `NoUnapprovedEffect` (exact arguments, a spent "yes") and `OneYesOneAction` |
+| G3 A "no" wins | `NoUnapprovedEffect` (no "no" between the "yes" and any intent, including a resume) |
+| G4, G5 | not modelled (named keys and the audit export are outside the model; `AppendOnly` covers only "rows are never changed") |
+
 ## Results
 
 One full run on 13 Nov 2026: 24 configs, all as expected, 12,182,980 distinct states in total, 594 s.

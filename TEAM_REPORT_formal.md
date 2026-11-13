@@ -65,6 +65,14 @@ in plain_approval, 0 "no" in plain_second_action) to finish in under 5 minutes; 
 
 ## Notes for the lead
 
+- Rebased on main 2da008a (0.7.2 + GUARANTEES.md). After the rebase: selftest ok, trace check 8/8 ok, and
+  `formal/repro_owner_window.py` still pays twice in both modes, so finding 2 holds on 0.7.2. GUARANTEES.md
+  G1 does not mention it yet; FORMAL_MODEL.md maps G1-G3 to the invariants and says so.
+- TLC numbers are from the run before this last rebase; __init__.py and ledger.py did not change since 5b26492
+  (only owner.py: the token comparison), so the model is the same.
+- A spec mutant on the big reconcile_processes config (give_up never refusing, 3 calls each) ran more than
+  20 minutes without finishing; I stopped it and used small bounds for all spec mutants.
+
 - The upcoming owner.py change (no token comparison) does not change the model: it abstracts the owner check.
 - The trace check is `tests/test_formal_trace.py` (not `formal/trace_check.py`) so the mutation runner can
   copy and run it like the other suites; added to `copy_tree`.
