@@ -39,7 +39,7 @@ upgrade. Python 3.12.10, Windows 10. New venv with both: c4a-adapters-b-venv.
 
 ## Commands and numbers (all offline; socket guard: 0 non-loopback connects)
     ../c4a-adapters-b-venv/Scripts/python.exe -m tests.test_adapters_more2 --require-frameworks
-  -> 31 checks, all pass, 3 min 50 s (crashtest part ~3.7 min). ADK crashtest: 9 crash points without
+  -> 27 checks (23 without the crashtest part + 4 crashtest), all pass, 3 min 50 s (crashtest part ~3.7 min). ADK crashtest: 9 crash points without
   the guard (repeat found), 11 with it (no repeat, all reached). Agent Framework: 5 / 7.
   Per framework: none=2, plain fails, adapter=1; approval: no yes refused, other args refused, exact
   args 1 (retry stays 1); glue: yes 1, call changed after the yes refused (control without kit: sent to
