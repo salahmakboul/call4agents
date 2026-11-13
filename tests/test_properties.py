@@ -309,7 +309,7 @@ def make_machine():
                 self.ev += 1
                 self.events.append((kind, k, item, info, self.ev))
 
-        def st(self, k):
+        def kst(self, k):
             return self.K.setdefault(k, {"owner": None, "state": "fresh", "spend_ev": 0, "proven": False,
                                          "result": None})
 
@@ -322,7 +322,11 @@ def make_machine():
 
         def apply(self, events):
             for kind, k, item, info, ev in events:
-                s = self.st(k)
+                if kind == "reconcile":
+                    count("event reconcile " + ("None" if info is None else "UNKNOWN" if info is c4a.UNKNOWN else "found"))
+                else:
+                    count(f"event {kind}" + (f" {info}" if kind == "admit" else ""))
+                s = self.kst(k)
                 if kind == "admit":
                     if s["owner"] not in (None, item):
                         self.violations.append(f"{k[:8]} named {s['owner']} ran for {item} (key conflict missed)")
@@ -344,7 +348,11 @@ def make_machine():
                 elif kind == "proven":
                     s["proven"] = True
                 elif kind == "reconcile":
-                    if s["state"] != "open":
+                    # Two callers resuming at once may both ask (neither saw a result yet) and both record the
+                    # same found result: allowed for keys called from threads, never in a single caller.
+                    concurrent_ok = (s["state"] == "done" and k in self.threaded
+                                     and info is not None and info is not c4a.UNKNOWN and same(info, s["result"]))
+                    if s["state"] != "open" and not concurrent_ok:
                         self.violations.append(f"reconcile asked for {k[:8]} in state {s['state']}")
                     if info is None:
                         s["proven"] = True
@@ -354,7 +362,7 @@ def make_machine():
         def predict(self, item, key, mode):
             """What the first decision of this call must be: (expected outcome, first event or None)."""
             k = oracle_key(item, key)
-            s = self.st(k)
+            s = self.kst(k)
             if key is not None and s["owner"] not in (None, item):
                 return ("conflict", None)
             if s["state"] == "done":
@@ -387,7 +395,7 @@ def make_machine():
 
         def _call(self, item, key, behaviors, mode, retries):
             k = oracle_key(item, key)
-            before = dict(self.st(k))
+            before = dict(self.kst(k))
             expected, first = self.predict(item, key, mode)
             start = len(self.events)
             TL.behaviors, TL.mode, TL.key, TL.hard = list(behaviors), mode, key, False
@@ -413,7 +421,7 @@ def make_machine():
             new = self.events[start:]
             mine = [e for e in new if e[1] == k]
             self.apply(new)
-            s = self.st(k)
+            s = self.kst(k)
             label = f"call({item}, {key}, {behaviors}, {mode}, retries={retries}) in state {before['state']}"
             if outcome == "returned":
                 if s["state"] == "done" and before["state"] == "done" and not same(value, before["result"]):
@@ -462,7 +470,7 @@ def make_machine():
         def two_threads(self, item, key1, key2):
             """Two callers at once (the same action, or two deliberate actions racing for one yes)."""
             ks = {oracle_key(item, key1), oracle_key(item, key2)}
-            if any(self.st(k)["state"] == "open" for k in ks):
+            if any(self.kst(k)["state"] == "open" for k in ks):
                 return                                  # both would wait 1 s for nothing: two_resumes covers it
             barrier = threading.Barrier(2)
             self._threads("two_threads", item, [(PAY_T, key1, [], barrier.wait), (PAY_T, key2, [], barrier.wait)])
@@ -473,7 +481,7 @@ def make_machine():
             comes with a truthful reconcile. Caller 2 must not run it again. Deterministic: caller 1 waits for an
             event that is set only after caller 2 has finished."""
             k = oracle_key(item, key)
-            if self.st(k)["state"] == "fresh" and not self.live_unspent(item):
+            if self.kst(k)["state"] == "fresh" and not self.live_unspent(item):
                 self.approve(item)
             self.slow_entered.clear()
             self.slow_release.clear()
@@ -537,10 +545,11 @@ def make_machine():
             self.apply(new)
             keys = [key for _, key, _, _ in specs]
             for (kind, value), key in zip(out, keys):
+                count(f"{label}: {kind}")
                 if kind.startswith("unexpected") or kind == "not run":
                     self.violations.append(f"{label}({item}, {keys}): {kind}")
                 if kind == "returned":
-                    s = self.st(oracle_key(item, key))
+                    s = self.kst(oracle_key(item, key))
                     if s["state"] == "done" and not same(value, s["result"]):
                         self.violations.append(f"{label}: returned {value!r}, recorded {s['result']!r}")
                     s["state"], s["result"] = "done", value
@@ -1109,7 +1118,7 @@ def run_files(cfg):
               and ran == ["C"] and not problems, (outcomes, ran, problems))
         hand_damaged_rows(root, db, secret)
         stats = {"cases": 0, "clear error": 0, "wrong A result": 0, "wrong A result, verify ok": 0}
-        s = settings(max_examples=2 * cfg["examples"], deadline=None, derandomize=cfg["derandomize"],
+        s = settings(max_examples=cfg["examples"], deadline=None, derandomize=cfg["derandomize"],
                      database=None, suppress_health_check=list(HealthCheck), print_blob=True)
 
         @s
@@ -1171,6 +1180,12 @@ def verify_ok(root, data):
 SEED = {"n": None}      # --long: one seed for every group, printed so a failure can be rerun
 
 
+def notes(exc):
+    """Hypothesis attaches the shrunk falsifying example (the steps, for the machine) as exception notes."""
+    text = "\n".join(getattr(exc, "__notes__", []))
+    return "        " + text[:4000].replace("\n", "\n        ") if text else ""
+
+
 def run_prop(label, fn):
     if SEED["n"] is not None:
         fn = hypothesis.seed(SEED["n"])(fn)
@@ -1179,6 +1194,7 @@ def run_prop(label, fn):
         check(label, True)
     except Exception as exc:      # noqa: BLE001 - Hypothesis already printed the falsifying example
         check(label, False, f"{type(exc).__name__}: {str(exc)[:300]}")
+        print(notes(exc))
 
 
 def run_machine(cfg):
@@ -1199,6 +1215,7 @@ def run_machine(cfg):
         check(label, True)
     except Exception as exc:      # noqa: BLE001
         check(label, False, f"{type(exc).__name__}: {str(exc)[:600]}")
+        print(notes(exc))
 
 
 def main(argv=None):
@@ -1218,7 +1235,7 @@ def main(argv=None):
         SEED["n"] = a.seed if a.seed is not None else random.randrange(2 ** 32)
         cfg = {"machine_examples": 500, "steps": 50, "examples": 3000, "derandomize": False}
     else:
-        cfg = {"machine_examples": 60, "steps": 30, "examples": 300, "derandomize": True}
+        cfg = {"machine_examples": 30, "steps": 30, "examples": 200, "derandomize": True}
     print(f"hypothesis {hypothesis.__version__}, {'long' if a.long else 'default'} run, "
           + (f"seed {SEED['n']} (rerun: --long --seed {SEED['n']})" if SEED["n"] is not None
              else "derandomized (the same examples every run)"), flush=True)

@@ -310,6 +310,49 @@ MUTATIONS = [
     ("A PostgreSQL commits inside admission", PG, '        return row.fetchone()[0]',
      '        result = row.fetchone()[0]\n        conn.execute("COMMIT")\n        return result',
      "tests.test_atomic_admission --postgres"),
+    # --- PR: property-based tests (tests/test_properties.py; needs hypothesis, a test-only dependency)
+    ("control (no-op)", INIT, "# the outside world cannot tell yet: never", "# the outside world cannot tell yet: never",
+     "tests.test_properties --require-hypothesis"),
+    ("PR a yes is never spent", LEDGER, 'self._insert(conn, run_id, "approval_used",', 'self._insert(conn, run_id, "approval_used_x",',
+     "tests.test_properties --require-hypothesis --only machine"),
+    ("PR a no is ignored", LEDGER, 'denied = max(self._matching_in(conn, run_id, tool, args, "denial"), default=0)', "denied = 0",
+     "tests.test_properties --require-hypothesis --only machine"),
+    ("PR a no is ignored when in doubt", LEDGER, 'if (denied > spent["seq"] or', "if (False or",
+     "tests.test_properties --require-hypothesis --only machine"),
+    ("PR every error proves nothing happened", INIT, "if retry_on and isinstance(exc, retry_on):      # the caller says",
+     "if True:      # the caller says", "tests.test_properties --require-hypothesis --only machine"),
+    ("PR reconcile None read as done", INIT, "                if found is not None:" + chr(10), "                if True:" + chr(10),
+     "tests.test_properties --require-hypothesis --only machine"),
+    ("PR UNKNOWN read as None", INIT, 'raise EffectInDoubt(tool, call_args, "reconcile could not tell yet")', "found = None",
+     "tests.test_properties --require-hypothesis --only machine"),
+    ("PR tool_done written twice", INIT,
+     '            lg.append(plan["run_id"], "tool_done", plan["key"], {"result": encoded, "attempt": plan["attempt"]})',
+     '            lg.append(plan["run_id"], "tool_done", plan["key"], {"result": encoded, "attempt": plan["attempt"]})' + chr(10)
+     + '            lg.append(plan["run_id"], "tool_done", plan["key"], {"result": encoded, "attempt": plan["attempt"]})',
+     "tests.test_properties --require-hypothesis --only machine"),
+    ("PR a finished call is not replayed", INIT,
+     '                done = lg.latest("tool_done", k)' + chr(10) + "                if done is not None:",
+     '                done = lg.latest("tool_done", k)' + chr(10) + "                if False:",
+     "tests.test_properties --require-hypothesis --only machine"),
+    ("PR the record overwrites a row", LEDGER, 'cur = conn.execute("INSERT INTO entries (run_id',
+     'cur = conn.execute("INSERT OR REPLACE INTO entries (run_id', "tests.test_properties --require-hypothesis --only machine"),
+    ("PR no owner check before reconcile (Fix 17)", INIT, "                    if busy is not None:" + chr(10),
+     "                    if False:" + chr(10), "tests.test_properties --require-hypothesis --only machine"),
+    ("PR codec calls whatever is named", "call4agents/codec.py", "    if not isinstance(obj, type):" + chr(10),
+     "    return obj" + chr(10) + "    if not isinstance(obj, type):" + chr(10), "tests.test_properties --require-hypothesis --only codec"),
+    ("PR a tuple comes back as a list", "call4agents/codec.py", "return tuple(decode(x) for x in v)", "return [decode(x) for x in v]",
+     "tests.test_properties --require-hypothesis --only codec"),
+    ("PR keys depend on dict order", LEDGER, "sort_keys=True, separators", "sort_keys=False, separators",
+     "tests.test_properties --require-hypothesis --only canonical"),
+    ("PR any object's str() accepted", LEDGER, "    raise TypeError(f\"{type(o).__name__} is not a type with a stable",
+     "    return str(o)" + chr(10) + "    raise TypeError(f\"{type(o).__name__} is not a type with a stable",
+     "tests.test_properties --require-hypothesis --only canonical"),
+    ("PF1 a row without its field unexplained", LEDGER, 'need = self._NEEDS.get(kind or "")', "need = None",
+     "tests.test_properties --require-hypothesis --only files"),
+    ("PF1 a damaged format version unexplained", LEDGER, "except (sqlite3.DatabaseError, ValueError) as exc:",
+     "except sqlite3.DatabaseError as exc:", "tests.test_properties --require-hypothesis --only files"),
+    ("PF1 approval rows read with json.loads", LEDGER, 'self._payload(r[0], r[1], kind)["mac"]', 'json.loads(r[1]).get("mac", "")',
+     "tests.test_properties --require-hypothesis --only files"),
 ]
 
 # This opt-in batch requires the PostgreSQL dependencies already installed by CI.
@@ -371,7 +414,7 @@ def copy_tree(dst: Path) -> None:
     for f in ("test_c4a_kit.py", "c4a_codec_types.py", "c4a_k18_child.py", "c4a_prove_sample.py", "test_idempotency.py",
               "test_c4a_production.py", "test_undo.py", "c4a_undo_child.py", "test_adapters.py",
               "test_shared_record.py", "test_tickets.py", "test_crashtest.py", "test_audit.py", "test_atomic_admission.py",
-              "test_pytest_plugin.py", "test_spans.py", "test_recipes.py"):
+              "test_pytest_plugin.py", "test_spans.py", "test_recipes.py", "test_properties.py"):
         shutil.copy(ROOT / "tests" / f, dst / "tests" / f)
 
 
@@ -380,11 +423,16 @@ def main() -> int:
         return postgres_admission()
     if sys.argv[1:] == ["--adapters-more2"]:
         return adapters_more2()
-    if len(sys.argv) != 1:
-        print("usage: python -m tests.mutations.run_kit_mutations [--postgres-admission | --adapters-more2]")
+    only = None              # --suite NAME: only the entries whose suite starts with NAME (default: all)
+    if len(sys.argv) == 3 and sys.argv[1] == "--suite":
+        only = sys.argv[2]
+    elif len(sys.argv) != 1:
+        print("usage: python -m tests.mutations.run_kit_mutations [--postgres-admission | --adapters-more2 | --suite NAME]")
         return 2
     bad = 0
     for name, rel, old, new, suite in MUTATIONS:
+        if only is not None and not suite.startswith(only):
+            continue
         tmp = Path(tempfile.mkdtemp(prefix="c4a-mut-"))
         try:
             copy_tree(tmp)
