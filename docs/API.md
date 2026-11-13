@@ -512,6 +512,137 @@ c4a_crashtest()
 
 (no docstring)
 
+### `call4agents.adapters.crewai`
+
+CrewAI adapter.
+
+    from crewai.tools import tool
+    from call4agents.adapters import crewai as c4a_crew
+
+    @tool("send_email")              # CrewAI's decorator goes on top
+    @c4a_crew.effect                 # once per crew run, tool and exact arguments
+    def send_email(to: str, body: str) -> str:
+        "Send an email."
+
+The run id is the crew's `id`. CrewAI keeps it when it retries a failed task (the agent's
+max_retry_limit) and when you resume with Crew.from_checkpoint(...) or kickoff(from_checkpoint=...).
+A new Crew(...) gets a new id, and CrewAI does not let you set it: to make a fresh start of the same
+job find its effects, wrap kickoff in `with c4a.run("<your job id>"):` or pass run=lambda _: "<id>".
+An active `with c4a.run(...)` wins over the crew id. CrewAI gives a function tool no context object,
+so every parameter is part of the key. On a BaseTool subclass, put it on `_run` (`self` is left out).
+
+#### `crewai.run_id`
+
+```python
+run_id(crew: Any)
+```
+
+The run id the adapter uses for this crew (to approve a call before kickoff).
+
+#### `crewai.effect`
+
+```python
+effect(fn: Optional[Callable]=None, **options: Any)
+```
+
+c4a.effect for a CrewAI tool function (or a BaseTool's _run method).
+
+#### `crewai.approve`
+
+```python
+approve(tool: Any, crew: Any, **args: Any)
+```
+
+Record the person's yes for exactly these arguments, in this crew's run. `tool` may be the
+CrewAI Tool (from @tool), a BaseTool, or the wrapped function.
+
+#### `crewai.deny`
+
+```python
+deny(tool: Any, crew: Any, **args: Any)
+```
+
+Record the person's no for exactly these arguments, in this crew's run.
+
+### `call4agents.adapters.llamaindex`
+
+LlamaIndex adapter (llama-index-core agents and workflows).
+
+    from llama_index.core.tools import FunctionTool
+    from llama_index.core.workflow import Context
+    from call4agents.adapters import llamaindex as c4a_li
+
+    @c4a_li.effect                   # once per run id, tool and exact arguments
+    async def send_email(ctx: Context, to: str, body: str) -> str: ...
+
+    tool = FunctionTool.from_defaults(send_email)
+    with c4a.run("order-42"):        # your job id: the same when you resume a saved Context
+        await agent.run(ctx=Context.from_dict(agent, saved))
+
+The run id comes from an active `with c4a.run(...)`, else from run=lambda ctx: <id>. LlamaIndex has
+no id that survives a resume: each run, also one resumed from a saved Context, gets a new workflow
+run id, and one process cannot start a run with an id it used before. So this adapter does not fall
+back to it; without a run id it raises a clear error. The Context parameter is found the way
+LlamaIndex finds it (annotated Context or Context[...], anywhere in the signature) and left out of
+the key: LlamaIndex passes a new Context object on each run.
+
+#### `llamaindex.effect`
+
+```python
+effect(fn: Optional[Callable]=None, **options: Any)
+```
+
+c4a.effect for a LlamaIndex function tool (sync or async, with or without a Context parameter).
+
+### `call4agents.adapters.smolagents`
+
+smolagents adapter.
+
+    from smolagents import ToolCallingAgent, tool
+    from call4agents.adapters import smolagents as c4a_smol
+
+    @tool                            # smolagents' decorator goes on top
+    @c4a_smol.effect                 # once per run id, tool and exact arguments
+    def send_email(to: str, body: str) -> str: ...
+
+    with c4a.run("order-42"):        # your job id: the same when the job is retried
+        agent.run("email bob")
+
+smolagents has no run, session or conversation id, so the run id comes from an active
+`with c4a.run(...)`, else from run=lambda _: <id>; without one the call is refused with a clear
+error. A smolagents tool gets no context object, so every parameter is part of the key. On a Tool
+subclass, put it on `forward` (`self` is left out).
+
+CodeAgent: by default it runs the model's code in a worker thread (for its time limit), and that
+thread does not see `with c4a.run(...)`. Pass run=lambda _: <id>, or build the agent with
+executor_kwargs={"timeout_seconds": None}. ToolCallingAgent keeps it (it copies the context into
+its tool threads).
+
+#### `smolagents.effect`
+
+```python
+effect(fn: Optional[Callable]=None, **options: Any)
+```
+
+c4a.effect for a smolagents tool function (or a Tool's forward method).
+
+#### `smolagents.approve`
+
+```python
+approve(tool: Any, **args: Any)
+```
+
+Record the person's yes for exactly these arguments, in the current run (`with c4a.run(...)`).
+`tool` may be the smolagents Tool (from @tool or a Tool subclass) or the wrapped function.
+
+#### `smolagents.deny`
+
+```python
+deny(tool: Any, **args: Any)
+```
+
+Record the person's no for exactly these arguments, in the current run.
+
 ### `call4agents.adapters.google_adk`
 
 Google ADK adapter.
