@@ -260,11 +260,27 @@ export function effect<A extends object | undefined, R>(
       return owned;
     }
 
+    /** Claim with the attempt marked as running in this process BEFORE its intent is written (Fix 19: marked
+     * only when the call started, another caller in this process could find the intent "not running" during
+     * the awaits in between, reconcile it and pay; then this call paid too). A lost claim takes its mark back;
+     * a won one keeps it until the wrapper has recorded the result or the error. */
+    function owned(attempt: number, payload: unknown): boolean {
+      const running = intentKey(k, attempt);
+      owner.started(running);
+      let won = false;
+      try {
+        won = claim(attempt, payload);
+      } finally {
+        if (!won) owner.finished(running);
+      }
+      return won;
+    }
+
     for (let round = 0; round < 2; round++) {
       let done = lg.latest("tool_done", k);
       if (done !== null) return { hasReplay: true, replay: decode(done.payload.result) };
       const attempt = lg.nextAttempt(k);
-      if (claim(attempt, { tool, args: callArgs, owner: owner.me() })) return { hasReplay: false, key: k, runId, attempt };
+      if (owned(attempt, { tool, args: callArgs, owner: owner.me() })) return { hasReplay: false, key: k, runId, attempt };
       const err = lg.latest("tool_error", k);
       const failed = err !== null && err.payload?.attempt === attempt;
       const why = failed ? `it raised ${err!.payload.error}` : "crash during the effect";
@@ -286,7 +302,7 @@ export function effect<A extends object | undefined, R>(
           // The outside API still remembers this key: resending with the SAME key cannot create a second effect.
           // Close this attempt once, then claim the next one.
           if (!lg.giveUp(runId, k, attempt, "tool_retry_same_key")) continue;   // another caller closed it and owns the resend
-          if (claim(attempt + 1, { tool, args: callArgs, same_key_retry: true, owner: owner.me() })) {
+          if (owned(attempt + 1, { tool, args: callArgs, same_key_retry: true, owner: owner.me() })) {
             return { hasReplay: false, key: k, runId, attempt: attempt + 1 };
           }
         }
@@ -357,8 +373,7 @@ export function effect<A extends object | undefined, R>(
     if (runId === undefined || runId === "") currentRun();          // throws the "no current run" error
     const plan = await check(runId!, callArgs);
     if (plan.hasReplay) return plan.replay as Awaited<R>;
-    const running = intentKey(plan.key!, plan.attempt);
-    owner.started(running);                        // until recorded: another caller must not reconcile it
+    const running = intentKey(plan.key!, plan.attempt);     // marked running by its claim (Fix 19)
     try {
       return await EFFECT_KEY.run(plan.key!, async () => {
         let result: Awaited<R>;

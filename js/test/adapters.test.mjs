@@ -141,7 +141,7 @@ const aiCall = (id) => ({
 });
 const aiFinal = () => ({ content: [{ type: "text", text: "done" }], finishReason: { unified: "stop", raw: "stop" }, usage, warnings: [] });
 
-async function aiRetry(guarded) {
+async function aiRetry(guarded, viaContext = false) {
   const steps = [aiCall("c1"), new Error("network down"), aiCall("c2"), aiFinal()];
   const model = new ai.test.MockLanguageModelV4({
     doGenerate: async () => {
@@ -158,14 +158,18 @@ async function aiRetry(guarded) {
   const tools = {
     send_email: ai.tool({
       inputSchema: z.object({ to: z.string(), body: z.string() }),
+      ...(viaContext ? { contextSchema: z.object({ chatId: z.string() }) } : {}),
       execute: guarded ? c4aAi.effect(send, { name: "send_email" }) : send,
     }),
   };
-  const ask = () => ai.generateText({ model, tools, prompt: "email bob", stopWhen: ai.stepCountIs(5), maxRetries: 0 });
-  await c4a.run("chat-1", async () => {
+  const extra = viaContext ? { toolsContext: { send_email: { chatId: "chat-ctx" } } } : {};
+  const ask = () => ai.generateText({ model, tools, prompt: "email bob", stopWhen: ai.stepCountIs(5), maxRetries: 0, ...extra });
+  const both = async () => {
     await assert.rejects(ask, /network down/);
     assert.equal((await ask()).text, "done");
-  });
+  };
+  if (viaContext) await both();                          // no c4a.run: the run id comes from the tool context
+  else await c4a.run("chat-1", both);
   return sent.length;
 }
 
@@ -176,4 +180,11 @@ test("A4 AI SDK: a request retried after a model error sends twice without the a
   assert.equal(await aiRetry(true), 1);
   assert.equal(c4aAi.runIdFromOptions({ toolCallId: "c9", context: { chatId: "chat-7" } }), "chat-7");
   assert.equal(c4aAi.runIdFromOptions({ toolCallId: "c9" }), undefined, "the toolCallId is never the run id");
+});
+
+test("A5 AI SDK: without c4a.run the run id comes from the tool context (toolsContext), not from the toolCallId", async (t) => {
+  if (!need(t, ai, "ai") || !need(t, z, "zod")) return;
+  const { lg } = fresh();
+  assert.equal(await aiRetry(true, true), 1);
+  assert.deepEqual([...new Set(lg.entries().map((e) => e.run_id))], ["chat-ctx"]);
 });

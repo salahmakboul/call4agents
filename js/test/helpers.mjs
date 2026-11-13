@@ -11,7 +11,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 export const DIST = new URL("../dist/", import.meta.url);
 export const KIT = new URL("index.js", DIST).href;
-export const REPO = fileURLToPath(new URL("../../", import.meta.url));
+export const REPO = process.env.C4A_REPO ?? fileURLToPath(new URL("../../", import.meta.url));
 
 export const c4a = await import(KIT);
 

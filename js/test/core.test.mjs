@@ -295,6 +295,7 @@ test("K29d the owner check: running only while it can be (pid, token, host, leas
   };
   o.started("i");
   cases["this process, call in progress"] = o.mayStillRun("i", intent(me, 5), 600) !== null;
+  cases["our pid, any token, call in progress here"] = o.mayStillRun("i", intent({ ...me, token: "old" }, 5), 600) !== null;
   o.finished("i");
   assert.deepEqual(Object.entries(cases).filter(([, v]) => !v).map(([k]) => k), []);
   assert.throws(() => c4a.effect(async () => 1, { name: "k29.bad", lease: 0 }), RangeError);
@@ -311,4 +312,22 @@ test("J10 idempotentFor: an in-doubt action of a dead owner is resent with the S
   });
   assert.deepEqual(keys, [key]);
   assert.equal(lg.entriesForKey(key, "tool_retry_same_key").length, 1);
+});
+
+test("K30 (Fix 19) a pause right after the claim: a second caller (wait 0) does not reconcile the claimed attempt", async () => {
+  fresh();
+  const bank = [];
+  let asked = 0;
+  const pay = c4a.effect(async ({ amount }) => {
+    bank.push(amount);
+    await sleep(100);
+    return "paid";
+  }, { name: "k30.pay", wait: 0, reconcile: () => { asked += 1; return bank.length ? "paid" : null; } });
+  // Both calls start in the same tick: the first claims, then pauses (its awaits) before its function starts;
+  // the second finds the intent with no result at once.
+  const out = await c4a.run("k30", () => Promise.all([pay({ amount: 5 }), pay({ amount: 5 })].map((p) => p.catch((e) => e.message))));
+  assert.deepEqual(bank, [5], JSON.stringify(out));
+  assert.equal(asked, 0, "reconcile was not asked while the owner was still starting");
+  assert.ok(out.includes("paid"));
+  assert.ok(out.some((o) => /still running in this process/.test(o)), JSON.stringify(out));
 });

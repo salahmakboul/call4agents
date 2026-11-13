@@ -30,10 +30,11 @@ const send = c4a.effect(async ({ to, amount }) => {
   return "sent-" + process.pid;
 }, {
   name: "proc.send", approval: process.env.APPROVAL === "1", wait: 2,
+  key: process.env.JOB ? () => "job-" + process.env.JOB : undefined,
   reconcile: process.env.RECONCILE === "1" ? () => (lines().length ? "found-in-outbox" : null) : undefined,
 });
 if (mode === "race" || mode === "resume") {
-  while (!existsSync(join(work, "go"))) await new Promise((r) => setTimeout(r, 5));
+  while (!existsSync(join(work, "go"))) await new Promise((r) => setTimeout(r, 1));
 }
 try {
   const r = await c4a.run("job-1", () => send({ to: "bob", amount: 10 }));
@@ -130,4 +131,20 @@ setTimeout(() => writeFileSync(${JSON.stringify(marker)}, "still here"), 1500);
   assert.equal(r.code, 0, `the checked process ended normally (signal ${r.signal})`);
   assert.equal(readFileSync(marker, "utf8"), "still here");
   assert.equal(c4a.owner.pidAlive(p.child.pid), false);
+});
+
+test("P5 ONE yes, eight processes start eight different actions (new keys) at the same moment: exactly one runs", async () => {
+  const work = tempDir();
+  const file = script(work, "child.mjs", CHILD);
+  c4a.init({ path: join(work, "rec.sqlite"), secret: "process-test-secret" });
+  c4a.run("job-1", () => c4a.approve("proc.send", { to: "bob", amount: 10 }));
+  c4a.close();
+  const ps = Array.from({ length: 8 }, (_, i) => nodeChild(file, [work, "race"], { env: { ...process.env, APPROVAL: "1", JOB: String(i) } }));
+  await sleep(1500);
+  writeFileSync(join(work, "go"), "go");
+  const rs = await Promise.all(ps.map((p) => p.done));
+  const said = rs.map((r) => r.stdout.trim()).sort();
+  assert.equal(outboxLines(work).length, 1, said.join("|"));
+  assert.equal(said.filter((s) => s.startsWith("RESULT")).length, 1, said.join("|"));
+  assert.equal(said.filter((s) => s === "ERROR ApprovalRequired").length, 7, said.join("|"));
 });
