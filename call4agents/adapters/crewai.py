@@ -41,16 +41,25 @@ def effect(fn: Optional[Callable] = None, **options: Any):
     return wrap(fn) if fn is not None else wrap
 
 
+def _wrapped(tool: Any) -> Any:
+    """The function this adapter wrapped: inside a Tool from @tool (.func), a BaseTool (._run), or itself."""
+    for attr in ("func", "_run"):
+        inner = getattr(tool, attr, None)
+        if inner is not None and getattr(inner, "c4a_name", None):
+            return inner
+    return tool
+
+
 def approve(tool: Any, crew: Any, **args: Any) -> str:
     """Record the person's yes for exactly these arguments, in this crew's run. `tool` may be the
-    CrewAI Tool (from @tool) or the wrapped function."""
+    CrewAI Tool (from @tool), a BaseTool, or the wrapped function."""
     import call4agents as c4a
     with c4a.run(run_id(crew)):
-        return c4a.approve(getattr(tool, "func", tool), **args)
+        return c4a.approve(_wrapped(tool), **args)
 
 
 def deny(tool: Any, crew: Any, **args: Any) -> str:
     """Record the person's no for exactly these arguments, in this crew's run."""
     import call4agents as c4a
     with c4a.run(run_id(crew)):
-        return c4a.deny(getattr(tool, "func", tool), **args)
+        return c4a.deny(_wrapped(tool), **args)

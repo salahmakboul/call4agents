@@ -86,7 +86,7 @@ def _errors_seen(f, errors):
         try:
             return f(*args, **kwargs)
         except Exception as exc:
-            errors.append(type(exc).__name__)
+            errors.append(f"{type(exc).__name__}: {exc}"[:200])
             raise
     if hasattr(f, "c4a_name"):
         call.c4a_name, call.c4a_fn, call.c4a_exclude = f.c4a_name, f.c4a_fn, f.c4a_exclude
