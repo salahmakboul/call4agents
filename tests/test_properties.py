@@ -6,15 +6,13 @@ Needs Hypothesis (a TEST-only dependency; the package itself stays standard libr
 suite is skipped with a message; --require-hypothesis turns the skip into a failure (CI uses it).
 
     --long             many more examples (the weekly CI run)
-    --only NAME        run one group: machine, canonical, codec, files, race
+    --only NAME        run one group: machine, canonical, codec, files
     --seed N           with --long: use this seed (default: a random one, printed)
 
 The default run is derandomized (the same examples every time, so a CI failure is reproducible).
 What each property says, and what it does not cover: docs/PROPERTIES.md.
 """
 import argparse
-import base64
-import builtins
 import dataclasses
 import datetime as _dt
 import decimal
@@ -125,8 +123,7 @@ def canary_calls():
 def same(a, b):
     """Equal AND the same types all the way down (bytearray comes back as bytes; floats by repr)."""
     ta, tb = type(a), type(b)
-    if ta is bytearray:
-        ta = bytes
+    ta, tb = (bytes if t is bytearray else t for t in (ta, tb))
     if ta is not tb:
         return False
     if isinstance(a, float):
@@ -211,6 +208,10 @@ def body(item):
 
     if beh == "ok":
         return act()
+    if beh == "slow":                   # still running while another caller comes (Fix 17's case)
+        m.slow_entered.set()
+        m.slow_release.wait(10)
+        return act()
     if beh == "crash_before":
         raise Crash("before the outside action")
     if beh == "crash_before_hard":
@@ -292,6 +293,7 @@ def make_machine():
             self.violations = []
             self.rows = []
             self.threaded = set()
+            self.slow_entered, self.slow_release = threading.Event(), threading.Event()
             CUR["m"] = self
             TL.behaviors, TL.mode, TL.key, TL.hard = [], "truthful", None, False
 
@@ -461,45 +463,92 @@ def make_machine():
             """Two callers at once (the same action, or two deliberate actions racing for one yes)."""
             ks = {oracle_key(item, key1), oracle_key(item, key2)}
             if any(self.st(k)["state"] == "open" for k in ks):
-                return                                  # both would wait 1 s for nothing: not this rule's case
-            self.threaded |= ks
-            start = len(self.events)
-            out = [None, None]
+                return                                  # both would wait 1 s for nothing: two_resumes covers it
             barrier = threading.Barrier(2)
+            self._threads("two_threads", item, [(PAY_T, key1, [], barrier.wait), (PAY_T, key2, [], barrier.wait)])
 
-            def go(i, key):
-                TL.behaviors, TL.mode, TL.key, TL.hard = [], "truthful", key, False
+        @rule(item=st.sampled_from(ITEMS), key=st.sampled_from(KEYS))
+        def still_running_and_a_racer(self, item, key):
+            """Fix 17's case: caller 1 is inside the action (it has not reached the provider yet) when caller 2
+            comes with a truthful reconcile. Caller 2 must not run it again. Deterministic: caller 1 waits for an
+            event that is set only after caller 2 has finished."""
+            k = oracle_key(item, key)
+            if self.st(k)["state"] == "fresh" and not self.live_unspent(item):
+                self.approve(item)
+            self.slow_entered.clear()
+            self.slow_release.clear()
+            self._threads("still_running_and_a_racer", item,
+                          [(PAY0, key, ["slow"], None), (PAY0, key, [], self._after_slow_started)],
+                          release_after=1)
+
+        def _after_slow_started(self):
+            self.slow_entered.wait(10)
+
+        @rule(data=st.data())
+        def two_resumes(self, data):
+            """Two callers resume the same action in doubt at once (truthful reconcile): it must not run twice,
+            even when both see "not done" (two callers giving up one attempt each started one before Fix 17)."""
+            open_keys = sorted((s["owner"], k) for k, s in self.K.items() if s["state"] == "open" and s["owner"])
+            if not open_keys:
+                return
+            item, k = data.draw(st.sampled_from(open_keys))
+            key = next((x for x in KEYS if oracle_key(item, x) == k), None)
+            barrier = threading.Barrier(2)
+            self._threads("two_resumes", item, [(PAY0, key, [], barrier.wait), (PAY0, key, [], barrier.wait)])
+
+        def _threads(self, label, item, specs, release_after=None):
+            """Run callers in threads: specs = [(tool, key, behaviors, wait_before_calling)]. With release_after=i,
+            the slow caller is let go once caller i has finished (and always within 10 s)."""
+            self.threaded |= {oracle_key(item, key) for _, key, _, _ in specs}
+            start = len(self.events)
+            out = [("not run", None)] * len(specs)
+
+            def go(i, tool, key, behaviors, before):
+                TL.behaviors, TL.mode, TL.key, TL.hard = list(behaviors), "truthful", key, False
                 kwargs = {"c4a_key": key} if key is not None else {}
-                barrier.wait()
                 try:
-                    with warnings.catch_warnings():
-                        warnings.simplefilter("ignore")
-                        with c4a.run(RUN):
-                            out[i] = ("returned", PAY_T(item=item, **kwargs))
+                    if before is not None:
+                        before()
+                    with c4a.run(RUN):
+                        out[i] = ("returned", tool(item=item, **kwargs))
                 except (c4a.ApprovalRequired, c4a.EffectInDoubt, c4a.KeyConflict) as exc:
                     out[i] = (type(exc).__name__, None)
                 except BaseException as exc:       # noqa: BLE001 - reported as a violation
                     out[i] = ("unexpected " + repr(exc), None)
-            threads = [threading.Thread(target=go, args=(0, key1)), threading.Thread(target=go, args=(1, key2))]
-            for t in threads:
-                t.start()
+                finally:
+                    if release_after == i:
+                        self.slow_release.set()
+            threads = [threading.Thread(target=go, args=(i,) + spec) for i, spec in enumerate(specs)]
+            if release_after is not None:          # the slow caller first: wait until it is inside (or done)
+                threads[0].start()
+                while not self.slow_entered.is_set() and threads[0].is_alive():
+                    self.slow_entered.wait(0.01)
+                self.slow_entered.set()            # the racer must not wait for a slow call that never began
+                for t in threads[1:]:
+                    t.start()
+            else:
+                for t in threads:
+                    t.start()
             for t in threads:
                 t.join(30)
+            self.slow_release.set()
             with self.lock:
-                new = self.events[start:]
-            new.sort(key=lambda e: e[4])
+                new = sorted(self.events[start:], key=lambda e: e[4])
             self.apply(new)
-            for (kind, value), key in zip(out, (key1, key2)):
-                if kind.startswith("unexpected"):
-                    self.violations.append(f"two_threads({item}, {key1}, {key2}): {kind}")
+            keys = [key for _, key, _, _ in specs]
+            for (kind, value), key in zip(out, keys):
+                if kind.startswith("unexpected") or kind == "not run":
+                    self.violations.append(f"{label}({item}, {keys}): {kind}")
                 if kind == "returned":
                     s = self.st(oracle_key(item, key))
                     if s["state"] == "done" and not same(value, s["result"]):
-                        self.violations.append(f"two_threads: returned {value!r}, recorded {s['result']!r}")
+                        self.violations.append(f"{label}: returned {value!r}, recorded {s['result']!r}")
                     s["state"], s["result"] = "done", value
-            if oracle_key(item, key1) == oracle_key(item, key2) and out[0][0] == out[1][0] == "returned":
-                if not same(out[0][1], out[1][1]):
-                    self.violations.append(f"two_threads: the same action gave two results {out}")
+            done = [(oracle_key(item, key), v) for (kind, v), key in zip(out, keys) if kind == "returned"]
+            for ka, va in done:
+                for kb, vb in done:
+                    if ka == kb and not same(va, vb):
+                        self.violations.append(f"{label}: the same action gave two results {out}")
 
         # ---------------------------------------------------------- invariants
         @invariant()
@@ -804,11 +853,16 @@ def foreign_objects(v, out):
     return out
 
 
+# Replaced by recorders while hostile records are decoded: a bug that calls what a record names is seen, and
+# does nothing. builtins.eval/exec are not replaced (the import machinery runs modules with exec); called with
+# the keyword arguments a record holds they only raise TypeError.
 DANGEROUS = [(os, "system"), (os, "remove"), (os, "unlink"), (os, "rmdir"), (os, "_exit"), (shutil, "rmtree"),
-             (subprocess, "Popen"), (subprocess, "run"), (subprocess, "call"), (builtins, "eval"), (builtins, "exec")]
+             (subprocess, "Popen"), (subprocess, "run"), (subprocess, "call")]
 
 
 def run_codec(cfg):
+    for mod in SAFE_MODULES:          # imported before any recorder is in place (decode imports what it names)
+        importlib.import_module(mod)
     n = cfg["examples"]
     s = settings(max_examples=n, deadline=None, derandomize=cfg["derandomize"], database=None,
                  suppress_health_check=list(HealthCheck), print_blob=True)
@@ -961,6 +1015,10 @@ def fuzz_once(root, db, secret, ran):
         shutil.rmtree(d, ignore_errors=True)
 
 
+ANCHORS = (b"tool_done", b"tool_intent", b"approval", b"effect_approved", b"RA", b"schema_version", b"mac")
+_SPOTS = {}
+
+
 def damage(data, how, rnd):
     b = bytearray(data)
     if how == "flip":
@@ -970,16 +1028,73 @@ def damage(data, how, rnd):
         page = rnd.randrange(max(1, len(b) // 4096))
         for _ in range(rnd.randrange(1, 4)):
             b[page * 4096 + rnd.randrange(min(4096, len(b) - page * 4096))] ^= 1 << rnd.randrange(8)
+    elif how == "flip-near":                     # aim at a row or index entry: the text it holds
+        if data not in _SPOTS:
+            _SPOTS[data] = [i for a in ANCHORS for i in range(len(b)) if b.startswith(a, i)]
+        spots = _SPOTS[data]
+        at = rnd.choice(spots) if spots else rnd.randrange(len(b))
+        for _ in range(rnd.randrange(1, 3)):
+            i = min(len(b) - 1, max(0, at + rnd.randrange(-24, 40)))
+            b[i] ^= 1 << rnd.randrange(8)
     elif how == "random-run":
         start = rnd.randrange(len(b))
         for i in range(start, min(len(b), start + rnd.randrange(1, 64))):
             b[i] = rnd.randrange(256)
     elif how == "zero-run":
         start = rnd.randrange(len(b))
-        b[start:start + rnd.randrange(1, 512)] = bytes(len(b[start:start + 512]))[:len(b[start:start + rnd.randrange(1, 512)])]
+        end = min(len(b), start + rnd.randrange(1, 512))
+        b[start:end] = bytes(end - start)
     elif how == "truncate":
         del b[rnd.randrange(len(b)):]
     return bytes(b)
+
+
+DAMAGED_ROWS = [      # PF1: each edits ONE row, like a disk error that keeps the SQLite file readable
+    ("an approval row that is not JSON", "UPDATE entries SET payload = '{\"mac\": ' WHERE seq = "
+     "(SELECT MAX(seq) FROM entries WHERE kind = 'approval')", "C"),
+    ("an effect_approved row without its field", "UPDATE entries SET payload = '{\"approvbl\": 2}' WHERE seq = "
+     "(SELECT MAX(seq) FROM entries WHERE kind = 'effect_approved')", "B"),
+    ("a tool_done row without its result", "UPDATE entries SET payload = '{\"resulx\": \"RA\"}' WHERE kind = 'tool_done'",
+     "A"),
+    ("a format version that is not a number", "UPDATE meta SET v = 'x' WHERE k = 'schema_version'", "A"),
+]
+
+
+def hand_damaged_rows(root, db, secret):
+    """Found by the file fuzzing below (2026-11-12): these gave JSONDecodeError, KeyError or ValueError, not the
+    kit's LedgerError that P15 promises for a damaged row. Nothing ran in any of them (the safety part held)."""
+    got = []
+    for label, sql, item in DAMAGED_ROWS:
+        d = Path(tempfile.mkdtemp(prefix="c4a-pf1-", dir=root))
+        (d / "ledger.sqlite").write_bytes(db)
+        (d / "secret").write_bytes(secret)
+        conn = sqlite3.connect(str(d / "ledger.sqlite"))
+        conn.execute(sql)
+        conn.commit()
+        conn.close()
+        lg, ran = None, []
+        try:
+            lg = c4a.init(str(d / "ledger.sqlite"))
+
+            @c4a.effect(approval=True, name=FUZZ_TOOL, wait=0.0)
+            def act(item):
+                ran.append(item)
+                return "R" + item
+            with c4a.run("fuzz"):
+                act(item=item)
+            got.append((label, "no error"))
+        except LedgerError:
+            pass
+        except Exception as exc:      # noqa: BLE001
+            got.append((label, repr(exc)[:80]))
+        finally:
+            conn = getattr(lg._local, "conn", None) if lg is not None else None
+            if conn is not None:
+                conn.close()
+        if ran:
+            got.append((label, f"{ran} ran"))
+    check(f"PF1 files: {len(DAMAGED_ROWS)} hand-damaged rows each give LedgerError (row N is damaged), nothing runs",
+          not got, got)
 
 
 def run_files(cfg):
@@ -992,12 +1107,13 @@ def run_files(cfg):
               outcomes.get("A") == ("returned", "RA") and outcomes.get("B") == ("refused", "EffectInDoubt")
               and outcomes.get("C") == ("returned", "RC") and outcomes.get("D") == ("refused", "ApprovalRequired")
               and ran == ["C"] and not problems, (outcomes, ran, problems))
+        hand_damaged_rows(root, db, secret)
         stats = {"cases": 0, "clear error": 0, "wrong A result": 0, "wrong A result, verify ok": 0}
-        s = settings(max_examples=cfg["examples"], deadline=None, derandomize=cfg["derandomize"], database=None,
-                     suppress_health_check=list(HealthCheck), print_blob=True)
+        s = settings(max_examples=2 * cfg["examples"], deadline=None, derandomize=cfg["derandomize"],
+                     database=None, suppress_health_check=list(HealthCheck), print_blob=True)
 
         @s
-        @given(how=st.sampled_from(["flip", "flip-page", "random-run", "zero-run", "truncate"]),
+        @given(how=st.sampled_from(["flip", "flip-page", "flip-near", "flip-near", "random-run", "zero-run", "truncate"]),
                sec=st.sampled_from(["keep", "keep", "keep", "flip", "truncate", "empty", "missing"]),
                rnd=st.randoms(use_true_random=False))
         def damaged(how, sec, rnd):
@@ -1051,55 +1167,13 @@ def verify_ok(root, data):
         shutil.rmtree(d, ignore_errors=True)
 
 
-# ================================================================== race: a racer while the action still runs
-def run_race(cfg):
-    """With reconcile=, a second caller in the same process must not run the action while the first still runs
-    it (docstring: "Callers racing on the same effect: exactly one runs it"). Fix 2026-11-11 (PR1)."""
-    d = tempfile.mkdtemp(prefix="c4a-props-race-")
-    lg = c4a.init(str(Path(d) / "ledger.sqlite"), secret=SECRET)
-    provider, started = [], threading.Event()
-
-    def rec(item):
-        return provider[0] if provider else None
-
-    @c4a.effect(approval=True, name="props.slow", reconcile=rec, wait=0.2)
-    def slow(item):
-        started.set()
-        time.sleep(0.8)                 # slower than wait=: the racer gives up waiting while this still runs
-        provider.append(f"paid {item} #{len(provider) + 1}")
-        return provider[-1]
-    out = []
-
-    def go():
-        with c4a.run("race"):
-            try:
-                out.append(slow(item="a"))
-            except c4a.EffectInDoubt:
-                out.append("in doubt")
-    with c4a.run("race"):
-        c4a.approve(slow, item="a")
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        t1 = threading.Thread(target=go)
-        t1.start()
-        started.wait(5)
-        t2 = threading.Thread(target=go)
-        t2.start()
-        t1.join()
-        t2.join()
-        with c4a.run("race"):
-            later = slow(item="a")      # after both: the recorded result, nothing new
-    conn = getattr(lg._local, "conn", None)
-    if conn is not None:
-        conn.close()
-    shutil.rmtree(d, ignore_errors=True)
-    check("PR1 a racer does not run a reconciled action again while the first caller still runs it",
-          len(provider) == 1 and sorted(out) == ["in doubt", "paid a #1"] and later == "paid a #1",
-          (provider, out, later))
-
-
 # ================================================================== driver
+SEED = {"n": None}      # --long: one seed for every group, printed so a failure can be rerun
+
+
 def run_prop(label, fn):
+    if SEED["n"] is not None:
+        fn = hypothesis.seed(SEED["n"])(fn)
     try:
         fn()
         check(label, True)
@@ -1112,14 +1186,16 @@ def run_machine(cfg):
     s = settings(max_examples=cfg["machine_examples"], stateful_step_count=cfg["steps"], deadline=None,
                  derandomize=cfg["derandomize"], database=None, suppress_health_check=list(HealthCheck),
                  print_blob=True)
-    if cfg["seed"] is not None:
-        hypothesis.seed(cfg["seed"])(Machine)
+    if SEED["n"] is not None:
+        hypothesis.seed(SEED["n"])(Machine)
     label = ("machine: approve / deny / call / crash before or after / retry_on / other errors / resume / "
-             "reconcile (truthful or lagging) / two threads keep: <= 1 outside action per key, every action had a "
-             "live yes for its exact arguments, one yes per action, finished calls replay their result, "
-             "the record only grows")
+             "reconcile (truthful or lagging) / two callers at once / a racer while a call still runs / two "
+             "resumes at once keep: <= 1 outside action per key, every action had a live yes for its exact "
+             "arguments, one yes per action, finished calls replay their result, the record only grows")
     try:
-        run_state_machine_as_test(Machine, settings=s)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")      # late-result warnings from racing threads: the record is checked
+            run_state_machine_as_test(Machine, settings=s)
         check(label, True)
     except Exception as exc:      # noqa: BLE001
         check(label, False, f"{type(exc).__name__}: {str(exc)[:600]}")
@@ -1129,7 +1205,7 @@ def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--require-hypothesis", action="store_true")
     p.add_argument("--long", action="store_true")
-    p.add_argument("--only", choices=["machine", "canonical", "codec", "files", "race"])
+    p.add_argument("--only", choices=["machine", "canonical", "codec", "files"])
     p.add_argument("--seed", type=int)
     a = p.parse_args(argv)
     if not HAVE_HYPOTHESIS:
@@ -1138,27 +1214,21 @@ def main(argv=None):
             check("hypothesis is installed (--require-hypothesis)", False)
             return 1
         return 0
-    seed = None
     if a.long:
-        seed = a.seed if a.seed is not None else random.randrange(2 ** 32)
-        cfg = {"machine_examples": 400, "steps": 50, "examples": 3000, "derandomize": False, "seed": seed}
+        SEED["n"] = a.seed if a.seed is not None else random.randrange(2 ** 32)
+        cfg = {"machine_examples": 500, "steps": 50, "examples": 3000, "derandomize": False}
     else:
-        cfg = {"machine_examples": 60, "steps": 30, "examples": 300, "derandomize": True, "seed": None}
+        cfg = {"machine_examples": 60, "steps": 30, "examples": 300, "derandomize": True}
     print(f"hypothesis {hypothesis.__version__}, {'long' if a.long else 'default'} run, "
-          + (f"seed {seed} (rerun: --long --seed {seed})" if seed is not None
-             else "derandomized (the same examples every run)"))
+          + (f"seed {SEED['n']} (rerun: --long --seed {SEED['n']})" if SEED["n"] is not None
+             else "derandomized (the same examples every run)"), flush=True)
     t0 = time.monotonic()
-    groups = {"machine": run_machine, "canonical": run_canonical, "codec": run_codec, "files": run_files,
-              "race": run_race}
+    groups = {"machine": run_machine, "canonical": run_canonical, "codec": run_codec, "files": run_files}
     for name, fn in groups.items():
         if a.only in (None, name):
-            if seed is not None and name != "machine":
-                random.seed(seed)
-                hypothesis_seed = hypothesis.seed(seed)
-                cfg["wrap"] = hypothesis_seed
             t = time.monotonic()
             fn(cfg)
-            print(f"        ({name}: {time.monotonic() - t:.1f} s)")
+            print(f"        ({name}: {time.monotonic() - t:.1f} s)", flush=True)
     print(f"examples run: {json.dumps({k: v for k, v in COUNTS.items() if k != 'files stats'})}")
     print(f"{'all passed' if not FAILED else str(len(FAILED)) + ' FAILED'} in {time.monotonic() - t0:.1f} s")
     return 1 if FAILED else 0
