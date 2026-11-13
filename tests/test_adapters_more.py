@@ -167,7 +167,10 @@ def llamaindex_checks():
     def touch(ctx: Context, x: int) -> str:
         ids.append(c4a.current_run())
         return "ok"
-    touch(object(), 1)
+    try:
+        touch(object(), 1)
+    except RuntimeError as exc:
+        ids.append(str(exc)[:80])
     check("LlamaIndex: run=lambda ctx: <id> gives the run id when no c4a.run is active", ids == ["job-from-run-arg"], ids)
 
 

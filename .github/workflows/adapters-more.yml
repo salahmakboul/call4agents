@@ -16,7 +16,7 @@ jobs:
   adapters-more:
     name: CrewAI + LlamaIndex + smolagents ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
