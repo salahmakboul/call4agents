@@ -1,5 +1,6 @@
 """Adapters for Google ADK and Microsoft Agent Framework, with the REAL frameworks, offline (scripted
 models, no API key, no network). Run: python -m tests.test_adapters_more2 [--require-frameworks]
+[--no-crashtest | --only-crashtest]  (the crashtest part takes about 4 minutes)
 
 A framework that is not installed is skipped (and says so); --require-frameworks (CI) makes that a failure.
 For each framework:
@@ -15,7 +16,6 @@ For each framework:
                            repeats, with the guard nothing repeats
 Every socket connection to a non-loopback address fails the run (checked at the end)."""
 import importlib.util
-import json
 import logging
 import os
 import socket
@@ -296,11 +296,12 @@ def crash_checks(label, file):
     os.environ.pop("AGENT_GUARD")
     print(f"        {label} crashtest: {without.get('tested')} crash points without the guard, "
           f"{guarded.get('tested')} with it")
+    seen_without = without if "error" in without else problems(without)
+    seen_guarded = guarded if "error" in guarded else problems(guarded)
     check(f"{label} crashtest: the repeat is found without the guard",
-          "send_email(to='bob')" in problems(without)["twice"], problems(without) if "error" not in without else without)
+          "send_email(to='bob')" in seen_without.get("twice", []), seen_without)
     check(f"{label} crashtest: nothing repeats with the guard, every crash point reached",
-          "error" not in guarded and not problems(guarded)["twice"] and guarded["reached"] == guarded["tested"],
-          guarded if "error" in guarded else problems(guarded))
+          "error" not in guarded and not seen_guarded["twice"] and guarded["reached"] == guarded["tested"], seen_guarded)
 
 
 def main():
@@ -315,7 +316,8 @@ def main():
                 print(f"  skip  {label}: not installed")
             continue
         ran += 1
-        run()
+        if "--only-crashtest" not in sys.argv:
+            run()
         if "--no-crashtest" not in sys.argv:
             crash_checks(label, crash_file)
     check("no network call was attempted", not NETWORK, NETWORK[:3])
