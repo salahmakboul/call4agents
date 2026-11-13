@@ -410,8 +410,7 @@ def write_markdown(doc: Dict[str, Any], path: Path, json_name: str) -> None:
         lines.append(f"- **{load(s).title}**, {label(doc, k)}, {x} ({TITLES[x]}): {summary(cells[(s, k, x)])}.")
     if not own:
         lines.append("None in this run.")
-    if len(kits) == 2:
-        old, new = kits
+    for old, new in zip(kits, kits[1:]):            # each call4agents version against the next one
         changed = [(s, x) for s in subjects for x in scen
                    if cells.get((s, old, x), {}).get("status") != cells.get((s, new, x), {}).get("status")]
         lines += ["", f"## Different between {label(doc, old)} and {label(doc, new)}", ""]
@@ -458,7 +457,7 @@ def controls_gate(cells: List[Dict[str, Any]]) -> None:
 def parse(argv: List[str]) -> Dict[str, Any]:
     opts: Dict[str, Any] = {"subjects": list(SUBJECTS), "scenarios": list(SCENARIOS), "repeat": 5, "workers": 4,
                             "out": str(ROOT / "bench" / "results"), "markdown": True, "require": False, "keep": False,
-                            "release": "0.7.1", "head": True}
+                            "release": "0.7.1,0.7.2", "head": True}
     items = iter(argv)
     for a in items:
         if a == "--subjects":
@@ -503,8 +502,9 @@ def main(argv: List[str]) -> int:
             print(f"skip  {s}: not installed")
     base = Path(tempfile.mkdtemp(prefix="c4a-bench-"))
     kits: Dict[str, Dict[str, Any]] = {}
-    if opts["release"]:
-        kits[f"call4agents-{opts['release']}"] = release_kit(opts["release"], base)
+    for release in (opts["release"] or "").split(","):     # oldest first, e.g. "0.7.1,0.7.2"
+        if release.strip():
+            kits[f"call4agents-{release.strip()}"] = release_kit(release.strip(), base)
     if opts["head"]:
         kits["call4agents-head"] = head_kit()
     variants = ["default"] + list(kits)
