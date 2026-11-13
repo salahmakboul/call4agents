@@ -188,13 +188,38 @@ def smolagents_checks():
     check("smolagents CodeAgent: with run= the retry sends once", given.get("emails_sent") == 1, given)
 
 
+def crash_checks(label, file):
+    """`call4agents crashtest` on a real agent: killed at every step and restarted (separate processes)."""
+    from call4agents.crashtest import crashtest, problems
+    path = str(Path(__file__).resolve().parent / "crashtest_agents" / file)
+    os.environ["AGENT_GUARD"] = "0"
+    without = crashtest(path, timeout=600)   # one CrewAI start passed 120 s here under load
+    os.environ["AGENT_GUARD"] = "1"
+    guarded = crashtest(path, timeout=600)
+    os.environ.pop("AGENT_GUARD")
+    print(f"        {label} crashtest: {without.get('tested')} crash points without the guard, "
+          f"{guarded.get('tested')} with it")
+    seen_without = without if "error" in without else problems(without)
+    seen_guarded = guarded if "error" in guarded else problems(guarded)
+    check(f"{label} crashtest: the repeat is found without the guard",
+          "send_email(to='bob')" in seen_without.get("twice", []), seen_without)
+    check(f"{label} crashtest: nothing repeats with the guard, every crash point reached",
+          "error" not in guarded and not seen_guarded["twice"] and guarded["reached"] == guarded["tested"], seen_guarded)
+
+
 def main():
+    """Flags: --require-frameworks, --no-crashtest (skip the slow part), --only-crashtest,
+    --framework CrewAI|LlamaIndex|smolagents (only that one)."""
     block_network()
     require = "--require-frameworks" in sys.argv
+    only = sys.argv[sys.argv.index("--framework") + 1] if "--framework" in sys.argv else None
     ran = 0
-    for label, module, checks in (("CrewAI", "crewai", crewai_checks),
-                                  ("LlamaIndex", "llama_index.core.agent.workflow", llamaindex_checks),
-                                  ("smolagents", "smolagents", smolagents_checks)):
+    for label, module, checks, crash_file in (("CrewAI", "crewai", crewai_checks, "crew_agent.py"),
+                                              ("LlamaIndex", "llama_index.core.agent.workflow", llamaindex_checks,
+                                               "li_agent.py"),
+                                              ("smolagents", "smolagents", smolagents_checks, "smol_agent.py")):
+        if only and label != only:
+            continue
         if not has(module.split(".")[0]) or not has(module):
             print(f"  skip  {label}: not installed")
             if require:
@@ -202,7 +227,10 @@ def main():
             continue
         ran += 1
         print(f"  {label} {importlib.metadata.version({'CrewAI': 'crewai', 'LlamaIndex': 'llama-index-core', 'smolagents': 'smolagents'}[label])}")
-        checks()
+        if "--only-crashtest" not in sys.argv:
+            checks()
+        if "--no-crashtest" not in sys.argv:
+            crash_checks(label, crash_file)
     check("no connection left this machine during the tests", not NETWORK, NETWORK[:5])
     print(f"\n{len(FAILED)} adapter check(s) failed" if FAILED else f"\nall adapter checks pass ({ran} framework(s) installed)")
     return 1 if FAILED else 0

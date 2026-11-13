@@ -71,39 +71,10 @@ def wrap_tool(f: Callable, type_names: Tuple[str, ...], run_from: Callable[[Any]
 
 def wrap_plain_tool(f: Callable, run_from: Callable[[], Optional[str]], what: str, options: dict,
                     context: Optional[str] = None) -> Callable:
-    """Like wrap_tool, but only `context` (a parameter the adapter found by the framework's own rule) is
-    left out of the key; no parameter is left out for its name alone (in CrewAI or smolagents a
-    `context: str` parameter is text the model wrote). The run id comes from an active c4a.run(...),
-    else run=lambda ctx: <id> (ctx is that parameter's value, or None), else run_from(), else a clear error."""
-    run_override = options.pop("run", None)
-    inner = c4a.effect(f, exclude=(context,) if context else (), **options)
-    sig = inspect.signature(f)
-
-    def find_run(args: tuple, kwargs: dict) -> str:
-        active = c4a._RUN.get()
-        if active is not None:
-            return active
-        if run_override:
-            ctx = sig.bind_partial(*args, **kwargs).arguments.get(context) if context else None
-            rid = run_override(ctx)
-        else:
-            rid = run_from()
-        if not rid:
-            raise RuntimeError(f"call4agents could not find a run id for this {what} tool call: "
-                               f"wrap the run in `with c4a.run(<id>):` or pass run=lambda ctx: <id>")
-        return str(rid)
-
-    if inspect.iscoroutinefunction(f):
-        @functools.wraps(f)
-        async def acall(*args: Any, **kwargs: Any) -> Any:
-            with c4a.run(find_run(args, kwargs)):
-                return await inner(*args, **kwargs)
-        acall.c4a_name, acall.c4a_fn, acall.c4a_exclude = inner.c4a_name, f, inner.c4a_exclude
-        return acall
-
-    @functools.wraps(f)
-    def call(*args: Any, **kwargs: Any) -> Any:
-        with c4a.run(find_run(args, kwargs)):
-            return inner(*args, **kwargs)
-    call.c4a_name, call.c4a_fn, call.c4a_exclude = inner.c4a_name, f, inner.c4a_exclude
-    return call
+    """wrap_tool for frameworks whose run id does not come from a context object (CrewAI, LlamaIndex,
+    smolagents). Only `context` (found by the framework's own rule) is left out of the key, never a
+    parameter for its name alone: there a `context: str` is text the model wrote. The run id comes from
+    an active c4a.run(...), else run=lambda ctx: <id> (ctx: that parameter or None), else run_from()."""
+    options = dict(options)
+    options["run"] = options.get("run") or (lambda ctx: run_from())
+    return wrap_tool(f, (), lambda ctx: None, what, options, ctx_name=context)
