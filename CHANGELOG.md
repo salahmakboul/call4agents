@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.7.3
+
+**Fixed (safety): a second action inside one process, in a short window that 0.7.2 left open (Fix 19)**
+
+0.7.2 is affected, and earlier versions too, if you use `reconcile=` or `idempotent_for=` and two threads or tasks of
+ONE process can reach the same action. Separate processes were not affected.
+
+- **What happened.** 0.7.2 marked a call as running in its process only after the claim had returned. If that call
+  was held up right there for longer than `wait=` (default 2 s), another thread of the same process saw the intent as
+  "not running". It asked `reconcile`, got a truthful "not done yet", and ran the action. Then the first call ran it
+  too: 2 actions. The record showed `late_result` and Python warned, so the double was not silent.
+  - The hold-up can come from the scheduler, or from an asyncio event loop blocked by another task: for example, a
+    blocking `time.sleep` in async code while a thread calls the same action.
+- **Now** the attempt is marked as running before its intent is written. A lost claim takes its mark back.
+- **Found by** the TLA+ model of the protocol (config `finding_threads_window`, a 22-state trace), then reproduced
+  with the real library: 0.7.2 made 2 payments in both modes (a pause after the claim, and a blocked event loop),
+  and 0.7.3 makes 1.
+- Check K29f, and two mutations: the mark removed, and the mark set after the claim.
+
+**Fixed: a damaged record row gave a raw Python error (PF1)**
+- An approval or denial row that is not JSON, an `effect_approved` row or a `tool_done` row missing its field, or a
+  format version that is not a number raised `JSONDecodeError`, `KeyError` or `ValueError`. They now raise the
+  `LedgerError` that names the row, as promised (P15).
+- Found by the new property tests: they damaged 3,000 copies of a record. In none of them did an action run that
+  should not, or run twice. So this was an error-message bug, not a safety bug.
+
+**New: proof beyond tests**
+- `formal/`: a TLA+ model of the protocol (several workers, crashes at any point, approvals, denials, reconcile with
+  three answers, same-key resends), checked with TLC. It has 24 configurations:
+  - 9 must pass, and do;
+  - 13 seeded bugs, each caught with the named property, including both forms of the 0.7.1 bug;
+  - 2 findings.
+  - About 12 million distinct states in total. See `docs/FORMAL_MODEL.md` for what it proves and what it does not.
+- `tests/test_formal_trace.py`: real crash/resume runs checked against the model's invariants (72 scenarios).
+- `tests/test_properties.py`: property-based tests with Hypothesis (a state machine with racing callers, keys,
+  the codec, damaged records). On 0.7.1 it finds the double payment by itself. See `docs/PROPERTIES.md`.
+
 ## 0.7.2
 
 **Fixed (safety): two payments with a truthful `reconcile=` (Fix 17)**

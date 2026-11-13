@@ -171,6 +171,39 @@ def k29():
         bad_lease = "refused"
     check("K29d lease=0 is refused when the action is declared", bad_lease == "refused", bad_lease)
 
+    # f (Fix 19, found by the TLA+ model): no gap between the claim and "running in this process"
+    lg = fresh()
+    bank3, out3, paused = [], [], threading.Event()
+    real_claim = lg.claim
+
+    def slow_claim(run_id, key, payload=None):          # thread A stops right after its intent is written
+        won = real_claim(run_id, key, payload)
+        if won and not paused.is_set():
+            paused.set()
+            time.sleep(0.5)
+        return won
+    lg.claim = slow_claim
+
+    def pay3(amount):
+        bank3.append(amount)
+        return "paid"
+    pay3 = c4a.effect(pay3, name="k29.window", reconcile=lambda amount: "paid" if bank3 else None, wait=0.05)
+
+    def caller3():
+        with c4a.run("k29f"), warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            try:
+                out3.append(pay3(10))
+            except c4a.EffectInDoubt:
+                out3.append("in doubt")
+    a = threading.Thread(target=caller3)
+    a.start()
+    paused.wait(10)
+    caller3()                                            # thread B arrives while A sits between claim and call
+    a.join()
+    check("K29f a call paused right after its claim still counts as running here: 1 payment, the other in doubt",
+          bank3 == [10] and sorted(out3) == ["in doubt", "paid"], (bank3, out3))
+
     # e: real processes: one killed inside the call, then two resume at the same moment (twice)
     charges = []
     for _ in range(2):

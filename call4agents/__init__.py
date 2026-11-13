@@ -445,12 +445,28 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
                                                           "why": why, **gate.stamp()})
                     raise RuleRefused(tool, call_args, "per_run", why) from None
 
+            def owned(attempt: int, payload: Any) -> bool:
+                """Claim with the attempt marked as running in this process BEFORE its intent is written (Fix 19:
+                marked only after check() returned, another thread of this process could find the intent "not
+                running", reconcile it and pay; then this call paid too). A lost claim takes its mark back; a won
+                one keeps it until the wrapper has recorded the result or the error."""
+                running = intent_key(k, attempt)
+                _owner.started(running)
+                try:
+                    won = claim(attempt, payload)
+                except BaseException:
+                    _owner.finished(running)
+                    raise
+                if not won:
+                    _owner.finished(running)
+                return won
+
             for _ in range(2):
                 done = lg.latest("tool_done", k)
                 if done is not None:
                     return {"replay": _codec.decode(done["payload"]["result"])}
                 attempt = lg.next_attempt(k)
-                if claim(attempt, {"tool": tool, "args": call_args, "owner": _owner.me()}):
+                if owned(attempt, {"tool": tool, "args": call_args, "owner": _owner.me()}):
                     return {"key": k, "run_id": run_id, "attempt": attempt}
                 err = lg.latest("tool_error", k)
                 failed = err is not None and err["payload"].get("attempt") == attempt
@@ -475,7 +491,7 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
                         # create a second effect. Close this attempt once, then claim the next one.
                         if not lg.give_up(run_id, k, attempt, "tool_retry_same_key"):
                             continue                # another caller closed it first and owns the resend
-                        if claim(attempt + 1, {"tool": tool, "args": call_args, "same_key_retry": True,
+                        if owned(attempt + 1, {"tool": tool, "args": call_args, "same_key_retry": True,
                                                "owner": _owner.me()}):
                             return {"key": k, "run_id": run_id, "attempt": attempt + 1}
                     raise EffectInDoubt(tool, call_args, why)
@@ -541,8 +557,7 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
                     if "replay" in plan:
                         return plan["replay"]
                     token = _EFFECT_KEY.set(plan["key"])
-                    running = intent_key(plan["key"], plan["attempt"])
-                    _owner.started(running)       # until recorded: another caller must not reconcile it
+                    running = intent_key(plan["key"], plan["attempt"])   # marked running by its claim (Fix 19)
                     try:
                         result = await f(*args, **kwargs)
                     except BaseException as exc:
@@ -571,8 +586,7 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
                 if "replay" in plan:
                     return plan["replay"]
                 token = _EFFECT_KEY.set(plan["key"])
-                running = intent_key(plan["key"], plan["attempt"])
-                _owner.started(running)           # until recorded: another caller must not reconcile it
+                running = intent_key(plan["key"], plan["attempt"])     # marked running by its claim (Fix 19)
                 try:
                     result = f(*args, **kwargs)
                 except BaseException as exc:
