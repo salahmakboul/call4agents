@@ -241,6 +241,12 @@ def main():
     if a.only and set(a.only) - names:
         print(f"unknown config(s): {sorted(set(a.only) - names)}")
         return 2
+    # TLC runs inside a temporary folder, so a relative jar path would not be found there (CI, 13 Nov: every
+    # config ended in "ClassNotFoundException: tlc2.TLC").
+    a.tla2tools = str(Path(a.tla2tools).resolve())
+    if not Path(a.tla2tools).is_file():
+        print(f"tla2tools.jar not found at {a.tla2tools}")
+        return 2
     results = []
     for c in CONFIGS:
         if a.only and c["name"] not in a.only:
