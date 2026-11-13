@@ -511,3 +511,99 @@ c4a_crashtest()
 ```
 
 (no docstring)
+
+### `call4agents.adapters.google_adk`
+
+Google ADK adapter.
+
+    from call4agents.adapters import google_adk as c4a_adk
+
+    @c4a_adk.effect                  # once per session, tool and exact arguments
+    def send_email(to: str, body: str, tool_context: ToolContext) -> str: ...
+
+    agent = LlmAgent(..., tools=[send_email])
+
+The run id is the ADK session (app name, user id, session id). A resumed invocation, and a message sent
+again after a timeout, run in the same session; the invocation id is new for each new message, so it
+would let a re-sent message act again. The tool context is left out of the key. An active
+`with c4a.run(...)` wins over the session.
+
+ADK tool confirmation (`FunctionTool(..., require_confirmation=True)`): wrap the tool with
+`c4a_adk.effect(approval=True)` and build the person's answer with `confirm(...)`. It records the yes
+(or no) in call4agents for exactly the arguments shown in the `adk_request_confirmation` call, so a
+call changed after the yes is refused when it runs.
+
+#### `google_adk.run_id`
+
+```python
+run_id(session: Any)
+```
+
+The run id for an ADK session (a Session, or a tool / callback context). A string is used as it is.
+
+#### `google_adk.effect`
+
+```python
+effect(fn: Optional[Callable]=None, **options: Any)
+```
+
+c4a.effect for an ADK function tool (with or without a ToolContext parameter).
+
+#### `google_adk.confirm`
+
+```python
+confirm(call: Any, confirmed: bool, *, tools: Any, session: Any=None)
+```
+
+The person's answer to an `adk_request_confirmation` call, as the Content to send back to ADK.
+First records c4a.approve (or c4a.deny) for exactly the arguments in that call, in this session.
+`tools`: the agent's tools, wrapped with c4a_adk.effect(approval=True).
+
+### `call4agents.adapters.agent_framework`
+
+Microsoft Agent Framework (Python) adapter.
+
+    from call4agents.adapters import agent_framework as c4a_maf
+
+    @tool
+    @c4a_maf.effect                  # once per session, tool and exact arguments
+    def send_email(to: str, body: str, ctx: FunctionInvocationContext) -> str: ...
+
+    session = agent.create_session(session_id="order-42")
+    await agent.run("...", session=session)
+
+The run id is the AgentSession's `session_id`: it is kept when the session is saved and loaded again
+(to_dict / from_dict) and in workflow checkpoints, so a retried or restored run finds its effects. The
+FunctionInvocationContext parameter is left out of the key. An active `with c4a.run(...)` wins.
+Without session=, Agent Framework may make a new session for each run: then each run is a new run id.
+
+Tool approval (`@tool(approval_mode="always_require")`): wrap the tool with
+`c4a_maf.effect(approval=True)` and turn the person's answer into the response with `respond(...)`. It
+records the yes (or no) in call4agents for exactly the arguments in the approval request, so a call
+changed after the yes is refused when it runs.
+
+#### `agent_framework.run_id`
+
+```python
+run_id(session: Any)
+```
+
+The run id for an AgentSession (or a FunctionInvocationContext). A string is used as it is.
+
+#### `agent_framework.effect`
+
+```python
+effect(fn: Optional[Callable]=None, **options: Any)
+```
+
+c4a.effect for an Agent Framework function tool (with or without a FunctionInvocationContext).
+
+#### `agent_framework.respond`
+
+```python
+respond(request: Any, approved: bool, *, tools: Any, session: Any=None)
+```
+
+The person's answer to a function_approval_request, as the response Content to send back.
+First records c4a.approve (or c4a.deny) for exactly the arguments in that request, in this session.
+`tools`: the agent's tools, wrapped with c4a_maf.effect(approval=True).

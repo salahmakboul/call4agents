@@ -65,24 +65,30 @@ def k29():
     # a: one call is slower than wait=; a second caller must not ask the provider (it truthfully says "not yet")
     fresh()
     bank, out = [], []
+    started, second_done = threading.Event(), threading.Event()
 
     def slow_pay(amount):
-        time.sleep(0.5)
+        started.set()
+        second_done.wait(10)            # still running until the second caller has finished: no timing guesses
         bank.append(amount)
         return "paid"
     slow_pay = c4a.effect(slow_pay, name="k29.slow", reconcile=lambda amount: "paid" if bank else None, wait=0.1)
 
-    def caller(delay):
-        time.sleep(delay)
+    def caller():
         with c4a.run("k29a"), warnings.catch_warnings():
             warnings.simplefilter("ignore")
             try:
                 out.append(slow_pay(10))
             except c4a.EffectInDoubt as exc:
                 out.append(str(exc))
-    ts = [threading.Thread(target=caller, args=(d,)) for d in (0.0, 0.05)]
-    [t.start() for t in ts]
-    [t.join() for t in ts]
+    first = threading.Thread(target=caller)
+    first.start()
+    started.wait(10)
+    try:
+        caller()                        # the first call is now provably still running
+    finally:
+        second_done.set()
+    first.join()
     check("K29a a call still running in this process is not reconciled: 1 payment, the other caller is in doubt",
           bank == [10] and "paid" in out and any("still running in this process" in o for o in out), (bank, out))
 
