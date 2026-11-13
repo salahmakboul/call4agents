@@ -35,8 +35,12 @@ time. A later call returns the recorded result. If the kit cannot know whether t
 - K2: a crash during the action is "in doubt", and the action is not repeated.
 - K3, K25 and K25b: the three answers of `reconcile` (the result, `None`, `UNKNOWN`).
 - K26c: a resend with the same key; the provider charges once.
-- K29a-e: a call still running is not treated as a crash, and two callers that give up the same attempt start
-  only one new one. This includes real processes: one is killed inside the call, then two resume at once.
+- K29a-f: a call still running is not treated as a crash, also in the moment right after its claim, and two
+  callers that give up the same attempt start only one new one. This includes real processes: one is killed
+  inside the call, then two resume at once.
+- The formal model: `AtMostOnce` holds in every passing configuration ([FORMAL_MODEL.md](FORMAL_MODEL.md)).
+- The property tests: "outside actions per key <= 1" after every step of random runs with racing callers
+  ([PROPERTIES.md](PROPERTIES.md)).
 - The crash matrix (`python -m tests.test_crash_matrix`) kills a real process before and after every write to the
   record and inside the action, then kills the recovery too: 412 crashes, charged at most once at every point
   (M1, M3, M6).
@@ -53,7 +57,8 @@ time. A later call returns the recorded result. If the kit cannot know whether t
   `synchronous=FULL`, or PostgreSQL's own durability settings).
 - Records changed by hand.
 - Versions up to 0.7.1, which could run an action twice with `reconcile=` or `idempotent_for=` when two callers
-  raced (Fix 17, in the CHANGELOG).
+  raced (Fix 17), and 0.7.2, which still could when two threads of one process raced in a short window (Fix 19).
+  See the CHANGELOG.
 
 ## G2. A "yes" covers exactly the call that was shown, once
 
@@ -132,11 +137,12 @@ cache hit. Nothing runs, and you never get another call's result. Numbers that a
 
 - **Mutation testing:** every check above must fail when its bug is put back. Each batch includes a no-op
   control, which must not fail.
-- **A formal model of the protocol** (TLA+, in progress). It already found the double payment fixed in Fix 17,
-  which our tests had missed because they crashed only one caller.
-- **Property-based tests and fuzzing** of the record and the reconcile logic (in progress). They found that some
-  damaged rows gave a raw Python error instead of a clear one.
+- **A formal model of the protocol**, checked with TLC: [FORMAL_MODEL.md](FORMAL_MODEL.md). It found the double
+  payments fixed in Fix 17 and Fix 19, which our tests had missed because they crashed only one caller.
+- **Property-based tests and fuzzing** of the record and the reconcile logic: [PROPERTIES.md](PROPERTIES.md).
+  They found that some damaged rows gave a raw Python error instead of a clear one (fixed in 0.7.3), and on
+  0.7.1 they find the double payment by themselves.
 - **A crash-safety benchmark** that any framework can run on itself (in progress).
 
 When a promise turns out to be wrong, the CHANGELOG says so: which versions are affected, who is affected, and the
-fix. Fix 17 is one example.
+fix. Fix 17 and Fix 19 are examples.

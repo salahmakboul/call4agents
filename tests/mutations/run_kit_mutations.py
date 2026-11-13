@@ -355,6 +355,14 @@ MUTATIONS = [
      "except sqlite3.DatabaseError as exc:", "tests.test_properties --require-hypothesis --only files"),
     ("PF1 approval rows read with json.loads", LEDGER, 'self._payload(r[0], r[1], kind)["mac"]', 'json.loads(r[1]).get("mac", "")',
      "tests.test_properties --require-hypothesis --only files"),
+    # --- trace check: the real library against the TLA+ model's invariants (tests/test_formal_trace.py)
+    ("control (no-op)", INIT, "if busy is not None:", "if busy is not None:", "tests.test_formal_trace"),
+    ("TR reconcile while the owner runs", INIT, "if busy is not None:", "if False:", "tests.test_formal_trace"),
+    ("TR no deny check when in doubt", LEDGER, 'if (denied > spent["seq"] or', "if (False or", "tests.test_formal_trace"),
+    ("TR an error means not done", INIT, "if retry_on and isinstance(exc, retry_on):", "if True:",
+     "tests.test_formal_trace"),
+    ("TR reconcile's result ignored", INIT, "                if found is not None:", "                if False:",
+     "tests.test_formal_trace"),
 ]
 
 # This opt-in batch requires the PostgreSQL dependencies already installed by CI.
@@ -416,7 +424,8 @@ def copy_tree(dst: Path) -> None:
     for f in ("test_c4a_kit.py", "c4a_codec_types.py", "c4a_k18_child.py", "c4a_prove_sample.py", "test_idempotency.py",
               "test_c4a_production.py", "test_undo.py", "c4a_undo_child.py", "test_adapters.py",
               "test_shared_record.py", "test_tickets.py", "test_crashtest.py", "test_audit.py", "test_atomic_admission.py",
-              "test_pytest_plugin.py", "test_spans.py", "test_recipes.py", "test_properties.py"):
+              "test_pytest_plugin.py", "test_spans.py", "test_recipes.py", "test_properties.py",
+              "test_formal_trace.py"):
         shutil.copy(ROOT / "tests" / f, dst / "tests" / f)
 
 

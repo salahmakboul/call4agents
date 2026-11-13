@@ -81,11 +81,10 @@ in a 1.x release, and the change will be in the CHANGELOG with a migration note.
 
 1.0 ships with three kinds of proof:
 
-- a **formal model** of the protocol, checked with the TLA+ model checker (in progress; it already found the
-  double payment fixed in 0.7.2);
-- **property-based tests and fuzzing** of the record and the reconcile logic (in progress);
-- a **guarantees page** that links each promise to its tests and its known limits: [GUARANTEES.md](GUARANTEES.md).
-  The model and the property tests will be linked from it when they are published.
+- a **formal model** of the protocol, checked with the TLA+ model checker: [FORMAL_MODEL.md](FORMAL_MODEL.md);
+- **property-based tests and fuzzing** of the record and the reconcile logic: [PROPERTIES.md](PROPERTIES.md);
+- a **guarantees page** that links each promise to its model property, its tests and its known limits:
+  [GUARANTEES.md](GUARANTEES.md).
 
 A promise that has no check behind it is not on the guarantees page.
 
