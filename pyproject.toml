@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "call4agents"
-version = "0.7.1"
+version = "0.7.2"
 description = "One yes, one payment, even after a crash: once-only actions and approvals bound to exact arguments for Python AI agents"
 requires-python = ">=3.10"
 readme = "README.md"

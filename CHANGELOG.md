@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.2
 
 **Fixed (safety): two payments with a truthful `reconcile=` (Fix 17)**
 
@@ -37,6 +37,23 @@ followed by one resume is not affected.
     nothing is written twice. The WAL mode is set only when the file is not in WAL mode yet. Any other database
     error is still raised at once.
 - Checks: P20 (an append refused twice, a connection refused twice, another error raised at once) and three mutations.
+
+**New**
+- **Adapters for Google ADK and Microsoft Agent Framework** (`call4agents.adapters.google_adk`,
+  `call4agents.adapters.agent_framework`).
+  - The run id comes from the framework's own session: for ADK, app, user and session id (not the invocation id,
+    which changes when the same message is sent again); for Agent Framework, `AgentSession.session_id`.
+  - The framework's context object is left out of the key.
+  - `confirm()` (ADK tool confirmation) and `respond()` (Agent Framework `approval_mode`) turn the person's answer
+    into a "yes" or "no" for the exact arguments the framework asked about, so a call changed after the yes is
+    refused.
+  - Tested with google-adk 2.14.0 and agent-framework-core 1.25.0, offline with scripted models: 27 checks, the crash
+    test on a small agent in each framework, and 14 mutations with two controls. Not tested yet: Agent Framework
+    workflow checkpoints, ADK resumable apps and SQL session stores.
+- **`lease=`** on `@c4a.effect` (see Fix 17).
+- **Docs:** a concepts page, an API reference generated from the code (CI fails if it is out of date), and four
+  recipes (payments, bookings, emails, refunds) as a runnable module, `python -m call4agents.examples.recipes`,
+  checked by `tests/test_recipes.py` with real process kills.
 
 ## 0.7.1
 
