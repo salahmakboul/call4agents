@@ -1,0 +1,54 @@
+{
+  "name": "call4agents",
+  "version": "0.1.0",
+  "private": false,
+  "description": "Approved tool calls of AI agents run at most once, even after a crash. TypeScript port of the Call4Agents core.",
+  "license": "Apache-2.0",
+  "author": "Salah Eddine Makboul",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/salahmakboul/call4agents.git",
+    "directory": "js"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./adapters/openai-agents": {
+      "types": "./dist/adapters/openai-agents.d.ts",
+      "import": "./dist/adapters/openai-agents.js"
+    },
+    "./adapters/ai-sdk": {
+      "types": "./dist/adapters/ai-sdk.d.ts",
+      "import": "./dist/adapters/ai-sdk.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "call4agents": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "examples",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --test --test-concurrency=1 \"test/*.test.mjs\"",
+    "mutations": "node test/mutations.mjs"
+  },
+  "devDependencies": {
+    "@openai/agents": "^0.21.0",
+    "@types/node": "^24.19.2",
+    "ai": "^7.0.170",
+    "typescript": "^5.9.3",
+    "zod": "^4.6.7"
+  }
+}
