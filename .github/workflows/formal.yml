@@ -1,0 +1,41 @@
+name: formal
+
+# TLA+ model of the protocol (formal/Call4Agents.tla), checked with TLC, and the trace check that runs the
+# real library against the same invariants. See docs/FORMAL_MODEL.md.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  TLA_VERSION: v1.7.4
+  TLA_SHA256: 936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88
+
+jobs:
+  tlc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: download tla2tools.jar (pinned release, checked hash)
+        run: |
+          curl -fsSL -o tla2tools.jar "https://github.com/tlaplus/tlaplus/releases/download/${TLA_VERSION}/tla2tools.jar"
+          echo "${TLA_SHA256}  tla2tools.jar" | sha256sum -c -
+      - name: parser self-test
+        run: python formal/run_tlc.py --selftest
+      - name: every config (correct ones pass, seeded bugs and findings fail with the named property)
+        run: python formal/run_tlc.py --tla2tools tla2tools.jar --java java --json tlc-results.json
+      - name: trace check (real library, same invariants)
+        run: python -m tests.test_formal_trace
