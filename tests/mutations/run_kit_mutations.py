@@ -4,6 +4,7 @@ Run from the repository root:  python -m tests.mutations.run_kit_mutations
 No repository file is changed and no LLM call is made. Each batch starts with a no-op control,
 which must be MISSED: a control that "catches" means the test setup itself is broken.
 """
+import os
 import shutil
 import subprocess
 import sys
@@ -328,6 +329,40 @@ PG_ADMISSION = [
      "tests.test_atomic_admission --postgres AtomicAdmission.test_failure_before_intent_rolls_back_entire_admission"),
 ]
 
+# Opt-in batch (--adapters-more2): needs google-adk and agent-framework-core installed. A mutant counts as
+# caught only when a check prints FAIL (an import error or a crash of the suite is reported as BAD).
+ADK, MAF = "call4agents/adapters/google_adk.py", "call4agents/adapters/agent_framework.py"
+ADK_AGENT, MAF_AGENT = "tests/crashtest_agents/adk_agent.py", "tests/crashtest_agents/maf_agent.py"
+MORE2 = "tests.test_adapters_more2 --require-frameworks --no-crashtest"
+MORE2_CT = "tests.test_adapters_more2 --require-frameworks --only-crashtest"
+ADAPTERS_MORE2 = [
+    ("control (no-op)", ADK, 'REQUEST = "adk_request_confirmation"', 'REQUEST = "adk_request_confirmation"', MORE2),
+    ("ADK context not excluded", ADK, '"Google ADK", opts, _context_name(f))', '"Google ADK", opts, None)', MORE2),
+    ("ADK run id = invocation id", ADK, 'return run_id(session) if getattr(session, "id", None) else None',
+     'return getattr(ctx, "invocation_id", None)', MORE2),
+    ("ADK glue skips the exact-args check", ADK, "        opts = dict(options)\n",
+     '        opts = {k: v for k, v in options.items() if k != "approval"}\n', MORE2),
+    ("ADK glue records a no as a yes", ADK, "(c4a.approve if confirmed else c4a.deny)", "(c4a.approve)", MORE2),
+    ("ADK glue takes an unguarded tool", ADK, 'if not getattr(tool, "c4a_needs_yes", False):', "if False:", MORE2),
+    ("MAF context not excluded", MAF, "                            _context_name(f))",
+     "                            None)", MORE2),
+    ("MAF run id = service session id", MAF, 'return run_id(session) if getattr(session, "session_id", None) else None',
+     'return getattr(session, "service_session_id", None)', MORE2),
+    ("MAF glue skips the exact-args check", MAF, "        opts = dict(options)\n",
+     '        opts = {k: v for k, v in options.items() if k != "approval"}\n', MORE2),
+    ("MAF glue records a no as a yes", MAF, "(c4a.approve if approved else c4a.deny)", "(c4a.approve)", MORE2),
+    ("MAF glue takes an unguarded tool", MAF, 'if not getattr(tool, "c4a_needs_yes", False):', "if False:", MORE2),
+    ("control (no-op, crashtest)", ADK_AGENT, "guard = c4a_adk.effect", "guard = c4a_adk.effect", MORE2_CT),
+    ("ADK crash agent never guarded", ADK_AGENT,
+     'guard = c4a_adk.effect if os.environ.get("AGENT_GUARD") == "1" else (lambda f: f)', "guard = (lambda f: f)", MORE2_CT),
+    ("ADK crash agent always guarded", ADK_AGENT,
+     'guard = c4a_adk.effect if os.environ.get("AGENT_GUARD") == "1" else (lambda f: f)', "guard = c4a_adk.effect", MORE2_CT),
+    ("MAF crash agent never guarded", MAF_AGENT,
+     'guard = c4a_maf.effect if os.environ.get("AGENT_GUARD") == "1" else (lambda f: f)', "guard = (lambda f: f)", MORE2_CT),
+    ("MAF crash agent always guarded", MAF_AGENT,
+     'guard = c4a_maf.effect if os.environ.get("AGENT_GUARD") == "1" else (lambda f: f)', "guard = c4a_maf.effect", MORE2_CT),
+]
+
 
 def copy_tree(dst: Path) -> None:
     shutil.copytree(ROOT / "call4agents", dst / "call4agents", ignore=shutil.ignore_patterns("__pycache__"))
@@ -343,8 +378,10 @@ def copy_tree(dst: Path) -> None:
 def main() -> int:
     if sys.argv[1:] == ["--postgres-admission"]:
         return postgres_admission()
+    if sys.argv[1:] == ["--adapters-more2"]:
+        return adapters_more2()
     if len(sys.argv) != 1:
-        print("usage: python -m tests.mutations.run_kit_mutations [--postgres-admission]")
+        print("usage: python -m tests.mutations.run_kit_mutations [--postgres-admission | --adapters-more2]")
         return 2
     bad = 0
     for name, rel, old, new, suite in MUTATIONS:
@@ -366,6 +403,40 @@ def main() -> int:
             bad += caught != expected
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
+    print("\nall mutations behave as expected" if not bad else f"\n{bad} mutation result(s) not as expected")
+    return 1 if bad else 0
+
+
+def adapters_more2() -> int:
+    """The Google ADK / Agent Framework adapter batch. Run it with the Python that has both frameworks and
+    WITHOUT PYTHONPATH (else the suite imports the unmutated kit and every mutant is missed)."""
+    if os.environ.get("PYTHONPATH"):
+        print("BAD PYTHONPATH is set: unset it, or the suite tests the original kit instead of the mutant")
+        return 1
+    bad = 0
+    for name, rel, old, new, suite in ADAPTERS_MORE2:
+        with tempfile.TemporaryDirectory(prefix="c4a-mut-more2-", ignore_cleanup_errors=True) as tmp:
+            root = Path(tmp)
+            copy_tree(root)
+            shutil.copy(ROOT / "tests" / "test_adapters_more2.py", root / "tests" / "test_adapters_more2.py")
+            shutil.copytree(ROOT / "tests" / "crashtest_agents", root / "tests" / "crashtest_agents",
+                            ignore=shutil.ignore_patterns("__pycache__"))
+            path = root / rel
+            text = path.read_text(encoding="utf-8")
+            if text.count(old) != 1:
+                print(f"  ??    {name:36} pattern not found once (the code moved: update this script)")
+                bad += 1
+                continue
+            path.write_text(text.replace(old, new), encoding="utf-8")
+            r = subprocess.run([sys.executable, "-m", *suite.split()], cwd=root, capture_output=True, text=True,
+                               timeout=1800)
+            fails = [l.strip()[4:].strip()[:70] for l in r.stdout.splitlines() if l.strip().startswith("FAIL")]
+            caught = r.returncode != 0 and bool(fails)
+            expected = not name.startswith("control")
+            crashed = r.returncode != 0 and not fails
+            print(f"  {'ok  ' if caught == expected and not crashed else 'BAD '}  {name:36} "
+                  f"{'SUITE CRASHED: ' + r.stderr.strip()[-200:] if crashed else 'CATCHES ' + ' | '.join(fails) if caught else 'MISSES'}")
+            bad += caught != expected or crashed
     print("\nall mutations behave as expected" if not bad else f"\n{bad} mutation result(s) not as expected")
     return 1 if bad else 0
 
