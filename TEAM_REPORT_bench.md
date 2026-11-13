@@ -51,6 +51,13 @@ a `--bench` batch in tests/mutations/run_kit_mutations.py (main's `--suite` filt
 3. The S3 barrier released workers before the framework imports, so one could finish before the other
    started: the OpenAI Agents SDK showed a false native S3 pass. Barrier now after imports, bank delay 1 s.
 
+## Notes on the committed data
+- 3 of the 60 plain-loop S3 resumes ended with PermissionError (WinError 5): the plain loop's own os.replace of
+  its state file, when both workers save at once on Windows. It happens after the bank call; the counts are
+  unaffected and RESULTS.md shows it under "How each run ended".
+- The JSON was written before path redaction existed; I applied the same redact() (now in run.py) to it
+  afterwards and regenerated RESULTS.md from it. Only folder names changed (to <tmp>, <repo>, <home>); no count.
+
 ## Not proven / open
 - Windows only. CI (bench.yml) has not run yet; Linux/macOS untested.
 - S3 is timing-based (likely, not certain, overlap). 5/5 repeats each.
