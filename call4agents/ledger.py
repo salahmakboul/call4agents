@@ -164,7 +164,7 @@ class Ledger:
         self._local = threading.local()
         try:
             self._setup_when_free()
-        except sqlite3.DatabaseError as exc:
+        except (sqlite3.DatabaseError, ValueError) as exc:   # ValueError: damaged text (format version, PF1)
             raise LedgerError(f"{self.path} is not a usable Call4Agents run record ({exc}). "
                               "Point c4a.init() at a new file or at an existing run record.") from exc
         self.secret = secret or self._load_secret()
@@ -448,16 +448,26 @@ class Ledger:
                            "ORDER BY seq DESC LIMIT 1", (kind, key)).fetchone()
         if row is None:
             return None
-        return {"seq": row[0], "run_id": row[1], "payload": self._payload(row[0], row[2]), "t": row[3]}
+        return {"seq": row[0], "run_id": row[1], "payload": self._payload(row[0], row[2], kind), "t": row[3]}
 
-    def _payload(self, seq: int, text: Optional[str]) -> Any:
+    # The field each of these rows is read for: a row without it is damaged, not a KeyError (PF1, property tests).
+    _NEEDS = {"tool_done": ("result", object), "effect_approved": ("approval", int), "approval": ("mac", str),
+              "denial": ("mac", str)}
+
+    def _payload(self, seq: int, text: Optional[str], kind: Optional[str] = None) -> Any:
         if text is None:
             return None
         try:
-            return json.loads(text)
+            value = json.loads(text)
         except ValueError as exc:
             raise LedgerError(f"row {seq} of {self.path} is damaged (its payload is not valid JSON: {exc}). "
                               "The record was edited by hand or corrupted; run `call4agents verify` on it.") from None
+        need = self._NEEDS.get(kind or "")
+        if need is not None and not (isinstance(value, dict) and isinstance(value.get(need[0]), need[1])
+                                     and need[0] in value):
+            raise LedgerError(f"row {seq} of {self.path} is damaged (a {kind} row without its {need[0]!r}). "
+                              "The record was edited by hand or corrupted; run `call4agents verify` on it.")
+        return value
 
     def entries_for_key(self, key: str, kind: Optional[str] = None) -> List[Dict[str, Any]]:
         with self._conn() as conn:
@@ -465,7 +475,7 @@ class Ledger:
                                 + (" AND kind = ?" if kind else "") + " ORDER BY seq",
                                 (key, kind) if kind else (key,)).fetchall()
         return [{"seq": r[0], "run_id": r[1], "kind": r[2], "key": r[3],
-                 "payload": self._payload(r[0], r[4]), "t": r[5]} for r in rows]
+                 "payload": self._payload(r[0], r[4], r[2]), "t": r[5]} for r in rows]
 
     def entries(self, run_id: Optional[str] = None) -> List[Dict[str, Any]]:
         with self._conn() as conn:
@@ -473,7 +483,7 @@ class Ledger:
                                 + (" WHERE run_id = ?" if run_id else "") + " ORDER BY seq",
                                 (run_id,) if run_id else ()).fetchall()
         return [{"seq": r[0], "run_id": r[1], "kind": r[2], "key": r[3],
-                 "payload": self._payload(r[0], r[4]), "t": r[5]} for r in rows]
+                 "payload": self._payload(r[0], r[4], r[2]), "t": r[5]} for r in rows]
 
     # ------------------------------------------------------------ approvals
     def sign(self, tool: str, args: Dict[str, Any], key: Optional[bytes] = None) -> str:
@@ -498,7 +508,8 @@ class Ledger:
         wants = [self.sign(tool, args, key) for key in [self.secret] + list(getattr(self, "old_secrets", []))]
         rows = conn.execute("SELECT seq, payload FROM entries WHERE kind = ? AND key = ? ORDER BY seq",
                             (kind, f"{run_id}\x00{tool}")).fetchall()
-        return [r[0] for r in rows if r[1] and any(hmac.compare_digest(json.loads(r[1]).get("mac", ""), w) for w in wants)]
+        return [r[0] for r in rows if r[1] and any(hmac.compare_digest(self._payload(r[0], r[1], kind)["mac"], w)
+                                                   for w in wants)]
 
     def matching_approvals(self, run_id: str, tool: str, args: Dict[str, Any]) -> List[int]:
         """seq of every "yes" recorded for exactly these arguments, spent or not."""
