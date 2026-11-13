@@ -67,3 +67,14 @@ def wrap_tool(f: Callable, type_names: Tuple[str, ...], run_from: Callable[[Any]
             return inner(*args, **kwargs)
     call.c4a_name, call.c4a_fn, call.c4a_exclude = inner.c4a_name, f, inner.c4a_exclude
     return call
+
+
+def wrap_plain_tool(f: Callable, run_from: Callable[[], Optional[str]], what: str, options: dict,
+                    context: Optional[str] = None) -> Callable:
+    """wrap_tool for frameworks whose run id does not come from a context object (CrewAI, LlamaIndex,
+    smolagents). Only `context` (found by the framework's own rule) is left out of the key, never a
+    parameter for its name alone: there a `context: str` is text the model wrote. The run id comes from
+    an active c4a.run(...), else run=lambda ctx: <id> (ctx: that parameter or None), else run_from()."""
+    options = dict(options)
+    options["run"] = options.get("run") or (lambda ctx: run_from())
+    return wrap_tool(f, (), lambda ctx: None, what, options, ctx_name=context)

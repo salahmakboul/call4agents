@@ -416,6 +416,52 @@ ADAPTERS_MORE2 = [
      'guard = c4a_maf.effect if os.environ.get("AGENT_GUARD") == "1" else (lambda f: f)', "guard = c4a_maf.effect", MORE2_CT),
 ]
 
+# Opt-in batch (--adapters-more): needs crewai, llama-index-core and smolagents installed. Same rules as above.
+CREW, LI, SMOL = ("call4agents/adapters/crewai.py", "call4agents/adapters/llamaindex.py",
+                  "call4agents/adapters/smolagents.py")
+COMMON = "call4agents/adapters/_common.py"
+MORE = "tests.test_adapters_more --require-frameworks --no-crashtest"
+MORE_CT = "tests.test_adapters_more --require-frameworks --only-crashtest --framework "
+NO_APPROVAL = '{k: v for k, v in options.items() if k != "approval"}'
+ADAPTERS_MORE = [
+    ("control (no-op)", CREW, "def run_id(crew: Any) -> str:", "def run_id(crew: Any) -> str:", MORE),
+    ("CrewAI run id = crew key", CREW, 'return f"crewai:{found.id}" if found is not None and getattr(found, "id", None) else None',
+     'return f"crewai:{found.key}" if found is not None else None', MORE),
+    ("CrewAI approval option dropped", CREW, 'wrap_plain_tool(f, _crew, "CrewAI", dict(options))',
+     'wrap_plain_tool(f, _crew, "CrewAI", ' + NO_APPROVAL + ")", MORE),
+    ("CrewAI approve does not unwrap the Tool", CREW, 'for attr in ("func", "_run"):', "for attr in ():", MORE),
+    ("LlamaIndex Context not excluded", LI, "            return p.name", "            return None", MORE),
+    ("LlamaIndex silent shared run", LI, "def _no_run() -> Optional[str]:\n    return None",
+     'def _no_run() -> Optional[str]:\n    return "llamaindex-default"', MORE),
+    ("LlamaIndex approval option dropped", LI, "dict(options), context=_context_param(f))",
+     NO_APPROVAL + ", context=_context_param(f))", MORE),
+    ("smolagents silent shared run", SMOL, "def _no_run() -> Optional[str]:\n    return None",
+     'def _no_run() -> Optional[str]:\n    return "smolagents-default"', MORE),
+    ("smolagents approval option dropped", SMOL, "wrap_plain_tool(f, _no_run, _WHY, dict(options))",
+     "wrap_plain_tool(f, _no_run, _WHY, " + NO_APPROVAL + ")", MORE),
+    ("smolagents approve does not unwrap forward", SMOL, 'inner = getattr(tool, "forward", None)', "inner = None", MORE),
+    ("plain tool: context left out by name", COMMON, "what, options, ctx_name=context)", "what, options)", MORE),
+    ("plain tool: run= ignored", COMMON, 'options["run"] = options.get("run") or (lambda ctx: run_from())',
+     'options["run"] = lambda ctx: run_from()', MORE),
+    ("test network guard sees a connection", "call4agents/examples/crewai_tool.py", "    outbox, errors = [], []\n",
+     "    outbox, errors = [], []\n    try:\n        __import__('socket').create_connection(('192.0.2.1', 80), timeout=1)\n"
+     "    except OSError:\n        pass\n", MORE),
+    ("control (no-op, crashtest)", "tests/crashtest_agents/li_agent.py", "guard = c4a_li.effect", "guard = c4a_li.effect",
+     MORE_CT + "LlamaIndex"),
+    ("LlamaIndex crash agent never guarded", "tests/crashtest_agents/li_agent.py",
+     'guard = c4a_li.effect if os.environ.get("AGENT_GUARD") == "1" else (lambda f: f)', "guard = (lambda f: f)",
+     MORE_CT + "LlamaIndex"),
+    ("LlamaIndex crash agent always guarded", "tests/crashtest_agents/li_agent.py",
+     'guard = c4a_li.effect if os.environ.get("AGENT_GUARD") == "1" else (lambda f: f)', "guard = c4a_li.effect",
+     MORE_CT + "LlamaIndex"),
+    ("smolagents crash agent never guarded", "tests/crashtest_agents/smol_agent.py",
+     'guard = c4a_smol.effect if os.environ.get("AGENT_GUARD") == "1" else (lambda f: f)', "guard = (lambda f: f)",
+     MORE_CT + "smolagents"),
+    ("smolagents crash agent always guarded", "tests/crashtest_agents/smol_agent.py",
+     'guard = c4a_smol.effect if os.environ.get("AGENT_GUARD") == "1" else (lambda f: f)', "guard = c4a_smol.effect",
+     MORE_CT + "smolagents"),
+]
+
 
 def copy_tree(dst: Path) -> None:
     shutil.copytree(ROOT / "call4agents", dst / "call4agents", ignore=shutil.ignore_patterns("__pycache__"))
@@ -433,12 +479,15 @@ def main() -> int:
     if sys.argv[1:] == ["--postgres-admission"]:
         return postgres_admission()
     if sys.argv[1:] == ["--adapters-more2"]:
-        return adapters_more2()
+        return adapter_batch(ADAPTERS_MORE2, "test_adapters_more2.py")
+    if sys.argv[1:] == ["--adapters-more"]:
+        return adapter_batch(ADAPTERS_MORE, "test_adapters_more.py")
     only = None              # --suite NAME: only the entries whose suite starts with NAME (default: all)
     if len(sys.argv) == 3 and sys.argv[1] == "--suite":
         only = sys.argv[2]
     elif len(sys.argv) != 1:
-        print("usage: python -m tests.mutations.run_kit_mutations [--postgres-admission | --adapters-more2 | --suite NAME]")
+        print("usage: python -m tests.mutations.run_kit_mutations [--postgres-admission | --adapters-more2 | "
+              "--adapters-more | --suite NAME]")
         return 2
     bad = 0
     for name, rel, old, new, suite in MUTATIONS:
@@ -466,18 +515,18 @@ def main() -> int:
     return 1 if bad else 0
 
 
-def adapters_more2() -> int:
-    """The Google ADK / Agent Framework adapter batch. Run it with the Python that has both frameworks and
-    WITHOUT PYTHONPATH (else the suite imports the unmutated kit and every mutant is missed)."""
+def adapter_batch(batch: list, test_file: str) -> int:
+    """An opt-in adapter batch (ADK / Agent Framework, or CrewAI / LlamaIndex / smolagents). Run it with the
+    Python that has the frameworks and WITHOUT PYTHONPATH (else the suite imports the unmutated kit and every mutant is missed)."""
     if os.environ.get("PYTHONPATH"):
         print("BAD PYTHONPATH is set: unset it, or the suite tests the original kit instead of the mutant")
         return 1
     bad = 0
-    for name, rel, old, new, suite in ADAPTERS_MORE2:
+    for name, rel, old, new, suite in batch:
         with tempfile.TemporaryDirectory(prefix="c4a-mut-more2-", ignore_cleanup_errors=True) as tmp:
             root = Path(tmp)
             copy_tree(root)
-            shutil.copy(ROOT / "tests" / "test_adapters_more2.py", root / "tests" / "test_adapters_more2.py")
+            shutil.copy(ROOT / "tests" / test_file, root / "tests" / test_file)
             shutil.copytree(ROOT / "tests" / "crashtest_agents", root / "tests" / "crashtest_agents",
                             ignore=shutil.ignore_patterns("__pycache__"))
             path = root / rel
