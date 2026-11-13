@@ -101,6 +101,7 @@ export class Ledger {
   readonly secret: Buffer;
   readonly oldSecrets: Buffer[];
   private db: DatabaseSync;
+  private inAdmission = false;
 
   constructor(options: LedgerOptions = {}) {
     this.path = options.path ?? ".c4a/ledger.sqlite";
@@ -151,9 +152,29 @@ export class Ledger {
     }
   }
 
+  /** SQLite can answer "database is locked" at once, without waiting for its busy timeout, on some lock
+   * paths (seen on Windows with 20 writers in the Python kit, Fix 18). A refused write changed nothing (its
+   * transaction rolled back), so it is tried again for up to `patience` ms, then raised. Other errors: at once. */
+  private whenFree<T>(fn: () => T, patience = 30_000): T {
+    const deadline = Date.now() + patience;
+    let delay = 10;
+    for (;;) {
+      try {
+        return fn();
+      } catch (exc) {
+        const text = String((exc as Error)?.message ?? "");
+        if (Date.now() > deadline || !(text.includes("locked") || text.includes("busy"))) throw exc;
+        sleepSync(delay);
+        delay = Math.min(delay * 2, 200);
+      }
+    }
+  }
+
   private setup(): void {
     this.db.exec("PRAGMA busy_timeout = 30000");
-    this.db.exec("PRAGMA journal_mode=WAL");
+    // Switching the mode needs a lock that SQLite's busy timeout does not wait for: only switch when needed.
+    const mode = this.db.prepare("PRAGMA journal_mode").get() as { journal_mode: string };
+    if (String(mode.journal_mode).toLowerCase() !== "wal") this.db.exec("PRAGMA journal_mode=WAL");
     this.db.exec("PRAGMA synchronous=FULL");            // an entry that returned is on disk before the effect runs
     this.db.exec("PRAGMA journal_size_limit=1048576");
     this.db.exec("CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT NOT NULL)");
@@ -206,6 +227,11 @@ export class Ledger {
 
   // ------------------------------------------------------------ append / read
   append(runId: string, kind: string, key: string, payload: unknown = null): number {
+    if (this.inAdmission) return this.insert(runId, kind, key, payload);
+    return this.whenFree(() => this.insert(runId, kind, key, payload));
+  }
+
+  private insert(runId: string, kind: string, key: string, payload: unknown): number {
     const text = payload === null || payload === undefined ? null : canonical(payload);
     const r = this.db.prepare("INSERT INTO entries (run_id, kind, key, payload, t) VALUES (?, ?, ?, ?, ?)")
       .run(runId, kind, key, text, Date.now() / 1000);
@@ -225,16 +251,55 @@ export class Ledger {
 
   /** Run fn in one write transaction, taken before any read (BEGIN IMMEDIATE). */
   private admission<T>(fn: () => T): T {
-    this.db.exec("BEGIN IMMEDIATE");
-    let value: T;
-    try {
-      value = fn();
-    } catch (exc) {
-      this.db.exec("ROLLBACK");
-      throw exc;
+    return this.whenFree(() => {
+      this.db.exec("BEGIN IMMEDIATE");          // lock before reading: a read-to-write upgrade can fail under contention
+      this.inAdmission = true;
+      let value: T;
+      try {
+        value = fn();
+        this.db.exec("COMMIT");
+      } catch (exc) {
+        try {
+          this.db.exec("ROLLBACK");
+        } catch {
+          /* COMMIT may have ended it already */
+        }
+        throw exc;
+      } finally {
+        this.inAdmission = false;
+      }
+      return value;
+    });
+  }
+
+  /** Close attempt `attempt` of `effect` ONCE: write `kind` (tool_abandoned or tool_retry_same_key) in one
+   * transaction. false if another caller already closed this attempt or a newer attempt exists: then that
+   * caller owns the next try, and this one must not start another (two callers giving up the same attempt
+   * each started a new one: two payments, Fix 17 of the Python kit). */
+  giveUp(runId: string, effect: string, attempt: number, kind = "tool_abandoned", payload: Record<string, unknown> = {}): boolean {
+    return this.admission(() => {
+      for (const k of ["tool_abandoned", "tool_retry_same_key"]) {
+        for (const e of this.entriesForKey(effect, k)) {
+          if (e.payload?.attempt === attempt) return false;
+        }
+      }
+      if (this.latest("tool_intent", `${effect}#${attempt + 1}`) !== null) return false;
+      this.append(runId, kind, effect, { ...payload, attempt });
+      return true;
+    });
+  }
+
+  /** 1 + the newest attempt that was closed (given up or resent). Counting rows instead let two callers that
+   * closed the same attempt pick two different next attempts, so both ran (Fix 17). */
+  nextAttempt(effect: string): number {
+    let newest = 0;
+    for (const k of ["tool_abandoned", "tool_retry_same_key"]) {
+      for (const e of this.entriesForKey(effect, k)) {
+        const a = e.payload?.attempt;
+        if (Number.isInteger(a) && a > newest) newest = a;
+      }
     }
-    this.db.exec("COMMIT");
-    return value;
+    return 1 + newest;
   }
 
   /** One transaction for a live "yes" and its intent: true owns it, false already claimed, null needs approval.

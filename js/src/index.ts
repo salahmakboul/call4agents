@@ -17,10 +17,12 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { canonical, effectKey, intentKey, sameArgs } from "./canonical.js";
 import { decode, encode } from "./codec.js";
 import { Ledger, type LedgerOptions } from "./ledger.js";
+import * as owner from "./owner.js";
 
 export { canonical, effectKey, intentKey, sameArgs } from "./canonical.js";
 export { Ledger, LedgerError, type Entry, type LedgerOptions } from "./ledger.js";
 export { NotRecordable } from "./codec.js";
+export * as owner from "./owner.js";
 
 let LEDGER: Ledger | null = null;
 const RUN = new AsyncLocalStorage<string>();
@@ -172,6 +174,10 @@ export interface EffectOptions<A, R> {
   idempotentFor?: number;
   /** Errors that prove nothing happened (classes, or a test function): after them the next call runs again. */
   retryOn?: ErrorClass[] | ((error: unknown) => boolean);
+  /** Seconds one attempt can run at most (default 600). reconcile and same-key resends are used only when the
+   * attempt's owner is provably gone: a dead process on this host, or this process with the call finished.
+   * An owner on another machine, or a live process on this host, counts as running for `lease` seconds. */
+  lease?: number;
   /** Run id when no run(...) is active: (args, ...rest) => id. The framework adapters set this. */
   runId?: (args: A, ...rest: any[]) => string | undefined;
 }
@@ -224,6 +230,8 @@ export function effect<A extends object | undefined, R>(
   const approval = options.approval === true;
   const { reconcile, key, idempotentFor, retryOn } = options;
   const wait = options.wait ?? 2;
+  const lease = options.lease ?? 600;
+  if (typeof lease !== "number" || !(lease > 0)) throw new RangeError("lease must be a number of seconds above 0");
 
   function baseKey(runId: string, callArgs: Record<string, unknown>): string {
     if (key !== undefined) return effectKey(runId, tool, { __c4a_key__: String(key(callArgs as A)) });
@@ -255,8 +263,8 @@ export function effect<A extends object | undefined, R>(
     for (let round = 0; round < 2; round++) {
       let done = lg.latest("tool_done", k);
       if (done !== null) return { hasReplay: true, replay: decode(done.payload.result) };
-      const attempt = lg.count("tool_abandoned", k) + lg.count("tool_retry_same_key", k) + 1;
-      if (claim(attempt, { tool, args: callArgs })) return { hasReplay: false, key: k, runId, attempt };
+      const attempt = lg.nextAttempt(k);
+      if (claim(attempt, { tool, args: callArgs, owner: owner.me() })) return { hasReplay: false, key: k, runId, attempt };
       const err = lg.latest("tool_error", k);
       const failed = err !== null && err.payload?.attempt === attempt;
       const why = failed ? `it raised ${err!.payload.error}` : "crash during the effect";
@@ -266,12 +274,19 @@ export function effect<A extends object | undefined, R>(
         if (done !== null) return { hasReplay: true, replay: decode(done.payload.result) };
         await sleep(20);
       }
+      if (!failed && (idempotentFor !== undefined || reconcile !== undefined)) {
+        // Fix 17: an intent with no result may be a crash OR a call still running. Asking the provider now
+        // gets a truthful "not done yet", and running again would pay twice.
+        const busy = owner.mayStillRun(intentKey(k, attempt), lg.latest("tool_intent", intentKey(k, attempt)), lease);
+        if (busy !== null) throw new EffectInDoubt(tool, callArgs, busy);
+      }
       if (idempotentFor !== undefined && reconcile === undefined) {
         const first = lg.firstIntentTime(k);
         if (first !== null && Date.now() / 1000 - first <= idempotentFor) {
           // The outside API still remembers this key: resending with the SAME key cannot create a second effect.
-          lg.append(runId, "tool_retry_same_key", k, { attempt });
-          if (claim(attempt + 1, { tool, args: callArgs, same_key_retry: true })) {
+          // Close this attempt once, then claim the next one.
+          if (!lg.giveUp(runId, k, attempt, "tool_retry_same_key")) continue;   // another caller closed it and owns the resend
+          if (claim(attempt + 1, { tool, args: callArgs, same_key_retry: true, owner: owner.me() })) {
             return { hasReplay: false, key: k, runId, attempt: attempt + 1 };
           }
         }
@@ -288,7 +303,9 @@ export function effect<A extends object | undefined, R>(
         lg.append(runId, "tool_done", k, { result: encode(found), reconciled: true });
         return { hasReplay: true, replay: found };
       }
-      lg.append(runId, "tool_abandoned", k, { attempt });          // it did not happen: one new try
+      // It did not happen: close this attempt ONCE. The next round claims attempt + 1, and the unique
+      // intent lets one caller win.
+      lg.giveUp(runId, k, attempt);
     }
     throw new EffectInDoubt(tool, callArgs);
   }
@@ -340,17 +357,23 @@ export function effect<A extends object | undefined, R>(
     if (runId === undefined || runId === "") currentRun();          // throws the "no current run" error
     const plan = await check(runId!, callArgs);
     if (plan.hasReplay) return plan.replay as Awaited<R>;
-    return EFFECT_KEY.run(plan.key!, async () => {
-      let result: Awaited<R>;
-      try {
-        result = (await fn.call(this, args, ...rest)) as Awaited<R>;
-      } catch (exc) {
-        failed(plan, exc);
-        throw exc;
-      }
-      recordResult(plan, result);
-      return result;
-    });
+    const running = intentKey(plan.key!, plan.attempt);
+    owner.started(running);                        // until recorded: another caller must not reconcile it
+    try {
+      return await EFFECT_KEY.run(plan.key!, async () => {
+        let result: Awaited<R>;
+        try {
+          result = (await fn.call(this, args, ...rest)) as Awaited<R>;
+        } catch (exc) {
+          failed(plan, exc);
+          throw exc;
+        }
+        recordResult(plan, result);
+        return result;
+      });
+    } finally {
+      owner.finished(running);
+    }
   } as Effect<A, Awaited<R>>;
   Object.defineProperty(wrapper, "c4aName", { value: tool });
   Object.defineProperty(wrapper, "c4aFn", { value: fn });
