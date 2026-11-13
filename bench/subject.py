@@ -9,7 +9,7 @@ framework, with a scripted model (no network, no keys), in two variants:
   env.kit is True   the same agent, with the tool guarded by call4agents
 
 Every method below runs in a NEW Python process (the benchmark starts one per step), so anything the
-next step needs must be saved in env.work, the way the framework documents saving and resuming. The
+next step needs must be saved under env.path(name) (one file per run), the way the framework documents saving and resuming. The
 benchmark never trusts what a subject says about actions: it counts rows in the fake bank, an SQLite
 file that every process writes to.
 
@@ -72,7 +72,7 @@ class Subject:
     # --- a run that needs a person's yes (S4, S5, S6, S8, C2)
     def start_approval(self, env: "Env") -> Dict[str, Any]:
         """Start run env.run_id with pay needing a yes. Return the arguments shown to the person, e.g.
-        {"amount": 50, "to": "alice"}. The run must stop and wait (saved in env.work)."""
+        {"amount": 50, "to": "alice"}. The run must stop and wait (saved under env.path(...))."""
         raise NotImplementedError
 
     def decide(self, env: "Env", shown: Dict[str, Any], decision: str) -> Dict[str, Any]:
