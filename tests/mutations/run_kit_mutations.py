@@ -76,7 +76,7 @@ MUTATIONS = [
     # --- production checks (P1-P12)
     ("control (no-op)", LEDGER, "SCHEMA_VERSION = 1", "SCHEMA_VERSION = 1", "tests.test_c4a_production"),
     ("P1 newer format read anyway", LEDGER, "if found > SCHEMA_VERSION:", "if False:", "tests.test_c4a_production"),
-    ("P2 bad file not explained", LEDGER, "except sqlite3.DatabaseError as exc:", "except ZeroDivisionError as exc:", "tests.test_c4a_production"),
+    ("P2 bad file not explained", LEDGER, "except (sqlite3.DatabaseError, ValueError) as exc:", "except ZeroDivisionError as exc:", "tests.test_c4a_production"),
     ("P3 secret written in place, not linked", LEDGER, "                os.link(tmp, p)", "                os.replace(tmp, p)", "tests.test_c4a_production"),
     ("P4 old secrets ignored", LEDGER, '[self.secret] + list(getattr(self, "old_secrets", []))', "[self.secret]", "tests.test_c4a_production"),
     ("P5 network mounts not detected", LEDGER, "    return best[1] in NETWORK_FS", "    return False", "tests.test_c4a_production"),

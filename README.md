@@ -44,7 +44,7 @@ Then the kit makes it stop:
 - **Record, replay, diff.** Rerun a recorded run offline with zero model calls, and find the step where
   two runs (for example two models) begin to differ.
 
-Version 0.6, early. Standard library only, zero dependencies (PostgreSQL for several machines is an optional extra). Apache-2.0.
+Early (before 1.0; see [PyPI](https://pypi.org/project/call4agents/) for the current version). Standard library only, zero dependencies (PostgreSQL for several machines is an optional extra). Apache-2.0.
 
 ```python
 # pip install call4agents
