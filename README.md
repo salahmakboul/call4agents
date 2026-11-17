@@ -1,5 +1,19 @@
 # Call4Agents
 
+**Stop AI agents from repeating an action after a crash, retry or resume.**
+
+AI agents now pay, book, refund and send emails. When a program crashes and the agent retries, an approved action can run twice: two payments, two emails, two bookings.
+We measured it: one approval, one crash, two payments, in LangGraph, Pydantic AI, the OpenAI Agents SDK, Google ADK and Microsoft Agent Framework.
+Call4Agents gives you one yes, one payment, even after a crash, and one command to test your own agent. [Why this matters](docs/WHY_IT_MATTERS.md) · [Research](docs/RESEARCH.md)
+
+![call4agents crashtest: a small agent is killed at every step and restarted. Without the guard its refund runs twice; with one line added it does not.](docs/crashtest.gif)
+
+```
+pip install call4agents && call4agents crashtest --demo
+```
+
+---
+
 **One yes, one payment, even after a crash.** Call4Agents makes the actions of a Python agent safe to retry. You add it to the agent you already
 have: LangGraph, Pydantic AI, the OpenAI Agents SDK, Google ADK, Microsoft Agent Framework, an MCP server, or plain
 Python. It does not replace any of them.
