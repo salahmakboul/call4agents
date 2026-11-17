@@ -19,7 +19,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="https://salahmakboul.github.io/call4agents/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="https://salahmakboul.github.io/call4agents/assets/site.css">
-<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "Guarantees", "description": "This page lists what Call4Agents promises. Each promise comes with:", "url": "https://salahmakboul.github.io/call4agents/docs/guarantees/", "dateModified": "2026-11-13", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Docs", "item": "https://salahmakboul.github.io/call4agents/docs/"}, {"@type": "ListItem", "position": 3, "name": "Guarantees", "item": "https://salahmakboul.github.io/call4agents/docs/guarantees/"}]}]</script>
+<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "Guarantees", "description": "This page lists what Call4Agents promises. Each promise comes with:", "url": "https://salahmakboul.github.io/call4agents/docs/guarantees/", "dateModified": "2026-11-18", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Docs", "item": "https://salahmakboul.github.io/call4agents/docs/"}, {"@type": "ListItem", "position": 3, "name": "Guarantees", "item": "https://salahmakboul.github.io/call4agents/docs/guarantees/"}]}]</script>
 </head>
 <body>
 <header class="container">
@@ -31,6 +31,7 @@
 <main class="container">
 <nav aria-label="breadcrumb" class="crumbs"><ul><li><a href="https://salahmakboul.github.io/call4agents/">Home</a></li><li><a href="https://salahmakboul.github.io/call4agents/docs/">Docs</a></li><li>Guarantees</li></ul></nav>
 <article class="doc"><h1>Guarantees</h1>
+<p class="lead">What we promise, under which conditions, and what we do not promise. Read this before you rely on it.</p>
 <p>This page lists what Call4Agents promises. Each promise comes with:</p>
 <ul>
 <li>the conditions under which it holds;</li>
@@ -62,8 +63,12 @@ time. A later call returns the recorded result. If the kit cannot know whether t
 <li>K2: a crash during the action is "in doubt", and the action is not repeated.</li>
 <li>K3, K25 and K25b: the three answers of <code>reconcile</code> (the result, <code>None</code>, <code>UNKNOWN</code>).</li>
 <li>K26c: a resend with the same key; the provider charges once.</li>
-<li>K29a-e: a call still running is not treated as a crash, and two callers that give up the same attempt start
-  only one new one. This includes real processes: one is killed inside the call, then two resume at once.</li>
+<li>K29a-f: a call still running is not treated as a crash, also in the moment right after its claim, and two
+  callers that give up the same attempt start only one new one. This includes real processes: one is killed
+  inside the call, then two resume at once.</li>
+<li>The formal model: <code>AtMostOnce</code> holds in every passing configuration (<a href="https://salahmakboul.github.io/call4agents/docs/formal-model/">FORMAL_MODEL.md</a>).</li>
+<li>The property tests: "outside actions per key &lt;= 1" after every step of random runs with racing callers
+  (<a href="https://salahmakboul.github.io/call4agents/docs/property-tests/">PROPERTIES.md</a>).</li>
 <li>The crash matrix (<code>python -m tests.test_crash_matrix</code>) kills a real process before and after every write to the
   record and inside the action, then kills the recovery too: 412 crashes, charged at most once at every point
   (M1, M3, M6).</li>
@@ -80,7 +85,8 @@ time. A later call returns the recorded result. If the kit cannot know whether t
   <code>synchronous=FULL</code>, or PostgreSQL's own durability settings).</li>
 <li>Records changed by hand.</li>
 <li>Versions up to 0.7.1, which could run an action twice with <code>reconcile=</code> or <code>idempotent_for=</code> when two callers
-  raced (Fix 17, in the CHANGELOG).</li>
+  raced (Fix 17), and 0.7.2, which still could when two threads of one process raced in a short window (Fix 19).
+  See the CHANGELOG.</li>
 </ul>
 <h2>G2. A "yes" covers exactly the call that was shown, once</h2>
 <p><strong>The promise.</strong> An action with <code>approval=True</code> runs only if <code>c4a.approve</code> recorded a "yes" for exactly its
@@ -149,14 +155,15 @@ cache hit. Nothing runs, and you never get another call's result. Numbers that a
 <ul>
 <li><strong>Mutation testing:</strong> every check above must fail when its bug is put back. Each batch includes a no-op
   control, which must not fail.</li>
-<li><strong>A formal model of the protocol</strong> (TLA+, in progress). It already found the double payment fixed in Fix 17,
-  which our tests had missed because they crashed only one caller.</li>
-<li><strong>Property-based tests and fuzzing</strong> of the record and the reconcile logic (in progress). They found that some
-  damaged rows gave a raw Python error instead of a clear one.</li>
+<li><strong>A formal model of the protocol</strong>, checked with TLC: <a href="https://salahmakboul.github.io/call4agents/docs/formal-model/">FORMAL_MODEL.md</a>. It found the double
+  payments fixed in Fix 17 and Fix 19, which our tests had missed because they crashed only one caller.</li>
+<li><strong>Property-based tests and fuzzing</strong> of the record and the reconcile logic: <a href="https://salahmakboul.github.io/call4agents/docs/property-tests/">PROPERTIES.md</a>.
+  They found that some damaged rows gave a raw Python error instead of a clear one (fixed in 0.7.3), and on
+  0.7.1 they find the double payment by themselves.</li>
 <li><strong>A crash-safety benchmark</strong> that any framework can run on itself (in progress).</li>
 </ul>
 <p>When a promise turns out to be wrong, the CHANGELOG says so: which versions are affected, who is affected, and the
-fix. Fix 17 is one example.</p><p><small>Source: <a href="https://github.com/salahmakboul/call4agents/blob/main/docs/GUARANTEES.md">docs/GUARANTEES.md</a> in the repository.</small></p></article>
+fix. Fix 17 and Fix 19 are examples.</p><p><small>Source: <a href="https://github.com/salahmakboul/call4agents/blob/main/docs/GUARANTEES.md">docs/GUARANTEES.md</a> in the repository.</small></p></article>
 
 </main>
 <footer class="container"><hr><p><small>Call4Agents · Apache-2.0 · Copyright 2026 Salah Eddine Makboul ·

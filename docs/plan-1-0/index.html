@@ -19,7 +19,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="https://salahmakboul.github.io/call4agents/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="https://salahmakboul.github.io/call4agents/assets/site.css">
-<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "The plan to 1.0", "description": "Call4Agents 1.0 is a promise. In 1.0 and in every 1.x release:", "url": "https://salahmakboul.github.io/call4agents/docs/plan-1-0/", "dateModified": "2026-11-13", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Docs", "item": "https://salahmakboul.github.io/call4agents/docs/"}, {"@type": "ListItem", "position": 3, "name": "The plan to 1.0", "item": "https://salahmakboul.github.io/call4agents/docs/plan-1-0/"}]}]</script>
+<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "The plan to 1.0", "description": "Call4Agents 1.0 is a promise. In 1.0 and in every 1.x release:", "url": "https://salahmakboul.github.io/call4agents/docs/plan-1-0/", "dateModified": "2026-11-18", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Docs", "item": "https://salahmakboul.github.io/call4agents/docs/"}, {"@type": "ListItem", "position": 3, "name": "The plan to 1.0", "item": "https://salahmakboul.github.io/call4agents/docs/plan-1-0/"}]}]</script>
 </head>
 <body>
 <header class="container">
@@ -31,6 +31,7 @@
 <main class="container">
 <nav aria-label="breadcrumb" class="crumbs"><ul><li><a href="https://salahmakboul.github.io/call4agents/">Home</a></li><li><a href="https://salahmakboul.github.io/call4agents/docs/">Docs</a></li><li>The plan to 1.0</li></ul></nav>
 <article class="doc"><h1>The plan to 1.0</h1>
+<p class="lead">What has to be true before we call this 1.0, and where we are now.</p>
 <p>Call4Agents 1.0 is a promise. In 1.0 and in every 1.x release:</p>
 <ul>
 <li>the stable API below keeps working;</li>
@@ -185,11 +186,10 @@ in a 1.x release, and the change will be in the CHANGELOG with a migration note.
 <h2>Proof</h2>
 <p>1.0 ships with three kinds of proof:</p>
 <ul>
-<li>a <strong>formal model</strong> of the protocol, checked with the TLA+ model checker (in progress; it already found the
-  double payment fixed in 0.7.2);</li>
-<li><strong>property-based tests and fuzzing</strong> of the record and the reconcile logic (in progress);</li>
-<li>a <strong>guarantees page</strong> that links each promise to its tests and its known limits: <a href="https://salahmakboul.github.io/call4agents/docs/guarantees/">GUARANTEES.md</a>.
-  The model and the property tests will be linked from it when they are published.</li>
+<li>a <strong>formal model</strong> of the protocol, checked with the TLA+ model checker: <a href="https://salahmakboul.github.io/call4agents/docs/formal-model/">FORMAL_MODEL.md</a>;</li>
+<li><strong>property-based tests and fuzzing</strong> of the record and the reconcile logic: <a href="https://salahmakboul.github.io/call4agents/docs/property-tests/">PROPERTIES.md</a>;</li>
+<li>a <strong>guarantees page</strong> that links each promise to its model property, its tests and its known limits:
+  <a href="https://salahmakboul.github.io/call4agents/docs/guarantees/">GUARANTEES.md</a>.</li>
 </ul>
 <p>A promise that has no check behind it is not on the guarantees page.</p>
 <h2>Upgrading</h2>

@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Property tests | Call4Agents docs</title>
+<meta name="description" content="tests/testproperties.py checks rules that must hold for every input, not only for a few examples. Hypothesis makes the inputs and, when a rule breaks,...">
+<link rel="canonical" href="https://salahmakboul.github.io/call4agents/docs/property-tests/">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Call4Agents">
+<meta property="og:title" content="Property tests">
+<meta property="og:description" content="tests/testproperties.py checks rules that must hold for every input, not only for a few examples. Hypothesis makes the inputs and, when a rule breaks,...">
+<meta property="og:url" content="https://salahmakboul.github.io/call4agents/docs/property-tests/">
+<meta property="og:image" content="https://salahmakboul.github.io/call4agents/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Call4Agents: without it, 2 emails after a crash; with it, 1.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="https://salahmakboul.github.io/call4agents/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://salahmakboul.github.io/call4agents/assets/site.css">
+<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "Property tests", "description": "tests/testproperties.py checks rules that must hold for every input, not only for a few examples. Hypothesis makes the inputs and, when a rule breaks,...", "url": "https://salahmakboul.github.io/call4agents/docs/property-tests/", "dateModified": "2026-11-18", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Docs", "item": "https://salahmakboul.github.io/call4agents/docs/"}, {"@type": "ListItem", "position": 3, "name": "Property tests", "item": "https://salahmakboul.github.io/call4agents/docs/property-tests/"}]}]</script>
+</head>
+<body>
+<header class="container">
+<nav>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/"><strong>Call4Agents</strong></a></li></ul>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/docs/">Docs</a></li><li><a href="https://salahmakboul.github.io/call4agents/guides/">Guides</a></li><li><a href="https://github.com/salahmakboul/call4agents">GitHub</a></li><li><a href="https://pypi.org/project/call4agents/">PyPI</a></li></ul>
+</nav>
+</header>
+<main class="container">
+<nav aria-label="breadcrumb" class="crumbs"><ul><li><a href="https://salahmakboul.github.io/call4agents/">Home</a></li><li><a href="https://salahmakboul.github.io/call4agents/docs/">Docs</a></li><li>Property tests</li></ul></nav>
+<article class="doc"><h1>Property tests</h1>
+<p class="lead">Tests that try many random sequences of calls, approvals, crashes and retries, to catch cases nobody wrote by hand.</p>
+<p><code>tests/test_properties.py</code> checks rules that must hold for every input, not only for a few examples.
+<a href="https://hypothesis.readthedocs.io/">Hypothesis</a> makes the inputs and, when a rule breaks, shrinks the
+input to a short case. Hypothesis is a test-only dependency. The <code>call4agents</code> package itself still needs
+only the Python standard library.</p>
+<pre><code>pip install hypothesis
+python -m tests.test_properties --require-hypothesis        # the CI run
+python -m tests.test_properties --long                      # many more examples; prints its seed
+python -m tests.test_properties --long --seed 1234          # repeat a long run
+python -m tests.test_properties --only machine              # one group: machine, canonical, codec, files
+</code></pre>
+<p>Without Hypothesis the suite prints <code>skip</code> and passes; <code>--require-hypothesis</code> makes that a failure.</p>
+<h2>How many examples</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>group</th>
+<th>CI run (each push, Linux, macOS, Windows, Python 3.12)</th>
+<th><code>--long</code> (weekly, Linux)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>machine</td>
+<td>40 runs of up to 20 steps, plus a check that each of 15 paths was taken</td>
+<td>500 runs of up to 50 steps</td>
+</tr>
+<tr>
+<td>canonical, codec</td>
+<td>200 examples per property</td>
+<td>3,000 per property</td>
+</tr>
+<tr>
+<td>files</td>
+<td>200 damaged copies</td>
+<td>3,000 damaged copies</td>
+</tr>
+</tbody>
+</table></div>
+<p>The CI run is derandomized: the same examples every time, so a failure in CI can be repeated on a laptop.
+The long run uses a new random seed each week and prints it. Measured on one Windows laptop: the CI run
+takes 20 seconds when the machine is idle, and 1.5 to 5 minutes when other heavy jobs run at the same time.</p>
+<h2>The properties</h2>
+<h3>a. The state machine (<code>--only machine</code>)</h3>
+<p>One run record, one approved tool <code>pay(item)</code> with <code>reconcile=</code> and <code>retry_on=</code>, and a fake provider that
+counts real outside actions. Hypothesis chooses a sequence of steps: approve, deny, call (with or without
+<code>c4a_key=</code>, with <code>retries=0</code> or <code>1</code>), crash inside the action before or after the outside action (with or
+without the error being recorded), a <code>retry_on</code> error, another error before or after the action, resume,
+reconcile answers (truthful, or "lagging": <code>c4a.UNKNOWN</code>), two callers at once, a caller that comes while
+the first is still inside the action (Fix 17's case), and two callers resuming a call in doubt at once.</p>
+<p>After every step:</p>
+<ul>
+<li>Each action key has at most one outside action.</li>
+<li>Every outside action had a "yes" for exactly its arguments, given before it and not cancelled by a "no".</li>
+<li>One "yes" is spent by at most one action (two <code>c4a_key</code> actions need two answers).</li>
+<li>A call that finished returns the recorded result on every later call, and does not run again.</li>
+<li>A call in doubt runs again only after the kit has proof it did not happen (a <code>retry_on</code> error or a
+  reconcile answer of <code>None</code>); <code>c4a.UNKNOWN</code> never makes it run.</li>
+<li>Every result in the record is the result of a real outside action.</li>
+<li>The record only grows: each row keeps its bytes, and <code>seq</code> always rises.</li>
+</ul>
+<p>The model also predicts the first decision of each call (replay, refuse, ask reconcile, or run) and
+checks it.</p>
+<p>On 0.7.1 this machine finds the double payment that Fix 17 removed. Hypothesis shrinks it to one step:
+<code>still_running_and_a_racer(item='a', key=None)</code>.</p>
+<h3>b. <code>canonical()</code> and <code>effect_key()</code> (<code>--only canonical</code>)</h3>
+<ul>
+<li>The order of keys in a dict never changes the text or the key.</li>
+<li>Two JSON values get the same key exactly when they are the same value with the same spelling.</li>
+<li>A change in one place always changes the key.</li>
+<li>A different run id, tool name or arguments gives a different key (names without NUL; see below).</li>
+<li>The code's rule: <code>10</code>, <code>10.0</code> and <code>True</code> are three different keys; a tuple is spelled as a list.</li>
+<li>An object with no stable text form raises <code>TypeError</code>, wherever it is nested.</li>
+<li>Nesting deeper than 500 levels raises <code>TypeError</code>.</li>
+<li>A set gives the same text in three processes with different hash seeds.</li>
+</ul>
+<h3>c. The codec (<code>--only codec</code>)</h3>
+<ul>
+<li>encode, then store as canonical JSON text, then decode gives an equal value of the same types
+  (JSON values, tuple, set, frozenset, bytes, bytearray as bytes, datetime, date, time, Decimal, dataclasses,
+  models with <code>model_dump</code>/<code>model_validate</code>, dicts with any hashable keys).</li>
+<li>decode of any JSON, including records that name <code>os:system</code>, <code>builtins:eval</code>, <code>subprocess:Popen</code>,
+  functions, plain classes and "half models", calls nothing and returns only plain data, dataclasses or
+  models. Dangerous functions are replaced by recorders while this runs, so a bug is seen and does nothing.</li>
+</ul>
+<h3>d. Damaged record files (<code>--only files</code>)</h3>
+<p>A record holds: A finished (result <code>RA</code>), B in doubt, C approved and unused, D never approved. Each
+example damages a copy: random bit flips, flips aimed near row text, a run of random bytes, a run of zeros,
+a cut at a random length, and sometimes a damaged, short, empty or missing secret file. Then it asks for A, B,
+C and D through the real API.</p>
+<p>Checked: A, B and D never run, B never comes back as done, C runs at most once, and every error is
+<code>LedgerError</code>, <code>sqlite3.DatabaseError</code>, <code>EffectInDoubt</code> or <code>ApprovalRequired</code>.</p>
+<p>Measured but not asserted: how often A came back with a different result (0 in our runs).</p>
+<p>PF1 is a fixed check: four hand-damaged rows (an approval row that is not JSON, an <code>effect_approved</code> row
+without its field, a <code>tool_done</code> row without its result, a format version that is not a number) each give
+<code>LedgerError</code>.</p>
+<h2>Mutations</h2>
+<p><code>python -m tests.mutations.run_kit_mutations --suite tests.test_properties</code> puts each bug back in a copy of
+the kit and runs the suite. A no-op control must be MISSED.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>mutation</th>
+<th>caught by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>a "yes" is never spent</td>
+<td>machine</td>
+</tr>
+<tr>
+<td>a "no" is ignored</td>
+<td>machine</td>
+</tr>
+<tr>
+<td>a "no" is ignored for a call in doubt</td>
+<td>machine</td>
+</tr>
+<tr>
+<td>every error counts as "did not happen"</td>
+<td>machine</td>
+</tr>
+<tr>
+<td>reconcile <code>None</code> is read as done</td>
+<td>machine</td>
+</tr>
+<tr>
+<td><code>UNKNOWN</code> is read as <code>None</code></td>
+<td>machine</td>
+</tr>
+<tr>
+<td>the result row is written twice</td>
+<td>machine</td>
+</tr>
+<tr>
+<td>a finished call is not replayed</td>
+<td>machine</td>
+</tr>
+<tr>
+<td>no owner check before reconcile (Fix 17)</td>
+<td>machine</td>
+</tr>
+<tr>
+<td>the codec calls whatever a record names</td>
+<td>codec</td>
+</tr>
+<tr>
+<td>a tuple comes back as a list</td>
+<td>codec</td>
+</tr>
+<tr>
+<td>keys depend on dict order</td>
+<td>canonical</td>
+</tr>
+<tr>
+<td>any object's <code>str()</code> is accepted in a key</td>
+<td>canonical</td>
+</tr>
+<tr>
+<td>a row without its field is not explained (PF1)</td>
+<td>files</td>
+</tr>
+<tr>
+<td>a damaged format version is not explained (PF1)</td>
+<td>files</td>
+</tr>
+<tr>
+<td>approval rows read with <code>json.loads</code> (PF1)</td>
+<td>files</td>
+</tr>
+</tbody>
+</table></div>
+<h2>What this does NOT cover</h2>
+<ul>
+<li>One process only. Several processes or machines on one record are not modelled here (see
+  <code>tests/test_atomic_admission.py</code>, <code>tests/test_shared_record.py</code> and the crash tests with real kills).</li>
+<li>Crashes are simulated with exceptions and a failing write, not with real process kills.</li>
+<li>The fake provider is honest. A reconcile function that lies is out of scope.</li>
+<li>Limits, rules, tickets, undo, async effects, <code>idempotent_for</code> and PostgreSQL are not in the machine.</li>
+<li>Known collisions of the key, by the code's design, are not tested as errors: NUL in a run id or tool name
+  (<code>effect_key("a\x00b", "c", ...)</code> equals <code>effect_key("a", "b\x00c", ...)</code>); int and str dict keys
+  (<code>{1: x}</code> and <code>{"1": x}</code>); bytes and <code>{"__bytes__": hex}</code>; a Decimal, date, UUID, path or enum and its text.</li>
+<li>Text with a lone surrogate (half an emoji) makes <code>effect_key</code> raise <code>UnicodeEncodeError</code>. It fails loudly;
+  it is not tested here.</li>
+<li>A damaged byte inside a stored result can change the result silently: SQLite keeps no checksum of row
+  content, and <code>call4agents verify</code> does not see it. We measured 0 such cases in our runs, but it is possible.</li>
+</ul><p><small>Source: <a href="https://github.com/salahmakboul/call4agents/blob/main/docs/PROPERTIES.md">docs/PROPERTIES.md</a> in the repository.</small></p></article>
+
+</main>
+<footer class="container"><hr><p><small>Call4Agents · Apache-2.0 · Copyright 2026 Salah Eddine Makboul ·
+<a href="https://github.com/salahmakboul/call4agents">Source on GitHub</a> · <a href="https://pypi.org/project/call4agents/">PyPI</a> · Site layout: Pico CSS (MIT).</small></p></footer>
+</body>
+</html>

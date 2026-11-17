@@ -45,6 +45,23 @@ call4agents quickstart   # offline, no API keys: 2 emails without the kit, 1 wit
 the API reference.</p>
 </section>
 <section>
+<h2>Why it matters</h2>
+<p>AI agents now pay, book, refund and send emails. When a program crashes and the agent retries, an approved action
+can run twice. We measured it in five frameworks: one approval, one crash, two payments.
+<a href="https://salahmakboul.github.io/call4agents/docs/why-it-matters/">Why this matters, in plain words</a>, for developers and for managers.</p>
+</section>
+<section class="research">
+<h2>Research</h2>
+<p>One question, one method, and every run saved so you can check it.</p>
+<ul>
+<li><a href="https://github.com/salahmakboul/call4agents/tree/main/docs/finding"><strong>The write-up</strong></a>: two payments in every run in five frameworks; script and data included.</li>
+<li><a href="https://salahmakboul.github.io/call4agents/docs/formal-model/"><strong>The TLA+ model</strong></a>: 24 checked configurations; it found a real gap in our own code.</li>
+<li><a href="https://salahmakboul.github.io/call4agents/docs/property-tests/"><strong>Property tests</strong></a>: random sequences of calls, crashes and racing callers.</li>
+<li><a href="https://salahmakboul.github.io/call4agents/docs/guarantees/"><strong>Guarantees</strong></a>: five promises, their conditions, and what they do not cover.</li>
+</ul>
+<p>The whole section, with what other projects did with it and what we have not shown: <a href="https://salahmakboul.github.io/call4agents/research/">Research</a>.</p>
+</section>
+<section>
 <h2>Does your agent repeat an action after a crash?</h2>
 <p><code>call4agents crashtest your_agent.py --test-accounts</code> kills your agent at every step, restarts it, and tells you which
 action ran twice. Your agent does not need to use the kit first. This is real output of

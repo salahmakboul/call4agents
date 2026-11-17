@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Research | Call4Agents docs</title>
+<meta name="description" content="In short: one question, how we tested it, what we found and what we have not shown. Each line below links to the data or to the public thread, so you can...">
+<link rel="canonical" href="https://salahmakboul.github.io/call4agents/research/">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Call4Agents">
+<meta property="og:title" content="Research">
+<meta property="og:description" content="In short: one question, how we tested it, what we found and what we have not shown. Each line below links to the data or to the public thread, so you can...">
+<meta property="og:url" content="https://salahmakboul.github.io/call4agents/research/">
+<meta property="og:image" content="https://salahmakboul.github.io/call4agents/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Call4Agents: without it, 2 emails after a crash; with it, 1.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="https://salahmakboul.github.io/call4agents/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://salahmakboul.github.io/call4agents/assets/site.css">
+<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "Research", "description": "In short: one question, how we tested it, what we found and what we have not shown. Each line below links to the data or to the public thread, so you can...", "url": "https://salahmakboul.github.io/call4agents/research/", "dateModified": "2026-11-18", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Docs", "item": "https://salahmakboul.github.io/call4agents/docs/"}, {"@type": "ListItem", "position": 3, "name": "Research", "item": "https://salahmakboul.github.io/call4agents/research/"}]}]</script>
+</head>
+<body>
+<header class="container">
+<nav>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/"><strong>Call4Agents</strong></a></li></ul>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/docs/">Docs</a></li><li><a href="https://salahmakboul.github.io/call4agents/guides/">Guides</a></li><li><a href="https://github.com/salahmakboul/call4agents">GitHub</a></li><li><a href="https://pypi.org/project/call4agents/">PyPI</a></li></ul>
+</nav>
+</header>
+<main class="container">
+<nav aria-label="breadcrumb" class="crumbs"><ul><li><a href="https://salahmakboul.github.io/call4agents/">Home</a></li><li><a href="https://salahmakboul.github.io/call4agents/docs/">Docs</a></li><li>Research</li></ul></nav>
+<article class="doc"><h1>Research</h1>
+<p><strong>In short:</strong> one question, how we tested it, what we found and what we have not shown. Each line below links to the data or to the public thread, so you can check it yourself.</p>
+<h2>The question</h2>
+<p>When a person approves an action for an AI agent and the program then crashes, does the action run again after the agent resumes? And can a small library make it run exactly once, without hiding the cases where nobody can tell?</p>
+<h2>The method</h2>
+<p>Approve one payment, let the tool pay, then kill the real process before the framework saves its state. Resume the documented way and count the payments. Repeat in each framework, with controls: the same run without a crash, and a run where the saved history was edited. Every run is saved as a file, and the script that made it is in the repository.</p>
+<h2>What we did and found</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Work</th>
+<th>What it shows</th>
+<th>Where</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Write-up</strong>, 5 November 2026: "A 'yes' is not exactly-once"</td>
+<td>Two payments in every run, in LangGraph, Pydantic AI and the OpenAI Agents SDK (30 runs each), and in Google ADK and Microsoft Agent Framework (5 runs each). One payment when a record is kept outside the framework's saved state. Script and all runs included.</td>
+<td><a href="https://github.com/salahmakboul/call4agents/tree/main/docs/finding">docs/finding</a></td>
+</tr>
+<tr>
+<td><strong>TLA+ model</strong></td>
+<td>The protocol is modelled and checked with TLC: 24 configurations, 9 pass, 13 seeded bugs are caught, 2 findings. One finding was a real gap in our code and became a fix.</td>
+<td><a href="https://salahmakboul.github.io/call4agents/docs/formal-model/">Formal model</a></td>
+</tr>
+<tr>
+<td><strong>Property tests</strong></td>
+<td>Random sequences of calls, approvals, crashes and racing callers, to find cases nobody wrote by hand.</td>
+<td><a href="https://salahmakboul.github.io/call4agents/docs/property-tests/">Property tests</a></td>
+</tr>
+<tr>
+<td><strong>Guarantees</strong></td>
+<td>Five promises, each with its conditions, the named checks behind it, and what it does not cover.</td>
+<td><a href="https://salahmakboul.github.io/call4agents/docs/guarantees/">Guarantees</a></td>
+</tr>
+<tr>
+<td><strong>Our own bugs, published</strong></td>
+<td>In version 0.7.1 an action could run twice when two callers raced (5 of 5 runs). It was fixed in 0.7.2 and published as a security advisory.</td>
+<td><a href="https://github.com/salahmakboul/call4agents/security/advisories/GHSA-256j-96j9-r2ff">GHSA-256j-96j9-r2ff</a></td>
+</tr>
+<tr>
+<td><strong>The crash test</strong></td>
+<td>A command that kills your own agent at every step and tells you which action ran twice.</td>
+<td><code>call4agents crashtest --demo</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>An open benchmark that runs the same crash scenarios against several frameworks is not published yet.</p>
+<h2>Taken up by others</h2>
+<ul>
+<li>The <a href="https://github.com/hitly-net/hitl-spec">hitl-spec</a> draft merged our single-use rule (<a href="https://github.com/hitly-net/hitl-spec/pull/10">PR 10</a>) and our replay-after-restart conformance check (<a href="https://github.com/hitly-net/hitl-spec/pull/11">PR 11</a>).</li>
+<li>The OpenAI Agents SDK merged a docs change on approved tool recovery after a crash (<a href="https://github.com/openai/openai-agents-python/pull/5424">PR 5424</a>), after our <a href="https://github.com/openai/openai-agents-python/issues/5409">issue 5409</a>.</li>
+<li>The proposed OWASP MCP Security Testing Guide test for approval replay includes our restart step (<a href="https://github.com/OWASP/MCP-Security-Testing-Guide/pull/63">PR 63</a>, under review).</li>
+<li>The author of a Google Calendar MCP server changed his fix for duplicate invites after our comments (<a href="https://github.com/nspady/google-calendar-mcp/pull/227">PR 227</a>, open).</li>
+<li>The author of an agentic commerce protocol proposal said he will add our crash-after-charge case (<a href="https://github.com/agentic-commerce-protocol/agentic-commerce-protocol/issues/325">SEP 325</a>, not merged).</li>
+</ul>
+<p>None of these depends on this library.</p>
+<h2>What we have not shown</h2>
+<ul>
+<li>Real payment systems and production traffic. We use fake providers and test accounts.</li>
+<li>That the model matches the code line by line. It models the protocol.</li>
+<li>Behaviour on code paths and crash points we did not test.</li>
+<li>An independent review. We have asked for one and have not had it yet.</li>
+<li>Any team running this in production.</li>
+</ul>
+<h2>Reproduce it</h2>
+<pre><code>pip install call4agents
+call4agents crashtest --demo
+</code></pre>
+<p>The write-up's script and every run's data are in <a href="https://github.com/salahmakboul/call4agents/tree/main/docs/finding">docs/finding</a>. To cite it, see <code>CITATION.cff</code> in that folder.</p>
+<p>Why this matters to a developer or a manager, in plain words: <a href="https://salahmakboul.github.io/call4agents/docs/why-it-matters/">Why this matters</a>.</p><p><small>Source: <a href="https://github.com/salahmakboul/call4agents/blob/main/docs/RESEARCH.md">docs/RESEARCH.md</a> in the repository.</small></p></article>
+
+</main>
+<footer class="container"><hr><p><small>Call4Agents · Apache-2.0 · Copyright 2026 Salah Eddine Makboul ·
+<a href="https://github.com/salahmakboul/call4agents">Source on GitHub</a> · <a href="https://pypi.org/project/call4agents/">PyPI</a> · Site layout: Pico CSS (MIT).</small></p></footer>
+</body>
+</html>

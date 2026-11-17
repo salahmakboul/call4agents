@@ -1,0 +1,619 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Formal model of the Call4Agents protocol (TLA+) | Call4Agents docs</title>
+<meta name="description" content="formal/Call4Agents.tla is a model of what the code does when several workers call the same @c4a.effect, a person says yes and no, processes crash, and the...">
+<link rel="canonical" href="https://salahmakboul.github.io/call4agents/docs/formal-model/">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Call4Agents">
+<meta property="og:title" content="Formal model of the Call4Agents protocol (TLA+)">
+<meta property="og:description" content="formal/Call4Agents.tla is a model of what the code does when several workers call the same @c4a.effect, a person says yes and no, processes crash, and the...">
+<meta property="og:url" content="https://salahmakboul.github.io/call4agents/docs/formal-model/">
+<meta property="og:image" content="https://salahmakboul.github.io/call4agents/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Call4Agents: without it, 2 emails after a crash; with it, 1.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="https://salahmakboul.github.io/call4agents/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://salahmakboul.github.io/call4agents/assets/site.css">
+<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "Formal model of the Call4Agents protocol (TLA+)", "description": "formal/Call4Agents.tla is a model of what the code does when several workers call the same @c4a.effect, a person says yes and no, processes crash, and the...", "url": "https://salahmakboul.github.io/call4agents/docs/formal-model/", "dateModified": "2026-11-18", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Docs", "item": "https://salahmakboul.github.io/call4agents/docs/"}, {"@type": "ListItem", "position": 3, "name": "Formal model of the Call4Agents protocol (TLA+)", "item": "https://salahmakboul.github.io/call4agents/docs/formal-model/"}]}]</script>
+</head>
+<body>
+<header class="container">
+<nav>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/"><strong>Call4Agents</strong></a></li></ul>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/docs/">Docs</a></li><li><a href="https://salahmakboul.github.io/call4agents/guides/">Guides</a></li><li><a href="https://github.com/salahmakboul/call4agents">GitHub</a></li><li><a href="https://pypi.org/project/call4agents/">PyPI</a></li></ul>
+</nav>
+</header>
+<main class="container">
+<nav aria-label="breadcrumb" class="crumbs"><ul><li><a href="https://salahmakboul.github.io/call4agents/">Home</a></li><li><a href="https://salahmakboul.github.io/call4agents/docs/">Docs</a></li><li>Formal model of the Call4Agents protocol (TLA+)</li></ul></nav>
+<article class="doc"><h1>Formal model of the Call4Agents protocol (TLA+)</h1>
+<p class="lead">A mathematical model of the protocol was checked by a program. This page says what it covers, what it found and what it cannot show.</p>
+<p><code>formal/Call4Agents.tla</code> is a model of what the code does when several workers call the same
+<code>@c4a.effect</code>, a person says yes and no, processes crash, and the outside world is asked (<code>reconcile=</code>)
+or removes duplicates (<code>idempotent_for=</code>). The TLC model checker visits <strong>every</strong> reachable state of the
+model (within the limits below) and checks the properties in each one.</p>
+<p>It models the code on main after Fix 17 (commit 5b26492), not the README. Line numbers below are from that commit.</p>
+<p>Run it: <code>python formal/run_tlc.py --tla2tools tla2tools.jar</code> (Java 11 or newer; CI uses Temurin 21 and
+tla2tools.jar v1.7.4, sha256 <code>936a2620...0e88</code>, see <code>.github/workflows/formal.yml</code>).</p>
+<h2>The model found a real bug in 0.7.1</h2>
+<p>TLC found a double payment in 0.7.1 with a <strong>truthful</strong> <code>reconcile=</code> and no crash. We then reproduced it with
+the real 0.7.1 library (<code>formal/repro_reconcile_race_071.py</code>, two scenarios, one run each): 2 payments in both.
+It is fixed on main as Fix 17. The configs <code>bug_reconcile_live_owner</code>, <code>bug_give_up_twice</code> and <code>bug_v071</code> put the
+old behaviour back, and TLC must still find it.</p>
+<p>Form 1, a call that is still running (<code>bug_v071</code> and <code>bug_reconcile_live_owner</code>, shortest trace 22 states):</p>
+<ol>
+<li>Worker 2 claims attempt 1 and starts the tool. The tool is slow.</li>
+<li>Worker 1 calls the same action, fails to claim attempt 1, waits <code>wait</code> seconds, and gets no result.</li>
+<li>Worker 1 asks <code>reconcile</code>. The provider truthfully says "not paid" (worker 2's request has not arrived).
+   Worker 1 writes <code>tool_abandoned</code> for attempt 1, claims attempt 2 and pays.</li>
+<li>Worker 2's request arrives too: 2 payments.</li>
+</ol>
+<p>Form 2, an attempt closed twice (<code>bug_give_up_twice</code>, shortest trace 29 states; the owner check is present):</p>
+<ol>
+<li>Worker 1 claims attempt 1; the tool raises a <code>retry_on</code> error (nothing happened), so worker 1 writes
+   <code>tool_abandoned</code> for attempt 1.</li>
+<li>Worker 2 had read "next attempt = 1" just before. Its claim of attempt 1 fails, it waits, the owner of
+   attempt 1 is gone (its call ended), so it asks <code>reconcile</code>: truthfully "not paid". It writes a SECOND
+   <code>tool_abandoned</code> for attempt 1.</li>
+<li>Meanwhile worker 1 called again: "next attempt = 2" (one closed row), claims it and pays.</li>
+<li>0.7.1 counted closed rows: worker 2 now reads "next attempt = 3", claims it and pays: 2 payments.</li>
+</ol>
+<p>The real-library scenario 2 is a variant of form 2 (a <code>tool_error</code>, then two callers reconcile at the same time):
+there the record shows no <code>late_result</code>, so nothing in the record says it happened twice.</p>
+<p>Fix 17 has two parts, and each closes one form: the owner check (no reconcile or same-key resend while the
+attempt's owner may still run it), and <code>Ledger.give_up</code> (an attempt is closed once, in one transaction;
+the next attempt is the newest closed one + 1).</p>
+<h2>A second finding: a window inside one process (0.7.2; fixed in 0.7.3, Fix 19)</h2>
+<p>Config <code>finding_threads_window</code> models 0.7.2 and is expected to FAIL. In 0.7.2 the owner check counted a call of
+<strong>this</strong> process as running only between <code>_owner.started()</code> and <code>_owner.finished()</code>, and
+<code>started()</code> was called after <code>check()</code> had returned, so for a short time the intent is in the record but the
+call is not marked as running. TLC's counterexample (shortest, 22 states):</p>
+<ol>
+<li>Thread 1 claims attempt 1 (the intent is committed) and is paused before <code>_owner.started()</code>.</li>
+<li>Thread 2 of the same process calls the same action, fails to claim attempt 1, waits <code>wait</code> seconds,
+   and asks the owner check: same pid, not in progress, so "gone".</li>
+<li>Thread 2 asks <code>reconcile</code>: truthfully "not paid". It gives attempt 1 up, claims attempt 2 and pays.</li>
+<li>Thread 1 continues and pays too. (Its result is written after the attempt was given up, so the record
+   gets a <code>late_result</code> and Python warns: the double is visible, not silent.)</li>
+</ol>
+<p>Reproduced with the real library on 0.7.2, 3 out of 3 runs, in <code>formal/repro_owner_window.py</code>: once with a pause
+injected after the claim, and once <strong>without any change to the library</strong>: an async call whose event loop is
+blocked by another task for longer than <code>wait</code> (0.8 s against <code>wait=0.05</code>), and a thread of the same process
+calling the same action. With the default <code>wait=2.0</code> the loop must be blocked for more than 2 seconds.
+Separate processes are not affected (a live pid counts as running until <code>lease</code>).</p>
+<p>The config <code>reconcile_threads_start_early</code> checks the fix: mark the call as running before its claim, and unmark
+it when the claim fails. With that change TLC finds no error (1,393,360 states). 0.7.3 does exactly this
+(Fix 19, check K29f); the same reproduction script then makes 1 payment in both modes.</p>
+<h2>A third finding, harmless: two results for one action</h2>
+<p>Config <code>finding_done_twice</code> (expected to FAIL; shortest trace 21 states). Worker 2 reads "no result" and its
+claim of attempt 1 fails, because worker 1 holds it. Worker 1 pays, writes <code>tool_done</code> and returns. Worker 2's
+wait ends without a poll that sees the result (the code polls only BEFORE the deadline: <code>wait=0</code>, or a thread
+paused past the deadline). The owner of attempt 1 is gone (its call ended), so worker 2 asks <code>reconcile</code>, gets
+the result, and writes a second <code>tool_done</code>. The action happened once and both rows say so; the kit reads the
+newest. We keep <code>DoneOnce</code> as a property and say the code does not have it, instead of weakening it. (Two callers
+reconciling the same crashed attempt at the same time also write two rows.)</p>
+<h2>What is modelled</h2>
+<ul>
+<li><strong>Workers</strong>: 2 or 3. Workers 1 and 2 make the same call (same run, tool and arguments, so the same key).
+  Worker 3 makes either a call with other arguments, or a second named action (<code>c4a_key</code>) with the same arguments.</li>
+<li><strong>The run record</strong>: a sequence of entries that the model only appends to: <code>approval</code>, <code>denial</code>,
+  <code>approval_used</code>, <code>effect_approved</code>, <code>tool_intent</code>, <code>tool_done</code>, <code>tool_error</code>, <code>tool_abandoned</code>,
+  <code>tool_retry_same_key</code>, <code>late_result</code>.</li>
+<li><strong>A person</strong> who records "yes" and "no" for exact arguments at any time (bounded number).</li>
+<li><strong>The admission transaction</strong> <code>claim_approved</code> as one step: result already recorded? approved action
+  resumed but denied since? intent exists? spend the oldest live, unspent, not-denied "yes"
+  (<code>approval_used</code> + <code>effect_approved</code> + <code>tool_intent</code> together).</li>
+<li><strong>The outside world</strong>: a counter per action. With <code>idempotent_for=</code> the provider applies a key once.</li>
+<li><strong>Crashes at any step</strong>: process memory (where the worker is, its attempt number) is lost; the record and
+  the world stay. A worker that comes back makes a new call. Threads of one process crash together.</li>
+<li><strong>The tool</strong>: returns; raises after the effect happened; raises before it happened; raises a <code>retry_on</code>
+  error (only when nothing happened).</li>
+<li><strong>reconcile=</strong>: returns the result if the action happened, <code>None</code> if it did not (truthful), or <code>UNKNOWN</code>
+  at any time.</li>
+<li><strong>The owner check</strong> (Fix 17): reconcile or a same-key resend only when the attempt's owner crashed or
+  finished. Two kinds of owner: separate processes (a live process holds its attempt from the claim on),
+  or threads of one process (only the in-progress mark counts).</li>
+</ul>
+<h2>Properties (each in one sentence)</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AtMostOnce</code></td>
+<td>The outside world sees each action at most once.</td>
+</tr>
+<tr>
+<td><code>NoUnapprovedEffect</code></td>
+<td>The tool runs only under an intent written by an admission that spent a "yes" for exactly its arguments on this action, with no "no" for those arguments between that "yes" and the intent.</td>
+</tr>
+<tr>
+<td><code>OneYesOneAction</code></td>
+<td>Each "yes" is spent once, by one action.</td>
+</tr>
+<tr>
+<td><code>DoneIsTrue</code></td>
+<td>A recorded result means the action really happened.</td>
+</tr>
+<tr>
+<td><code>DoneOnce</code></td>
+<td>At most one <code>tool_done</code> per action (the code does NOT have this with reconcile; see above).</td>
+</tr>
+<tr>
+<td><code>AppendOnly</code></td>
+<td>Entries are never changed or removed (an action property).</td>
+</tr>
+<tr>
+<td><code>AllCallsEnd</code></td>
+<td>Progress: with fair workers, every call ends (no worker waits forever).</td>
+</tr>
+<tr>
+<td><code>AdmittedFinishes</code></td>
+<td>Progress: with no crash and a tool that returns, an admitted action gets its result.</td>
+</tr>
+</tbody>
+</table></div>
+<p>The progress properties use weak fairness for the workers only; crashes and the person are not fair.</p>
+<p>How they map to the promises in <a href="https://salahmakboul.github.io/call4agents/docs/guarantees/">GUARANTEES.md</a>:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Promise</th>
+<th>Checked by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>G1 An action runs at most once</td>
+<td><code>AtMostOnce</code> (and <code>DoneIsTrue</code>, <code>AppendOnly</code>, which it relies on). Holds for separate processes, and since 0.7.3 also for threads of one process (<code>reconcile_threads_start_early</code>; 0.7.2's window is <code>finding_threads_window</code>).</td>
+</tr>
+<tr>
+<td>G2 A "yes" covers exactly the call that was shown, once</td>
+<td><code>NoUnapprovedEffect</code> (exact arguments, a spent "yes") and <code>OneYesOneAction</code></td>
+</tr>
+<tr>
+<td>G3 A "no" wins</td>
+<td><code>NoUnapprovedEffect</code> (no "no" between the "yes" and any intent, including a resume)</td>
+</tr>
+<tr>
+<td>G4, G5</td>
+<td>not modelled (named keys and the audit export are outside the model; <code>AppendOnly</code> covers only "rows are never changed")</td>
+</tr>
+</tbody>
+</table></div>
+<h2>Results</h2>
+<p>One full run on 13 Nov 2026: 24 configs, all as expected, 12,182,980 distinct states in total, 594 s.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Config</th>
+<th>Kind</th>
+<th>Bounds (besides the defaults below)</th>
+<th>Result</th>
+<th>Distinct states</th>
+<th>Depth / trace</th>
+<th>Time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>plain_approval</td>
+<td>pass</td>
+<td>3 workers</td>
+<td>no error</td>
+<td>130,029</td>
+<td>35</td>
+<td>8 s</td>
+</tr>
+<tr>
+<td>plain_second_action</td>
+<td>pass</td>
+<td>3 workers, worker 3 = 2nd action, same args; 2 yes, 0 no</td>
+<td>no error</td>
+<td>732,165</td>
+<td>40</td>
+<td>42 s</td>
+</tr>
+<tr>
+<td>plain_no_approval</td>
+<td>pass</td>
+<td>3 workers, no approval, worker 3: 2 calls</td>
+<td>no error</td>
+<td>2,286,009</td>
+<td>45</td>
+<td>59 s</td>
+</tr>
+<tr>
+<td>reconcile_processes</td>
+<td>pass</td>
+<td>reconcile, 3 calls each</td>
+<td>no error</td>
+<td>2,263,158</td>
+<td>81</td>
+<td>94 s</td>
+</tr>
+<tr>
+<td>reconcile_three</td>
+<td>pass</td>
+<td>reconcile, 3 workers, worker 3 = 2nd action</td>
+<td>no error</td>
+<td>552,897</td>
+<td>56</td>
+<td>25 s</td>
+</tr>
+<tr>
+<td>idem_processes</td>
+<td>pass</td>
+<td>idempotent_for, 3 calls each</td>
+<td>no error</td>
+<td>4,729,851</td>
+<td>78</td>
+<td>253 s</td>
+</tr>
+<tr>
+<td>reconcile_threads_start_early</td>
+<td>pass</td>
+<td>threads, the 0.7.3 code (Fix 19)</td>
+<td>no error</td>
+<td>1,393,360</td>
+<td>83</td>
+<td>69 s</td>
+</tr>
+<tr>
+<td>live_calls_end</td>
+<td>pass</td>
+<td>progress, reconcile, no approval</td>
+<td>no error</td>
+<td>32,138</td>
+<td>51</td>
+<td>8 s</td>
+</tr>
+<tr>
+<td>live_admitted_finishes</td>
+<td>pass</td>
+<td>progress, no crash, tool returns</td>
+<td>no error</td>
+<td>1,509</td>
+<td>24</td>
+<td>3 s</td>
+</tr>
+<tr>
+<td>finding_threads_window</td>
+<td>finding</td>
+<td>threads, the 0.7.2 code</td>
+<td>AtMostOnce violated</td>
+<td>5,133</td>
+<td>trace 22</td>
+<td>2 s</td>
+</tr>
+<tr>
+<td>finding_done_twice</td>
+<td>finding</td>
+<td>reconcile, no approval</td>
+<td>DoneOnce violated</td>
+<td>3,062</td>
+<td>trace 21</td>
+<td>2 s</td>
+</tr>
+<tr>
+<td>bug_split_admission</td>
+<td>seeded</td>
+<td></td>
+<td>NoUnapprovedEffect violated</td>
+<td>727</td>
+<td>trace 10</td>
+<td>2 s</td>
+</tr>
+<tr>
+<td>bug_no_spend</td>
+<td>seeded</td>
+<td>3 workers, 2nd action</td>
+<td>OneYesOneAction violated</td>
+<td>2,017</td>
+<td>trace 10</td>
+<td>2 s</td>
+</tr>
+<tr>
+<td>bug_no_deny_in_doubt</td>
+<td>seeded</td>
+<td></td>
+<td>NoUnapprovedEffect violated</td>
+<td>4,164</td>
+<td>trace 16</td>
+<td>2 s</td>
+</tr>
+<tr>
+<td>bug_reconcile_lies_none</td>
+<td>seeded</td>
+<td>reconcile</td>
+<td>AtMostOnce violated</td>
+<td>4,485</td>
+<td>trace 21</td>
+<td>2 s</td>
+</tr>
+<tr>
+<td>bug_reconcile_lies_found</td>
+<td>seeded</td>
+<td>reconcile</td>
+<td>DoneIsTrue violated</td>
+<td>1,796</td>
+<td>trace 16</td>
+<td>2 s</td>
+</tr>
+<tr>
+<td>bug_retry_on_lies</td>
+<td>seeded</td>
+<td></td>
+<td>AtMostOnce violated</td>
+<td>1,546</td>
+<td>trace 14</td>
+<td>2 s</td>
+</tr>
+<tr>
+<td>bug_provider_forgets</td>
+<td>seeded</td>
+<td>idempotent_for</td>
+<td>AtMostOnce violated</td>
+<td>2,528</td>
+<td>trace 17</td>
+<td>2 s</td>
+</tr>
+<tr>
+<td>bug_no_unique_intent</td>
+<td>seeded</td>
+<td>no approval</td>
+<td>AtMostOnce violated</td>
+<td>1,004</td>
+<td>trace 13</td>
+<td>2 s</td>
+</tr>
+<tr>
+<td>bug_delete_on_abandon</td>
+<td>seeded</td>
+<td></td>
+<td>AppendOnly violated</td>
+<td>215</td>
+<td>trace 8</td>
+<td>2 s</td>
+</tr>
+<tr>
+<td>bug_no_timeout</td>
+<td>seeded</td>
+<td>progress, reconcile</td>
+<td>AllCallsEnd violated</td>
+<td>9,364</td>
+<td>trace 18</td>
+<td>4 s</td>
+</tr>
+<tr>
+<td>bug_reconcile_live_owner</td>
+<td>seeded</td>
+<td>reconcile</td>
+<td>AtMostOnce violated</td>
+<td>5,977</td>
+<td>trace 22</td>
+<td>2 s</td>
+</tr>
+<tr>
+<td>bug_give_up_twice</td>
+<td>seeded</td>
+<td>reconcile</td>
+<td>AtMostOnce violated</td>
+<td>13,859</td>
+<td>trace 29</td>
+<td>3 s</td>
+</tr>
+<tr>
+<td>bug_v071</td>
+<td>seeded</td>
+<td>reconcile, both 0.7.1 parts</td>
+<td>AtMostOnce violated</td>
+<td>5,987</td>
+<td>trace 22</td>
+<td>2 s</td>
+</tr>
+</tbody>
+</table></div>
+<p>Defaults (<code>BASE</code> in <code>formal/run_tlc.py</code>): 2 workers making the same call (worker 3, when present, makes 1 call),
+2 calls each, 1 "yes", 1 "no", approval on, <code>retry_on</code> set, crashes at any step, the tool may raise,
+separate processes. Each config's exact constants are in <code>formal/cfg/&lt;name&gt;.cfg</code> (generated from the table in
+<code>run_tlc.py</code>; the runner fails if a file and the table differ).</p>
+<p>TLC 1.7.4, Temurin 21.0.13, <code>-workers auto</code>, Windows 10 laptop. "Depth" is the longest shortest path in the
+state graph (for a pass) and "trace" is the length of the shortest counterexample (for a violation; TLC
+searches breadth-first, so no shorter one exists in the model).</p>
+<h2>Seeded bugs (each must be caught)</h2>
+<p>A model whose properties can never fail proves nothing. Each seeded bug puts one real mistake back
+(<code>BUGS = {...}</code> in the config), and <code>run_tlc.py</code> fails if TLC does NOT report the named property.</p>
+<ul>
+<li><code>split_admission</code>: the "yes" is checked in one step and the intent written in a later one. A "no" lands in
+  between, and the action is admitted on a "yes" that was already cancelled (NoUnapprovedEffect, 10 states).</li>
+<li><code>no_spend</code>: a used "yes" is not marked as spent. One "yes" admits the first action and then a second named
+  action with the same arguments (OneYesOneAction, 10 states).</li>
+<li><code>no_deny_in_doubt</code>: the "no" is not checked when an admitted action is resumed. The first try fails with a
+  <code>retry_on</code> error, the person says "no", and the retry runs anyway (NoUnapprovedEffect, 16 states).</li>
+<li><code>reconcile_lies_none</code>: reconcile says "not done" after the payment; the next attempt pays again (AtMostOnce, 21).</li>
+<li><code>reconcile_lies_found</code>: reconcile says "done" when nothing happened; a result is recorded for a payment that
+  does not exist (DoneIsTrue, 16).</li>
+<li><code>retry_on_lies</code>: a <code>retry_on</code> error is raised after the payment; the attempt is given up and the next one pays
+  again (AtMostOnce, 14).</li>
+<li><code>provider_forgets</code>: the API does not deduplicate the idempotency key; the same-key resend pays again (AtMostOnce, 17).</li>
+<li><code>no_unique_intent</code>: no UNIQUE index on <code>tool_intent</code>; two workers claim the same attempt and both pay (AtMostOnce, 13).</li>
+<li><code>delete_on_abandon</code>: giving up deletes the old intent instead of appending a row (AppendOnly, 8).</li>
+<li><code>no_timeout</code>: <code>wait</code> never ends while there is no result; after a crash of the owner, the waiting worker waits
+  forever (AllCallsEnd, a lasso of 18 states).</li>
+<li><code>reconcile_live_owner</code>, <code>give_up_twice</code>, and both together (<code>v071</code>): the 0.7.1 bug above (AtMostOnce, 22 / 29 / 22).</li>
+</ul>
+<p>The runner was also checked against itself: <code>--selftest</code> checks the output parser on canned TLC outputs, and a
+parser that reads the first state count (a progress line) instead of the last one fails it.</p>
+<p>We also edited the CORRECT model one piece at a time (small bounds: 2 workers, 2 calls, reconcile):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Edit of the correct model</th>
+<th>TLC</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>none (control)</td>
+<td>no error, 32,138 states</td>
+</tr>
+<tr>
+<td>the owner check always says "gone"</td>
+<td>AtMostOnce violated, trace 22</td>
+</tr>
+<tr>
+<td>the "no" is not checked on resume</td>
+<td>NoUnapprovedEffect violated, trace 16</td>
+</tr>
+<tr>
+<td><code>give_up</code> never refuses (but next attempt = newest closed + 1)</td>
+<td>no error, 80,330 states</td>
+</tr>
+<tr>
+<td>next attempt counts closed rows (but <code>give_up</code> closes once)</td>
+<td>no error, 32,138 states</td>
+</tr>
+</tbody>
+</table></div>
+<p>The last two rows mean: the second part of Fix 17 is two protections, and in the model <strong>each one alone is
+enough</strong> for AtMostOnce; only removing both (0.7.1, <code>bug_give_up_twice</code>) breaks it. <code>give_up</code>'s "once" rule
+also keeps a <code>Limit</code> hold from being released twice, which the model does not cover.</p>
+<h2>Map: model step -&gt; code (commit 5b26492)</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Model step</th>
+<th>Code</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Start</code></td>
+<td><code>wrapper()</code> <code>__init__.py</code> 569-572, a new call</td>
+</tr>
+<tr>
+<td><code>ReadDone</code></td>
+<td><code>decide_run</code> 449-451: a recorded result is returned</td>
+</tr>
+<tr>
+<td><code>ReadAttempt</code></td>
+<td>452 <code>lg.next_attempt(k)</code>; <code>ledger.py</code> 418-425</td>
+</tr>
+<tr>
+<td><code>Claim</code>, <code>ClaimNext</code></td>
+<td><code>claim()</code> 403-415 -&gt; <code>ledger.claim</code> 288 (UNIQUE index <code>one_intent</code>, 207) or <code>ledger.claim_approved</code> 300 (one <code>BEGIN IMMEDIATE</code> transaction, 298; UNIQUE index <code>one_use</code>, 209); <code>ClaimNext</code> is 478</td>
+</tr>
+<tr>
+<td><code>Begin</code></td>
+<td>575 <code>_owner.started(running)</code> (after <code>check()</code> returned)</td>
+</tr>
+<tr>
+<td><code>Effect</code></td>
+<td>577 <code>f(*args, **kwargs)</code></td>
+</tr>
+<tr>
+<td><code>RecordDone</code>, <code>CheckLate</code></td>
+<td><code>record_result</code> 506-511 (<code>tool_done</code>, then <code>late_result</code> if the attempt was given up)</td>
+</tr>
+<tr>
+<td><code>FailOther</code>, <code>FailRetry</code></td>
+<td><code>failed()</code> 520 (<code>tool_error</code>) and 516 (<code>tool_abandoned</code> for a <code>retry_on</code> error)</td>
+</tr>
+<tr>
+<td><code>ReadErr</code></td>
+<td>455-458: an error of THIS attempt skips the wait and the owner check</td>
+</tr>
+<tr>
+<td><code>Wait</code></td>
+<td>459-463: poll for the result until the deadline</td>
+</tr>
+<tr>
+<td><code>OwnerCheck</code></td>
+<td>464-470 -&gt; <code>owner.may_still_run</code> (<code>owner.py</code> 76)</td>
+</tr>
+<tr>
+<td><code>AfterWait</code> (idem)</td>
+<td>471-481: <code>give_up(.., "tool_retry_same_key")</code>, <code>continue</code> on False, then <code>ClaimNext</code></td>
+</tr>
+<tr>
+<td><code>Reconcile</code>, <code>ReconDone</code></td>
+<td>484-490</td>
+</tr>
+<tr>
+<td><code>Abandon</code></td>
+<td>492 <code>lg.give_up(...)</code> (<code>ledger.py</code> 396-416), then the next pass of <code>for _ in range(2)</code> (448) or 493</td>
+</tr>
+<tr>
+<td><code>Crash</code></td>
+<td><code>os._exit</code> anywhere; an open transaction rolls back (a step either happened or not)</td>
+</tr>
+<tr>
+<td><code>Approve</code>, <code>Deny</code></td>
+<td><code>ledger.record_approval</code> 482, <code>record_denial</code> 487</td>
+</tr>
+</tbody>
+</table></div>
+<h2>Simplifications (where the model is not the code)</h2>
+<ol>
+<li>One run, one tool. Keys are names (<code>k1</code>, <code>k2</code>), not hashes; arguments are <code>a</code> or <code>b</code>. An HMAC match is
+   modelled as "same arguments". <code>KeyConflict</code> (a named key reused with other arguments) is not modelled.</li>
+<li>Each SQLite statement or transaction is one atomic step. <code>record_result</code>'s read of <code>tool_abandoned</code> and its
+   <code>late_result</code> append are merged into one step (it only adds a warning row).</li>
+<li>Time is not modelled. <code>wait</code> ends at any moment. The <code>idempotent_for</code> window is a free choice at each check.
+   <code>lease</code>: the owner check says "gone" in the model only when the owner crashed or finished. The code is
+   stricter (a live pid or another host counts as running until <code>lease</code> seconds), so it allows fewer reconciles
+   than the model. The model ASSUMES no attempt runs longer than <code>lease</code>; an owner still running after its lease
+   is outside the model.</li>
+<li><code>retries=N</code> (the loop inside one call) is modelled as further calls by the same worker; backoff is not modelled.</li>
+<li>Process identity (host, pid, token, pid reuse) is abstracted to "which worker holds the attempt". So the
+   planned change on main that stops comparing the process token does not change the model.
+   Mixed setups (threads in several processes) are not modelled.</li>
+<li>Not modelled: <code>Limit</code> and <code>Rules</code>, approval tickets (<code>pause</code>/<code>decide</code>), replay, <code>undo</code>, the codec, async
+   (the same steps as sync; the in-progress window is modelled in its thread form), <code>KeyConflict</code>, the result
+   that cannot be encoded (it acts like "raises after it happened").</li>
+<li>Bounds: at most 3 workers, 1-3 calls each, 1-2 "yes" and 1 "no". A bug that needs more steps is not seen.</li>
+</ol>
+<h2>What this does NOT prove</h2>
+<ul>
+<li><strong>That the Python code matches the model.</strong> The model was written by reading the code; a mistake in that
+  reading is not caught by TLC. The trace check (below) links them for some scenarios only.</li>
+<li><strong>Durability</strong>: that SQLite or PostgreSQL really keeps a committed row after a power cut (fsync, WAL, disks
+  that lie), or that <code>BEGIN IMMEDIATE</code> and the UNIQUE indexes behave as one atomic step. The model assumes it.</li>
+<li><strong>HMAC</strong>: that a "yes" cannot be forged, or that the secret is kept secret.</li>
+<li><strong>Clocks</strong>: <code>idempotent_for</code> windows, <code>lease</code>, ticket expiry. A clock that jumps, or an attempt longer than
+  <code>lease</code>, is outside the model.</li>
+<li><strong>Limit and Rules</strong> (not modelled).</li>
+<li><strong>More workers, calls or answers</strong> than the bounds above.</li>
+<li><strong>A provider that lies</strong>: <code>reconcile</code> that says "not done" when it was done, a <code>retry_on</code> error raised after
+  the action happened, or an API that forgets an idempotency key early. The seeded bugs show each of these
+  breaks the guarantee; the model only proves the guarantee when they do not happen.</li>
+<li><strong>A provider that is slow</strong>: a request still being processed after the tool returned or raised (reconcile
+  must then answer <code>UNKNOWN</code>). The model treats the provider as up to date when asked.</li>
+</ul>
+<h2>The trace check (links the model to the code)</h2>
+<p><code>python -m tests.test_formal_trace</code> runs the <strong>real library</strong> through 72 crash/resume scenarios (216 processes)
+(real processes killed with <code>os._exit</code> before and after each write to the record, and inside the action;
+with approval + reconcile, approval + <code>retry_on</code>, and reconcile without approval; the second process either
+resumes or first says "no"), then checks each record and the fake provider's payments against the same
+invariants written in Python (T1-T5), plus T6 (a call still running is not reconciled) and T7 (controls: the
+checker sees each kind of broken record). It takes about 90 seconds. It is mutation-proven (entries <code>TR ...</code> in
+<code>tests/mutations/run_kit_mutations.py</code>): 4 mutations of the kit are caught (reconcile while the owner runs: T6;
+the "no" not checked on resume, an error treated as "not done", reconcile's result ignored: T1-T5) and the
+no-op control is missed.</p>
+<p>The trace check is not a proof. It checks 72 scenarios with one or two callers, not every interleaving, and it
+cannot see the same-process window above (that needs a paused thread; see <code>formal/repro_owner_window.py</code>).</p><p><small>Source: <a href="https://github.com/salahmakboul/call4agents/blob/main/docs/FORMAL_MODEL.md">docs/FORMAL_MODEL.md</a> in the repository.</small></p></article>
+
+</main>
+<footer class="container"><hr><p><small>Call4Agents · Apache-2.0 · Copyright 2026 Salah Eddine Makboul ·
+<a href="https://github.com/salahmakboul/call4agents">Source on GitHub</a> · <a href="https://pypi.org/project/call4agents/">PyPI</a> · Site layout: Pico CSS (MIT).</small></p></footer>
+</body>
+</html>
