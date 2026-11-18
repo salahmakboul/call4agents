@@ -19,9 +19,8 @@ Approve one payment, let the tool pay, then kill the real process before the fra
 | **Property tests** | Random sequences of calls, approvals, crashes and racing callers, to find cases nobody wrote by hand. | [Property tests](PROPERTIES.md) |
 | **Guarantees** | Five promises, each with its conditions, the named checks behind it, and what it does not cover. | [Guarantees](GUARANTEES.md) |
 | **Our own bugs, published** | In version 0.7.1 an action could run twice when two callers raced (5 of 5 runs). It was fixed in 0.7.2 and published as a security advisory. | [GHSA-256j-96j9-r2ff](https://github.com/salahmakboul/call4agents/security/advisories/GHSA-256j-96j9-r2ff) |
+| **Open benchmark** | Eight crash and approval scenarios and two controls, run offline with real process kills; a fake bank counts the actions, not the framework. Anyone can run it on their own framework. Measured on Windows only so far (13 November 2026): a plain Python loop, LangGraph, the OpenAI Agents SDK and Pydantic AI repeat the action in the crash cases by default, and with Call4Agents 0.7.2 every measured cell passes. Version 0.7.1 failed the "two workers resume at once" case in 5 of 5 runs, which is the bug we fixed in 0.7.2. | [Benchmark](../bench/README.md), [results and data](../bench/RESULTS.md) |
 | **The crash test** | A command that kills your own agent at every step and tells you which action ran twice. | `call4agents crashtest --demo` |
-
-An open benchmark that runs the same crash scenarios against several frameworks is not published yet.
 
 ## Taken up by others
 
