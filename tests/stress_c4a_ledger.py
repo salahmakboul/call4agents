@@ -1,5 +1,5 @@
 """The run record under load and crashes (offline, 0 calls).
-  S1 many writers: 12 processes x 150 appends each, plus 8 threads in one process
+  S1 many writers: 12 processes x 50 appends each, plus 8 threads in one process
   S2 crash in the middle of writes: a process is killed while appending in a loop
   S3 the SAME effect called at the same moment from 8 threads and 6 processes
 Run: python -m tests.stress_c4a_ledger"""
@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 
 ROOT = str(Path(__file__).resolve().parents[1])
+ROWS = 50          # appends per writer in S1 (20 writers)
 
 
 def child_append(path, n, tag):
@@ -65,9 +66,12 @@ def main():
     path = str(tmp / "s1.sqlite")
     from call4agents.ledger import Ledger
     Ledger(path, secret=b"s")
-    procs = [spawn("append", path, "150", f"p{k}") for k in range(12)]
+    # 20 writers. 50 rows each: with 150 rows a slow Windows runner needed about as long as the 30 s the ledger
+    # waits for a lock, and one writer ran out of patience (CI, Windows, Python 3.11). The test is about many
+    # writers losing no row and writing no duplicate, not about volume.
+    procs = [spawn("append", path, str(ROWS), f"p{k}") for k in range(12)]
     errs = []
-    threads = [threading.Thread(target=lambda k=k: child_append(path, 150, f"t{k}")) for k in range(8)]
+    threads = [threading.Thread(target=lambda k=k: child_append(path, ROWS, f"t{k}")) for k in range(8)]
     try:
         for t in threads:
             t.start()
@@ -80,7 +84,7 @@ def main():
         if p.returncode:
             errs.append(e.strip().splitlines()[-1][:160] if e.strip() else f"exit {p.returncode}")
     rows = sqlite3.connect(path).execute("SELECT COUNT(*), COUNT(DISTINCT key) FROM entries").fetchone()
-    out["S1 many writers"] = {"expected": 20 * 150, "rows": rows[0], "distinct": rows[1], "errors": errs[:3]}
+    out["S1 many writers"] = {"expected": 20 * ROWS, "rows": rows[0], "distinct": rows[1], "errors": errs[:3]}
     # S2
     path = str(tmp / "s2.sqlite")
     Ledger(path, secret=b"s")

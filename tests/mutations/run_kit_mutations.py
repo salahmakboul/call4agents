@@ -77,7 +77,7 @@ MUTATIONS = [
     # --- production checks (P1-P12)
     ("control (no-op)", LEDGER, "SCHEMA_VERSION = 1", "SCHEMA_VERSION = 1", "tests.test_c4a_production"),
     ("P1 newer format read anyway", LEDGER, "if found > SCHEMA_VERSION:", "if False:", "tests.test_c4a_production"),
-    ("P2 bad file not explained", LEDGER, "except sqlite3.DatabaseError as exc:", "except ZeroDivisionError as exc:", "tests.test_c4a_production"),
+    ("P2 bad file not explained", LEDGER, "except (sqlite3.DatabaseError, ValueError) as exc:", "except ZeroDivisionError as exc:", "tests.test_c4a_production"),
     ("P3 secret written in place, not linked", LEDGER, "                os.link(tmp, p)", "                os.replace(tmp, p)", "tests.test_c4a_production"),
     ("P4 old secrets ignored", LEDGER, '[self.secret] + list(getattr(self, "old_secrets", []))', "[self.secret]", "tests.test_c4a_production"),
     ("P5 network mounts not detected", LEDGER, "    return best[1] in NETWORK_FS", "    return False", "tests.test_c4a_production"),
@@ -532,6 +532,12 @@ def main() -> int:
             caught = r.returncode != 0
             expected = not name.startswith("control")
             print(f"  {'ok  ' if caught == expected else 'BAD '}  {name:36} {'CATCHES ' + ','.join(fails) if caught else 'MISSES'}")
+            if caught != expected:
+                # Show what the check printed, so a failure in CI can be read from the log (not only its name).
+                shown = [l for l in (r.stdout + "\n" + r.stderr).splitlines() if l.strip()][-25:]
+                print("        --- output of the suite (last lines) ---")
+                for l in shown:
+                    print("        | " + l[:600])
             bad += caught != expected
         finally:
             shutil.rmtree(tmp, ignore_errors=True)

@@ -33,6 +33,16 @@ class NoAnswer(Exception):
     pass
 
 
+def scrub(x):
+    """The same structure without trace ids, span ids and time stamps (random digits), for a text scan."""
+    if isinstance(x, dict):
+        return {k: scrub(v) for k, v in x.items()
+                if k not in ("traceId", "spanId", "parentSpanId") and not k.endswith("UnixNano")}
+    if isinstance(x, list):
+        return [scrub(v) for v in x]
+    return x
+
+
 def attrs(span):
     out = {}
     for a in span["attributes"]:
@@ -99,7 +109,12 @@ def main_test():
     ref = by.get(("r1", "o.refund", "refused by a rule"))
     check("O4 a refused call is a span with its rule", ref is not None and ref[1]["error.type"] == "c4a.rule_refused"
           and ref[1]["c4a.rule"] == "max.cents" and ref[0]["status"]["code"] == 2, ref)
-    text = json.dumps(doc)
+    # Scan everything except ids and timestamps. Those are random digits, and "9999" appears in them by chance
+    # (about 8 builds in 1000 where the clock has full nanosecond digits: it failed once in CI on Linux).
+    scrub_demo = {"traceId": "x", "startTimeUnixNano": "1794999999999999999", "attributes": [{"key": "k"}]}
+    check("O5 the scan ignores ids and timestamps but not attributes", "9999" not in json.dumps(scrub(scrub_demo))
+          and "attributes" in scrub(scrub_demo))
+    text = json.dumps(scrub(doc))
     check("O5 arguments, error texts, reasons and results are left out by default", "gen_ai.tool.call.arguments" not in text
           and "alice" not in text and "9999" not in text and "server busy" not in text and "sent, maybe" not in text
           and "secret" not in text, text[:300])
