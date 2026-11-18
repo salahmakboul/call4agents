@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>An open crash-safety benchmark for agent tool calls | Call4Agents docs</title>
+<meta name="description" content="This benchmark asks one question of an agent framework: when something goes wrong around a tool call that changes the outside world, does the action...">
+<link rel="canonical" href="https://salahmakboul.github.io/call4agents/benchmark/">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Call4Agents">
+<meta property="og:title" content="An open crash-safety benchmark for agent tool calls">
+<meta property="og:description" content="This benchmark asks one question of an agent framework: when something goes wrong around a tool call that changes the outside world, does the action...">
+<meta property="og:url" content="https://salahmakboul.github.io/call4agents/benchmark/">
+<meta property="og:image" content="https://salahmakboul.github.io/call4agents/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Call4Agents: without it, 2 emails after a crash; with it, 1.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="https://salahmakboul.github.io/call4agents/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://salahmakboul.github.io/call4agents/assets/site.css">
+<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "An open crash-safety benchmark for agent tool calls", "description": "This benchmark asks one question of an agent framework: when something goes wrong around a tool call that changes the outside world, does the action...", "url": "https://salahmakboul.github.io/call4agents/benchmark/", "dateModified": "2026-11-18", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Docs", "item": "https://salahmakboul.github.io/call4agents/docs/"}, {"@type": "ListItem", "position": 3, "name": "An open crash-safety benchmark for agent tool calls", "item": "https://salahmakboul.github.io/call4agents/benchmark/"}]}]</script>
+</head>
+<body>
+<header class="container">
+<nav>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/"><strong>Call4Agents</strong></a></li></ul>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/docs/">Docs</a></li><li><a href="https://salahmakboul.github.io/call4agents/guides/">Guides</a></li><li><a href="https://github.com/salahmakboul/call4agents">GitHub</a></li><li><a href="https://pypi.org/project/call4agents/">PyPI</a></li></ul>
+</nav>
+</header>
+<main class="container">
+<nav aria-label="breadcrumb" class="crumbs"><ul><li><a href="https://salahmakboul.github.io/call4agents/">Home</a></li><li><a href="https://salahmakboul.github.io/call4agents/docs/">Docs</a></li><li>An open crash-safety benchmark for agent tool calls</li></ul></nav>
+<article class="doc"><h1>An open crash-safety benchmark for agent tool calls</h1>
+<p class="lead">An open test that kills an agent at every step and counts repeated actions, so you can run it on your own framework.</p>
+<p>This benchmark asks one question of an agent framework: <strong>when something goes wrong around a tool call that
+changes the outside world, does the action happen the right number of times, with the arguments a person
+approved?</strong> Any framework or project can run it on itself. The results table is <a href="https://salahmakboul.github.io/call4agents/benchmark/results/">RESULTS.md</a>.</p>
+<p>It is offline: scripted models, no API keys, no network. Crashes are real process kills. Actions are counted
+by a fake bank, an SQLite file that every process writes to, never by what a model or a framework reports.</p>
+<h2>Why it exists</h2>
+<p>Agent frameworks save their state between steps, so a run can resume after a crash or wait for a person.
+The step that runs a tool sits between two saves. If the process dies after the tool acted and before the
+next save, the resumed run does not know the action happened. Approvals have a similar gap: the "yes" and the
+call that later runs are not always tied to each other.</p>
+<p>These cases are known and discussed in the frameworks' own trackers, for example:</p>
+<ul>
+<li>LangGraph <a href="https://github.com/langchain-ai/langgraph/issues/9676">#9676</a> (open): with parallel tool calls under
+  <code>HumanInTheLoopMiddleware</code> and <code>durability="exit"</code>, an approved call can be asked again and run twice.</li>
+<li>OpenAI Agents SDK <a href="https://github.com/openai/openai-agents-python/issues/4254">#4254</a> (closed, a question): when a
+  run retries, a tool with a side effect can run twice, and <code>tool_call_id</code> is not a stable key for it.</li>
+</ul>
+<p>None of this is special to one framework. A hand-written loop has the same gaps (the plain loop subject shows it),
+and each framework closes some of them already (see "Passed without call4agents" in RESULTS.md).</p>
+<h2>What it measures</h2>
+<p>Ten cells per subject and variant: two controls and eight scenarios. Full rules: <a href="https://github.com/salahmakboul/call4agents/blob/main/bench/scenarios.md">scenarios.md</a>.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>id</th>
+<th>story</th>
+<th>pass</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>C1</td>
+<td>a run with no fault</td>
+<td>1 action</td>
+</tr>
+<tr>
+<td>C2</td>
+<td>an approved call</td>
+<td>1 action</td>
+</tr>
+<tr>
+<td>S1</td>
+<td>crash after the action, before the framework saves; resume</td>
+<td>1 action</td>
+</tr>
+<tr>
+<td>S2</td>
+<td>the bank charged, but the call raised a timeout; retry</td>
+<td>1 action</td>
+</tr>
+<tr>
+<td>S3</td>
+<td>two workers resume the same run at once</td>
+<td>1 action</td>
+</tr>
+<tr>
+<td>S4</td>
+<td>a yes for 50; the saved call changes to 5000 before it runs</td>
+<td>no action with 5000</td>
+</tr>
+<tr>
+<td>S5</td>
+<td>one yes; the agent calls the tool twice</td>
+<td>1 action</td>
+</tr>
+<tr>
+<td>S6</td>
+<td>a no after the yes, before it runs</td>
+<td>0 actions</td>
+</tr>
+<tr>
+<td>S7</td>
+<td>crash inside the action; the bank cannot tell yet if it happened</td>
+<td>1 action</td>
+</tr>
+<tr>
+<td>S8</td>
+<td>the yes of run A is delivered to run B</td>
+<td>0 actions in B</td>
+</tr>
+</tbody>
+</table></div>
+<p>Each subject runs in four variants: the framework's <strong>documented default</strong>, and the same agent with the tool
+guarded by <strong>call4agents 0.7.1</strong> (the release before Fix 17), <strong>call4agents 0.7.2</strong>, and <strong>call4agents from this
+checkout</strong>. The older releases stay in the table on purpose: 0.7.1 fails S3, and the table shows that the fix
+passes it.</p>
+<h2>Run it</h2>
+<pre><code>pip install langgraph langgraph-checkpoint-sqlite pydantic-ai openai-agents
+python -m bench.selfcheck          # first: the benchmark can see a duplicate and a wrong amount (about 30 s)
+python -m bench.run                # all installed subjects; crash cells 5 times each
+python -m bench.run --subjects langgraph --scenarios S1,S4 --repeat 3 --out /tmp/bench
+</code></pre>
+<p><code>bench.run</code> writes <code>bench/results/&lt;date&gt;-&lt;os&gt;.json</code> and <code>bench/RESULTS.md</code>. With <code>--out DIR</code> it writes both there
+instead. A subject whose framework is not installed is skipped with a message (<code>--require-frameworks</code> makes that
+an error). Each released call4agents comes from its git tag (<code>v0.7.1</code>, <code>v0.7.2</code>), or from PyPI when the tag is
+missing; <code>--release 0.7.1,0.7.2</code> picks the releases (oldest first) and <code>--no-release</code> leaves them out.</p>
+<h2>Add your framework in about 10 minutes</h2>
+<ol>
+<li>Copy the closest file in <a href="https://github.com/salahmakboul/call4agents/tree/main/bench/subjects">subjects/</a> to <code>subjects/&lt;your_framework&gt;.py</code>.</li>
+<li>Implement the contract in <a href="https://github.com/salahmakboul/call4agents/blob/main/bench/subject.py">subject.py</a>: <code>start</code> and <code>resume</code> (a run without approval),
+   <code>start_approval</code>, <code>decide</code>, <code>resume_approved</code> and <code>tamper</code> (a run that waits for a yes). Each method runs in a
+   new process, so save what the next one needs under <code>env.path(name)</code> the way your framework documents it.</li>
+<li>The tool body is always <code>result = env.pay(amount, to); env.after_action(); return result</code>. Do not code the
+   faults: the benchmark injects them there.</li>
+<li>Use your framework's own test or scripted model, following <code>next_move()</code> in subject.py.</li>
+<li>If a scenario cannot apply (for example, no approval feature), return the reason from <code>not_applicable()</code>. The
+   cell then shows N/A with that reason. It is not a failure.</li>
+<li>Register the class in <a href="https://github.com/salahmakboul/call4agents/blob/main/bench/subjects/__init__.py">subjects/__init__.py</a> and run
+   <code>python -m bench.run --subjects &lt;name&gt; --repeat 1</code>. C1 and C2 must pass first: if they do not, the benchmark
+   marks the cells they stand for INVALID instead of counting them.</li>
+</ol>
+<h2>Submit a result</h2>
+<p>Open a pull request with:</p>
+<ul>
+<li>the JSON file written by <code>bench.run</code>, unchanged (it holds the Python, framework and call4agents versions,
+  and every step's exit code and error line);</li>
+<li>the subject code you used, in <code>bench/subjects/</code> (results from code that is not public are not accepted);</li>
+<li>the operating system in the file name, as <code>bench.run</code> writes it.</li>
+</ul>
+<p>The CI workflow <code>.github/workflows/bench.yml</code> runs the benchmark every week on Linux, macOS and Windows and keeps
+the JSON as an artifact. It does not change RESULTS.md; only a reviewed PR does.</p>
+<h2>Fairness</h2>
+<ul>
+<li>Each framework runs in its <strong>documented default</strong> configuration. What each subject does is listed at the end of
+  RESULTS.md and in the docstring of its file.</li>
+<li>A framework that handles a scenario natively <strong>passes without call4agents</strong>, and RESULTS.md says so in its own
+  section, "Passed without call4agents".</li>
+<li>If a subject does not use your framework the way its documentation says, open an issue or a PR with the
+  correction. We rerun and replace the result.</li>
+<li>call4agents is measured the same way. Its failures are in the same table and in their own section,
+  "Failed with call4agents". An older release stays in the table when a newer one fixed something.</li>
+<li>Every count comes from the fake bank. A cell whose setup did not happen as designed (the kill was not reached,
+  the run did not stop for a yes, the variant imported another call4agents than it names) is INVALID, never a pass.</li>
+</ul>
+<h2>What it does not show</h2>
+<ul>
+<li>Only these faults, at these points, with one tool and a scripted model. A pass is not a proof for other paths.</li>
+<li>Durable-execution add-ons that need a server (for example Temporal, DBOS or Prefect integrations) are not used.
+  Subjects that use them are welcome.</li>
+<li>The fake bank has no idempotency keys. A real provider that removes duplicate requests by key helps in S1-S3 with
+  any framework, if the tool sends a key that stays the same across restarts.</li>
+<li>S3 is a real race between two processes. The bank waits 1 s per call so the workers overlap, which makes the
+  race likely, not certain. Crash cells are repeated for this reason.</li>
+<li>The committed results were measured on Windows only, so far.</li>
+</ul><p><small>Source: <a href="https://github.com/salahmakboul/call4agents/blob/main/bench/README.md">bench/README.md</a> in the repository.</small></p></article>
+
+</main>
+<footer class="container"><hr><p><small>Call4Agents · Apache-2.0 · Copyright 2026 Salah Eddine Makboul ·
+<a href="https://github.com/salahmakboul/call4agents">Source on GitHub</a> · <a href="https://pypi.org/project/call4agents/">PyPI</a> · Site layout: Pico CSS (MIT).</small></p></footer>
+</body>
+</html>

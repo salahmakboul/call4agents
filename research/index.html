@@ -72,13 +72,17 @@
 <td><a href="https://github.com/salahmakboul/call4agents/security/advisories/GHSA-256j-96j9-r2ff">GHSA-256j-96j9-r2ff</a></td>
 </tr>
 <tr>
+<td><strong>Open benchmark</strong></td>
+<td>Eight crash and approval scenarios and two controls, run offline with real process kills; a fake bank counts the actions, not the framework. Anyone can run it on their own framework. Measured on Windows only so far (13 November 2026): a plain Python loop, LangGraph, the OpenAI Agents SDK and Pydantic AI repeat the action in the crash cases by default, and with Call4Agents 0.7.2 every measured cell passes. Version 0.7.1 failed the "two workers resume at once" case in 5 of 5 runs, which is the bug we fixed in 0.7.2.</td>
+<td><a href="https://salahmakboul.github.io/call4agents/benchmark/">Benchmark</a>, <a href="https://salahmakboul.github.io/call4agents/benchmark/results/">results and data</a></td>
+</tr>
+<tr>
 <td><strong>The crash test</strong></td>
 <td>A command that kills your own agent at every step and tells you which action ran twice.</td>
 <td><code>call4agents crashtest --demo</code></td>
 </tr>
 </tbody>
 </table></div>
-<p>An open benchmark that runs the same crash scenarios against several frameworks is not published yet.</p>
 <h2>Taken up by others</h2>
 <ul>
 <li>The <a href="https://github.com/hitly-net/hitl-spec">hitl-spec</a> draft merged our single-use rule (<a href="https://github.com/hitly-net/hitl-spec/pull/10">PR 10</a>) and our replay-after-restart conformance check (<a href="https://github.com/hitly-net/hitl-spec/pull/11">PR 11</a>).</li>
