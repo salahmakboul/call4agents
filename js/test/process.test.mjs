@@ -148,3 +148,21 @@ test("P5 ONE yes, eight processes start eight different actions (new keys) at th
   assert.equal(said.filter((s) => s.startsWith("RESULT")).length, 1, said.join("|"));
   assert.equal(said.filter((s) => s === "ERROR ApprovalRequired").length, 7, said.join("|"));
 });
+
+test("P6 the record itself refuses a second use of one yes (no timing needed: a second 'approval_used' for the same key is rejected by the database)", async () => {
+  const work = tempDir();
+  const path = join(work, "rec.sqlite");
+  c4a.init({ path, secret: "process-test-secret" });
+  c4a.run("job-1", () => c4a.approve("proc.send", { to: "bob", amount: 10 }));      // creates the record and its indexes
+  c4a.close();
+  const { DatabaseSync } = await import("node:sqlite");
+  const db = new DatabaseSync(path);
+  try {
+    const put = () => db.prepare("INSERT INTO entries (run_id, kind, key, payload, t) VALUES (?, ?, ?, ?, ?)")
+      .run("job-1", "approval_used", "one-yes-key", "{}", 1);
+    put();
+    assert.throws(put, /UNIQUE|constraint/i, "a yes can be spent once: the second use is refused by the record, not by luck of timing");
+  } finally {
+    db.close();
+  }
+});
