@@ -65,5 +65,4 @@ python maf_approve_crash.py
 GUARD=1 python maf_approve_crash.py
 ```
 
-`N=10` runs ten per case instead of five. The tests and this note were written with AI help (Claude) and checked
-against the released packages.
+`N=10` runs ten per case instead of five. The tests were checked against the released packages.
