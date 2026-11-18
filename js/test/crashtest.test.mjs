@@ -5,7 +5,7 @@
 // (the same cases as CT8 in tests/test_crashtest.py).
 
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 
@@ -57,6 +57,25 @@ await c4a.run("ticket-1", async () => {
   const found = ct.problems(guarded);
   assert.deepEqual([Object.keys(found.twice), Object.keys(found.unapproved)], [[], []], JSON.stringify(guarded).slice(0, 2000));
   assert.ok(guarded.results.some((r) => r.in_doubt), "a kill between the refund and its record stops the restart as in doubt");
+});
+
+test("CT10 a script reached through a linked folder is still watched (on macOS the temp folder /var is really /private/var)", async () => {
+  // Node reports the real path of a module; the crash test must compare real paths, or it sees no action at all
+  // ("no action was seen"). A directory link (a junction on Windows) reproduces it on every system.
+  const real = tempDir();
+  script(real, "agent.mjs", `
+import { appendFileSync } from "node:fs";
+async function refund({ order, amount }) {
+  appendFileSync("bank.txt", "refund " + amount + " for " + order + "\\n");
+  return "refunded";
+}
+await refund({ order: "A-1", amount: 49 });
+`);
+  const link = join(tempDir(), "linked");
+  symlinkSync(real, link, "junction");
+  const out = await ct.crashtest(join(link, "agent.mjs"), { env: baseEnv() });
+  assert.ok(!out.error, JSON.stringify(out).slice(0, 500));
+  assert.ok(out.tested >= 1, "the action was seen, so crash points were tested: " + JSON.stringify(out).slice(0, 500));
 });
 
 test("CT6 --demo finds the repeat without the guard and none with it", async () => {
