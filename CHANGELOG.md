@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased (0.8.0)
+
+**New (experimental): `call4agents story <record> [--run id]`**
+- What happened in a run, in plain words, for a person who did not write the code: each action in time order, who
+  approved it and when, whether it is done, may or may not have happened, was refused by a rule or a person, or is
+  waiting for a person, and the exact `call4agents resolve` commands for an uncertain one.
+- It names a half-done change: when later actions started after an uncertain one.
+- Read-only: the record is unchanged, no secret is needed or created, nothing is sent. An uncertain action is never
+  described as done. Steps that were never started are not in the record, and the page says so.
+- Checks ST1-ST8 (one with a real process kill); 10 mutations.
+
+**New: the multi-step recipe (docs/MULTI_STEP.md, `call4agents/examples/multi_step.py`)**
+- Reserve, charge, email, with a hard kill before or after each step. Without the kit 5 of 6 crash points repeat a
+  step; with the kit 0 of 6; with `reconcile=` on each step every crash point ends with one of each step. A loop that
+  swallows `EffectInDoubt` lets later steps run, and `story` names it. Checks MS1-MS4; 3 mutations.
+
 ## 0.7.3
 
 **Fixed (safety): a second action inside one process, in a short window that 0.7.2 left open (Fix 19)**
