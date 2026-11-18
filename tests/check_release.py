@@ -29,6 +29,14 @@ FORBIDDEN = re.compile(r"""(?ix)
 """)
 
 
+# Public pages that match the pattern above by name only. Exact paths: anything else named RESEARCH* stays forbidden.
+PUBLIC_EXCEPTIONS = {"docs/RESEARCH.md"}   # the public "Research" page of the docs site (no notes, no data)
+
+
+def forbidden(path):
+    return path not in PUBLIC_EXCEPTIONS and bool(FORBIDDEN.search(path))
+
+
 def git(*a):
     return subprocess.run(["git", *a], cwd=ROOT, capture_output=True, text=True).stdout
 
@@ -58,7 +66,9 @@ def package_members(dist: Path):
 
 
 def main():
-    if not FORBIDDEN.search("docs/research/notes.md") or FORBIDDEN.search("call4agents/ledger.py"):
+    if (not forbidden("docs/research/notes.md") or forbidden("call4agents/ledger.py")
+            or forbidden("docs/RESEARCH.md")                      # the one public page is allowed
+            or not forbidden("RESEARCH.md") or not forbidden("docs/RESEARCH_NOTES.md")):  # anything else stays forbidden
         print("check_release BROKEN: the forbidden-path pattern does not behave on the planted examples")
         return 2
     bad = defaultdict(list)
@@ -67,10 +77,10 @@ def main():
         print("check_release BROKEN: no files in the working tree (not a git checkout?)")
         return 2
     for p in sorted(tree):
-        if FORBIDDEN.search(p):
+        if forbidden(p):
             bad["working tree"].append(p)
     for p in sorted(history):
-        if FORBIDDEN.search(p):
+        if forbidden(p):
             bad["git history"].append(p)
     authors = {a for a in git("log", "--all", "--format=%ae%n%ce").splitlines() if a}
     for a in authors:
@@ -90,7 +100,7 @@ def main():
         for pkg, files in members.items():
             hits = defaultdict(set)
             for name, data in files.items():
-                if FORBIDDEN.search(name):
+                if forbidden(name):
                     bad[pkg].append(name)
                 if not is_binary(name):
                     scanned += 1
