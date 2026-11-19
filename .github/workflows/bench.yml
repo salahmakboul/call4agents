@@ -28,7 +28,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: install the frameworks (call4agents itself is run from this checkout and from the release tag)
-        run: python -m pip install langgraph langgraph-checkpoint-sqlite pydantic-ai openai-agents openai pydantic
+        run: python -m pip install langgraph langgraph-checkpoint-sqlite pydantic-ai openai-agents openai pydantic google-adk agent-framework-core
       - name: the benchmark can see a failure
         run: python -m bench.selfcheck
       - name: run the benchmark

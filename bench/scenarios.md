@@ -55,8 +55,9 @@ Pass: exactly 1 action. It proves the approval path really runs the call, so a 0
 - Story: a person approved `pay(50, alice)`. Before the run resumed, the saved call became `pay(5000, alice)`
   (an edit through the state API, a bug, a migration, someone with write access to the state store).
 - Fault: the subject's `tamper()` changes the waiting call's arguments in the saved state, with the framework's
-  own API where it has one (LangGraph `update_state`), else in the saved file (OpenAI Agents SDK RunState JSON,
-  Pydantic AI message history JSON, the plain loop's state file).
+  own API where it has one (LangGraph `update_state`, Agent Framework checkpoint storage `load` / `save`), else
+  in the saved file (OpenAI Agents SDK RunState JSON, Pydantic AI message history JSON, the Google ADK session
+  database's events, the plain loop's state file).
 - Counted: actions with amount 5000. Pass: 0.
 
 ## S5. One yes, the agent calls the tool twice

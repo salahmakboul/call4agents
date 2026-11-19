@@ -49,8 +49,9 @@ passes it.
 ## Run it
 
 ```
-pip install langgraph langgraph-checkpoint-sqlite pydantic-ai openai-agents
+pip install langgraph langgraph-checkpoint-sqlite pydantic-ai openai-agents google-adk agent-framework-core
 python -m bench.selfcheck          # first: the benchmark can see a duplicate and a wrong amount (about 30 s)
+python -m bench.subjectcheck google_adk ms_agent_framework   # a subject is wired as subject.py says
 python -m bench.run                # all installed subjects; crash cells 5 times each
 python -m bench.run --subjects langgraph --scenarios S1,S4 --repeat 3 --out /tmp/bench
 ```
