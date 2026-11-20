@@ -21,6 +21,7 @@ SPANS = "call4agents/spans.py"
 STORY = "call4agents/story.py"
 MULTI = "call4agents/examples/multi_step.py"
 BENCH, BENCH_ENV = "bench/run.py", "bench/subject.py"
+ADK_SUBJ, MAF_SUBJ = "bench/subjects/google_adk_agent.py", "bench/subjects/ms_agent_framework.py"
 
 # (name, file, old text, new text, suite)
 MUTATIONS = [
@@ -390,7 +391,9 @@ MUTATIONS = [
 ]
 
 # Opt-in batch (--bench): the open benchmark must see a duplicate, a wrong amount, a count kept per process and a
-# broken setup (bench/selfcheck.py). Standard library only; about 30 s per entry.
+# broken setup (bench/selfcheck.py), and the framework subjects must be wired as bench/subject.py says
+# (bench/subjectcheck.py). The selfcheck entries need the standard library only (about 30 s each); the subject
+# entries need google-adk and agent-framework-core installed (a missing framework makes them BAD, never a pass).
 BENCH_BATCH = [
     ("control (no-op)", BENCH, "def judge(scenario", "def judge(scenario", "bench.selfcheck"),
     ("BENCH a duplicate passes", BENCH, "        return n == 1" + chr(10), "        return n >= 1" + chr(10), "bench.selfcheck"),
@@ -407,6 +410,30 @@ BENCH_BATCH = [
      '        if False and need and c["status"] == "pass"', "bench.selfcheck"),
     ("BENCH the kit in use is not checked", BENCH, "        elif Path(used.split(\" \", 1)[1]).resolve() != Path(cell.kit_path).resolve():",
      "        elif False:", "bench.selfcheck"),
+    # The Google ADK and Agent Framework subjects (bench/subjectcheck.py: W1 bank, W2 guard, W3 kill point, W4 tamper).
+    ("control (no-op, ADK subject)", ADK_SUBJ, 'REQUEST = "adk_request_confirmation"', 'REQUEST = "adk_request_confirmation"',
+     "bench.subjectcheck google_adk"),
+    ("ADK subject never calls the bank", ADK_SUBJ, "            return env.pay(amount, to)",
+     '            return f"paid {amount} to {to}"', "bench.subjectcheck google_adk"),
+    ("ADK subject kit not on the tool", ADK_SUBJ,
+     'guarded = c4a_adk.effect(pay, name="bench.pay", approval=approval, reconcile=env.reconcile())', "guarded = pay",
+     "bench.subjectcheck google_adk"),
+    ("ADK subject skips after_action", ADK_SUBJ, "            env.after_action()" + chr(10) + "            return result",
+     "            return result", "bench.subjectcheck google_adk"),
+    ("ADK subject tamper writes nothing", ADK_SUBJ,
+     'db.execute("UPDATE events SET event_data = ? WHERE id = ? AND session_id = ?",' + chr(10)
+     + "                               (json.dumps(doc), event_id, env.run_id))", "pass", "bench.subjectcheck google_adk"),
+    ("control (no-op, MAF subject)", MAF_SUBJ, 'PROMPT = "pay alice 50"', 'PROMPT = "pay alice 50"',
+     "bench.subjectcheck ms_agent_framework"),
+    ("MAF subject never calls the bank", MAF_SUBJ, "            return env.pay(amount, to)",
+     '            return f"paid {amount} to {to}"', "bench.subjectcheck ms_agent_framework"),
+    ("MAF subject kit not on the tool", MAF_SUBJ,
+     'guarded = c4a_maf.effect(pay, name="bench.pay", approval=approval, reconcile=env.reconcile())', "guarded = pay",
+     "bench.subjectcheck ms_agent_framework"),
+    ("MAF subject skips after_action", MAF_SUBJ, "            env.after_action()" + chr(10) + "            return result",
+     "            return result", "bench.subjectcheck ms_agent_framework"),
+    ("MAF subject tamper writes nothing", MAF_SUBJ, "                    await storage.save(cp)",
+     "                    pass", "bench.subjectcheck ms_agent_framework"),
 ]
 
 # This opt-in batch requires the PostgreSQL dependencies already installed by CI.

@@ -7,6 +7,8 @@ SUBJECTS = {
     "langgraph": "bench.subjects.langgraph_graph:LangGraphGraph",
     "openai_agents": "bench.subjects.openai_agents_sdk:OpenAIAgents",
     "pydantic_ai": "bench.subjects.pydantic_ai_agent:PydanticAI",
+    "google_adk": "bench.subjects.google_adk_agent:GoogleADK",
+    "ms_agent_framework": "bench.subjects.ms_agent_framework:MSAgentFramework",
 }
 
 # Subjects that exist only to prove the benchmark can see a failure (bench/selfcheck.py). Never in RESULTS.md.

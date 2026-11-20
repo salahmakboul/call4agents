@@ -1,0 +1,7711 @@
+{
+ "format": "c4a-bench-1",
+ "date": "2026-11-19",
+ "seconds": 345.4,
+ "repeat": 5,
+ "subjects": [
+  "google_adk",
+  "ms_agent_framework"
+ ],
+ "scenarios": [
+  "C1",
+  "C2",
+  "S1",
+  "S2",
+  "S3",
+  "S4",
+  "S5",
+  "S6",
+  "S7",
+  "S8"
+ ],
+ "variants": [
+  "default",
+  "call4agents-0.7.2",
+  "call4agents-0.7.3",
+  "call4agents-head"
+ ],
+ "environment": {
+  "python": "3.12.10",
+  "os": "Windows",
+  "os_release": "10",
+  "machine": "AMD64",
+  "repo_commit": "c07e3c3",
+  "kits": {
+   "call4agents-0.7.2": {
+    "version": "0.7.2",
+    "source": "git tag v0.7.2 (2da008a)",
+    "label": "call4agents 0.7.2 (release)"
+   },
+   "call4agents-0.7.3": {
+    "version": "0.7.3",
+    "source": "git tag v0.7.3 (438cfd1)",
+    "label": "call4agents 0.7.3 (release)"
+   },
+   "call4agents-head": {
+    "version": "0.7.3",
+    "source": "this checkout (c07e3c3)",
+    "label": "call4agents head (c07e3c3)"
+   }
+  },
+  "packages": {
+   "google-adk": "2.14.1",
+   "google-genai": "2.34.0",
+   "agent-framework-core": "1.26.0"
+  }
+ },
+ "cells": [
+  {
+   "subject": "google_adk",
+   "variant": "default",
+   "scenario": "C1",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 0,
+       "result": {
+        "finished": true
+       },
+       "error": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "default",
+   "scenario": "C2",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": ""
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "content": {
+         "parts": [
+          {
+           "function_response": {
+            "id": "adk-68cefb53-cb30-44a4-b497-83945d44e662",
+            "name": "adk_request_confirmation",
+            "response": {
+             "confirmed": true
+            }
+           }
+          }
+         ],
+         "role": "user"
+        },
+        "decision": "yes"
+       },
+       "error": ""
+      },
+      {
+       "step": "resume_approved",
+       "code": 0,
+       "result": {
+        "finished": true
+       },
+       "error": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "default",
+   "scenario": "S1",
+   "status": "fail",
+   "repeats": [
+    {
+     "count": 2,
+     "actions": 2,
+     "amounts": [
+      50,
+      50
+     ],
+     "runs": [
+      "run-A",
+      "run-A"
+     ],
+     "processes": 2,
+     "pass": false,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": ""
+      }
+     ]
+    },
+    {
+     "count": 2,
+     "actions": 2,
+     "amounts": [
+      50,
+      50
+     ],
+     "runs": [
+      "run-A",
+      "run-A"
+     ],
+     "processes": 2,
+     "pass": false,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": ""
+      }
+     ]
+    },
+    {
+     "count": 2,
+     "actions": 2,
+     "amounts": [
+      50,
+      50
+     ],
+     "runs": [
+      "run-A",
+      "run-A"
+     ],
+     "processes": 2,
+     "pass": false,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": ""
+      }
+     ]
+    },
+    {
+     "count": 2,
+     "actions": 2,
+     "amounts": [
+      50,
+      50
+     ],
+     "runs": [
+      "run-A",
+      "run-A"
+     ],
+     "processes": 2,
+     "pass": false,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": ""
+      }
+     ]
+    },
+    {
+     "count": 2,
+     "actions": 2,
+     "amounts": [
+      50,
+      50
+     ],
+     "runs": [
+      "run-A",
+      "run-A"
+     ],
+     "processes": 2,
+     "pass": false,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "default",
+   "scenario": "S2",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 3,
+       "result": null,
+       "error": "TimeoutError: the bank did not answer in time (it did charge)"
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "default",
+   "scenario": "S3",
+   "status": "fail",
+   "repeats": [
+    {
+     "count": 2,
+     "actions": 2,
+     "amounts": [
+      50,
+      50
+     ],
+     "runs": [
+      "run-A",
+      "run-A"
+     ],
+     "processes": 2,
+     "pass": false,
+     "invalid": [],
+     "ended": "stopped: StaleSessionError",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "StaleSessionError: The last_update_time provided in the session object is earlier than the update_time in storage. Please check if it is a stale session."
+      }
+     ]
+    },
+    {
+     "count": 2,
+     "actions": 2,
+     "amounts": [
+      50,
+      50
+     ],
+     "runs": [
+      "run-A",
+      "run-A"
+     ],
+     "processes": 2,
+     "pass": false,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "StaleSessionError: The last_update_time provided in the session object is earlier than the update_time in storage. Please check if it is a stale session."
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": ""
+      }
+     ]
+    },
+    {
+     "count": 2,
+     "actions": 2,
+     "amounts": [
+      50,
+      50
+     ],
+     "runs": [
+      "run-A",
+      "run-A"
+     ],
+     "processes": 2,
+     "pass": false,
+     "invalid": [],
+     "ended": "stopped: StaleSessionError",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "StaleSessionError: The last_update_time provided in the session object is earlier than the update_time in storage. Please check if it is a stale session."
+      }
+     ]
+    },
+    {
+     "count": 2,
+     "actions": 2,
+     "amounts": [
+      50,
+      50
+     ],
+     "runs": [
+      "run-A",
+      "run-A"
+     ],
+     "processes": 2,
+     "pass": false,
+     "invalid": [],
+     "ended": "stopped: StaleSessionError",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "StaleSessionError: The last_update_time provided in the session object is earlier than the update_time in storage. Please check if it is a stale session."
+      }
+     ]
+    },
+    {
+     "count": 2,
+     "actions": 2,
+     "amounts": [
+      50,
+      50
+     ],
+     "runs": [
+      "run-A",
+      "run-A"
+     ],
+     "processes": 2,
+     "pass": false,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "StaleSessionError: The last_update_time provided in the session object is earlier than the update_time in storage. Please check if it is a stale session."
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "default",
+   "scenario": "S4",
+   "status": "fail",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      5000
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": false,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": ""
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "content": {
+         "parts": [
+          {
+           "function_response": {
+            "id": "adk-8fe20014-ec07-45ab-9e0d-443ded8bf098",
+            "name": "adk_request_confirmation",
+            "response": {
+             "confirmed": true
+            }
+           }
+          }
+         ],
+         "role": "user"
+        },
+        "decision": "yes"
+       },
+       "error": ""
+      },
+      {
+       "step": "tamper",
+       "code": 0,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume_approved",
+       "code": 0,
+       "result": {
+        "finished": true
+       },
+       "error": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "default",
+   "scenario": "S5",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "waiting for a new yes",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": ""
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "content": {
+         "parts": [
+          {
+           "function_response": {
+            "id": "adk-01bfbd4f-e2f0-4a87-98df-5f54540239cb",
+            "name": "adk_request_confirmation",
+            "response": {
+             "confirmed": true
+            }
+           }
+          }
+         ],
+         "role": "user"
+        },
+        "decision": "yes"
+       },
+       "error": ""
+      },
+      {
+       "step": "resume_approved",
+       "code": 0,
+       "result": {
+        "waiting": {
+         "amount": 50,
+         "to": "alice"
+        }
+       },
+       "error": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "default",
+   "scenario": "S6",
+   "status": "n/a",
+   "reason": "the yes is the FunctionResponse sent with the resume itself; ADK keeps no record of a decision before that, so a later no is never given to it",
+   "repeats": []
+  },
+  {
+   "subject": "google_adk",
+   "variant": "default",
+   "scenario": "S7",
+   "status": "fail",
+   "repeats": [
+    {
+     "count": 2,
+     "actions": 2,
+     "amounts": [
+      50,
+      50
+     ],
+     "runs": [
+      "run-A",
+      "run-A"
+     ],
+     "processes": 2,
+     "pass": false,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": ""
+      }
+     ]
+    },
+    {
+     "count": 2,
+     "actions": 2,
+     "amounts": [
+      50,
+      50
+     ],
+     "runs": [
+      "run-A",
+      "run-A"
+     ],
+     "processes": 2,
+     "pass": false,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": ""
+      }
+     ]
+    },
+    {
+     "count": 2,
+     "actions": 2,
+     "amounts": [
+      50,
+      50
+     ],
+     "runs": [
+      "run-A",
+      "run-A"
+     ],
+     "processes": 2,
+     "pass": false,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": ""
+      }
+     ]
+    },
+    {
+     "count": 2,
+     "actions": 2,
+     "amounts": [
+      50,
+      50
+     ],
+     "runs": [
+      "run-A",
+      "run-A"
+     ],
+     "processes": 2,
+     "pass": false,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": ""
+      }
+     ]
+    },
+    {
+     "count": 2,
+     "actions": 2,
+     "amounts": [
+      50,
+      50
+     ],
+     "runs": [
+      "run-A",
+      "run-A"
+     ],
+     "processes": 2,
+     "pass": false,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "default",
+   "scenario": "S8",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 0,
+     "actions": 0,
+     "amounts": [],
+     "runs": [],
+     "processes": 0,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: ValueError",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": ""
+      },
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": ""
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "content": {
+         "parts": [
+          {
+           "function_response": {
+            "id": "adk-177431a3-d91e-499a-8f78-87677fe8ed61",
+            "name": "adk_request_confirmation",
+            "response": {
+             "confirmed": true
+            }
+           }
+          }
+         ],
+         "role": "user"
+        },
+        "decision": "yes"
+       },
+       "error": ""
+      },
+      {
+       "step": "resume_approved",
+       "code": 3,
+       "result": null,
+       "error": "ValueError: Function call not found for function response ids: {'adk-177431a3-d91e-499a-8f78-87677fe8ed61'}. Ensure each function response ID matches an existing function call in the session history."
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "call4agents-0.7.2",
+   "scenario": "C1",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 0,
+       "result": {
+        "finished": true
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "call4agents-0.7.2",
+   "scenario": "C2",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "content": {
+         "parts": [
+          {
+           "function_response": {
+            "id": "adk-44b9f328-0744-41b0-94be-1f46f9023d2f",
+            "name": "adk_request_confirmation",
+            "response": {
+             "confirmed": true
+            }
+           }
+          }
+         ],
+         "role": "user"
+        },
+        "decision": "yes"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "resume_approved",
+       "code": 0,
+       "result": {
+        "finished": true
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "call4agents-0.7.2",
+   "scenario": "S1",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "call4agents-0.7.2",
+   "scenario": "S2",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 3,
+       "result": null,
+       "error": "TimeoutError: the bank did not answer in time (it did charge)",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "call4agents-0.7.2",
+   "scenario": "S3",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "StaleSessionError: The last_update_time provided in the session object is earlier than the update_time in storage. Please check if it is a stale session.",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "StaleSessionError: The last_update_time provided in the session object is earlier than the update_time in storage. Please check if it is a stale session.",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "StaleSessionError: The last_update_time provided in the session object is earlier than the update_time in storage. Please check if it is a stale session.",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "StaleSessionError: The last_update_time provided in the session object is earlier than the update_time in storage. Please check if it is a stale session.",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: StaleSessionError",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "StaleSessionError: The last_update_time provided in the session object is earlier than the update_time in storage. Please check if it is a stale session.",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "call4agents-0.7.2",
+   "scenario": "S4",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 0,
+     "actions": 0,
+     "amounts": [],
+     "runs": [],
+     "processes": 0,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: ApprovalRequired",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "content": {
+         "parts": [
+          {
+           "function_response": {
+            "id": "adk-b3d865ce-9c2e-43b4-a51c-a7603b5f5a6c",
+            "name": "adk_request_confirmation",
+            "response": {
+             "confirmed": true
+            }
+           }
+          }
+         ],
+         "role": "user"
+        },
+        "decision": "yes"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "tamper",
+       "code": 0,
+       "result": null,
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "resume_approved",
+       "code": 3,
+       "result": null,
+       "error": "ApprovalRequired: bench.pay needs approval for exactly {\"amount\":5000,\"to\":\"alice\"}",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "call4agents-0.7.2",
+   "scenario": "S5",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "waiting for a new yes",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "content": {
+         "parts": [
+          {
+           "function_response": {
+            "id": "adk-2d1b4210-c085-491f-9f2e-8976f66fe33f",
+            "name": "adk_request_confirmation",
+            "response": {
+             "confirmed": true
+            }
+           }
+          }
+         ],
+         "role": "user"
+        },
+        "decision": "yes"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "resume_approved",
+       "code": 0,
+       "result": {
+        "waiting": {
+         "amount": 50,
+         "to": "alice"
+        }
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "call4agents-0.7.2",
+   "scenario": "S6",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 0,
+     "actions": 0,
+     "amounts": [],
+     "runs": [],
+     "processes": 0,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: ApprovalRequired",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "content": {
+         "parts": [
+          {
+           "function_response": {
+            "id": "adk-8b58fe57-8d26-4e14-907a-112b7c86dc6c",
+            "name": "adk_request_confirmation",
+            "response": {
+             "confirmed": true
+            }
+           }
+          }
+         ],
+         "role": "user"
+        },
+        "decision": "yes"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "content": {
+         "parts": [
+          {
+           "function_response": {
+            "id": "adk-8b58fe57-8d26-4e14-907a-112b7c86dc6c",
+            "name": "adk_request_confirmation",
+            "response": {
+             "confirmed": false
+            }
+           }
+          }
+         ],
+         "role": "user"
+        },
+        "decision": "no"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "resume_approved",
+       "code": 3,
+       "result": null,
+       "error": "ApprovalRequired: bench.pay needs approval for exactly {\"amount\":50,\"to\":\"alice\"}",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "call4agents-0.7.2",
+   "scenario": "S7",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: EffectInDoubt",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "EffectInDoubt: bench.pay{\"amount\":50,\"to\":\"alice\"} may already have run (reconcile could not tell yet); pass reconcile= to check the outside world, or resolve it by hand",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: EffectInDoubt",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "EffectInDoubt: bench.pay{\"amount\":50,\"to\":\"alice\"} may already have run (reconcile could not tell yet); pass reconcile= to check the outside world, or resolve it by hand",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: EffectInDoubt",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "EffectInDoubt: bench.pay{\"amount\":50,\"to\":\"alice\"} may already have run (reconcile could not tell yet); pass reconcile= to check the outside world, or resolve it by hand",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: EffectInDoubt",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "EffectInDoubt: bench.pay{\"amount\":50,\"to\":\"alice\"} may already have run (reconcile could not tell yet); pass reconcile= to check the outside world, or resolve it by hand",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: EffectInDoubt",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "EffectInDoubt: bench.pay{\"amount\":50,\"to\":\"alice\"} may already have run (reconcile could not tell yet); pass reconcile= to check the outside world, or resolve it by hand",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "call4agents-0.7.2",
+   "scenario": "S8",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 0,
+     "actions": 0,
+     "amounts": [],
+     "runs": [],
+     "processes": 0,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: ValueError",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "content": {
+         "parts": [
+          {
+           "function_response": {
+            "id": "adk-e853b595-db90-482f-b32e-19050c0e51f8",
+            "name": "adk_request_confirmation",
+            "response": {
+             "confirmed": true
+            }
+           }
+          }
+         ],
+         "role": "user"
+        },
+        "decision": "yes"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "resume_approved",
+       "code": 3,
+       "result": null,
+       "error": "ValueError: Function call not found for function response ids: {'adk-e853b595-db90-482f-b32e-19050c0e51f8'}. Ensure each function response ID matches an existing function call in the session history.",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "call4agents-0.7.3",
+   "scenario": "C1",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 0,
+       "result": {
+        "finished": true
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "call4agents-0.7.3",
+   "scenario": "C2",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "content": {
+         "parts": [
+          {
+           "function_response": {
+            "id": "adk-1e5b5b09-6c77-4504-aabd-d736280b653c",
+            "name": "adk_request_confirmation",
+            "response": {
+             "confirmed": true
+            }
+           }
+          }
+         ],
+         "role": "user"
+        },
+        "decision": "yes"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "resume_approved",
+       "code": 0,
+       "result": {
+        "finished": true
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "call4agents-0.7.3",
+   "scenario": "S1",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "call4agents-0.7.3",
+   "scenario": "S2",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 3,
+       "result": null,
+       "error": "TimeoutError: the bank did not answer in time (it did charge)",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "call4agents-0.7.3",
+   "scenario": "S3",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: StaleSessionError",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "StaleSessionError: The last_update_time provided in the session object is earlier than the update_time in storage. Please check if it is a stale session.",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: StaleSessionError",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "StaleSessionError: The last_update_time provided in the session object is earlier than the update_time in storage. Please check if it is a stale session.",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: StaleSessionError",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "StaleSessionError: The last_update_time provided in the session object is earlier than the update_time in storage. Please check if it is a stale session.",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "StaleSessionError: The last_update_time provided in the session object is earlier than the update_time in storage. Please check if it is a stale session.",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: StaleSessionError",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "StaleSessionError: The last_update_time provided in the session object is earlier than the update_time in storage. Please check if it is a stale session.",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "call4agents-0.7.3",
+   "scenario": "S4",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 0,
+     "actions": 0,
+     "amounts": [],
+     "runs": [],
+     "processes": 0,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: ApprovalRequired",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "content": {
+         "parts": [
+          {
+           "function_response": {
+            "id": "adk-5e9128a6-77b2-4162-bc86-582702416509",
+            "name": "adk_request_confirmation",
+            "response": {
+             "confirmed": true
+            }
+           }
+          }
+         ],
+         "role": "user"
+        },
+        "decision": "yes"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "tamper",
+       "code": 0,
+       "result": null,
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "resume_approved",
+       "code": 3,
+       "result": null,
+       "error": "ApprovalRequired: bench.pay needs approval for exactly {\"amount\":5000,\"to\":\"alice\"}",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "call4agents-0.7.3",
+   "scenario": "S5",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "waiting for a new yes",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "content": {
+         "parts": [
+          {
+           "function_response": {
+            "id": "adk-8d1dd863-c625-4256-b623-2d8bdbeb224f",
+            "name": "adk_request_confirmation",
+            "response": {
+             "confirmed": true
+            }
+           }
+          }
+         ],
+         "role": "user"
+        },
+        "decision": "yes"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "resume_approved",
+       "code": 0,
+       "result": {
+        "waiting": {
+         "amount": 50,
+         "to": "alice"
+        }
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "call4agents-0.7.3",
+   "scenario": "S6",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 0,
+     "actions": 0,
+     "amounts": [],
+     "runs": [],
+     "processes": 0,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: ApprovalRequired",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "content": {
+         "parts": [
+          {
+           "function_response": {
+            "id": "adk-8396c174-7529-4d9d-a8d8-b42b3647bd8a",
+            "name": "adk_request_confirmation",
+            "response": {
+             "confirmed": true
+            }
+           }
+          }
+         ],
+         "role": "user"
+        },
+        "decision": "yes"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "content": {
+         "parts": [
+          {
+           "function_response": {
+            "id": "adk-8396c174-7529-4d9d-a8d8-b42b3647bd8a",
+            "name": "adk_request_confirmation",
+            "response": {
+             "confirmed": false
+            }
+           }
+          }
+         ],
+         "role": "user"
+        },
+        "decision": "no"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "resume_approved",
+       "code": 3,
+       "result": null,
+       "error": "ApprovalRequired: bench.pay needs approval for exactly {\"amount\":50,\"to\":\"alice\"}",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "call4agents-0.7.3",
+   "scenario": "S7",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: EffectInDoubt",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "EffectInDoubt: bench.pay{\"amount\":50,\"to\":\"alice\"} may already have run (reconcile could not tell yet); pass reconcile= to check the outside world, or resolve it by hand",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: EffectInDoubt",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "EffectInDoubt: bench.pay{\"amount\":50,\"to\":\"alice\"} may already have run (reconcile could not tell yet); pass reconcile= to check the outside world, or resolve it by hand",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: EffectInDoubt",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "EffectInDoubt: bench.pay{\"amount\":50,\"to\":\"alice\"} may already have run (reconcile could not tell yet); pass reconcile= to check the outside world, or resolve it by hand",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: EffectInDoubt",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "EffectInDoubt: bench.pay{\"amount\":50,\"to\":\"alice\"} may already have run (reconcile could not tell yet); pass reconcile= to check the outside world, or resolve it by hand",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: EffectInDoubt",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "EffectInDoubt: bench.pay{\"amount\":50,\"to\":\"alice\"} may already have run (reconcile could not tell yet); pass reconcile= to check the outside world, or resolve it by hand",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "call4agents-0.7.3",
+   "scenario": "S8",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 0,
+     "actions": 0,
+     "amounts": [],
+     "runs": [],
+     "processes": 0,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: ValueError",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "content": {
+         "parts": [
+          {
+           "function_response": {
+            "id": "adk-44abca68-a04f-4f54-b492-8ba821746929",
+            "name": "adk_request_confirmation",
+            "response": {
+             "confirmed": true
+            }
+           }
+          }
+         ],
+         "role": "user"
+        },
+        "decision": "yes"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "resume_approved",
+       "code": 3,
+       "result": null,
+       "error": "ValueError: Function call not found for function response ids: {'adk-44abca68-a04f-4f54-b492-8ba821746929'}. Ensure each function response ID matches an existing function call in the session history.",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "call4agents-head",
+   "scenario": "C1",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 0,
+       "result": {
+        "finished": true
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "call4agents-head",
+   "scenario": "C2",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "content": {
+         "parts": [
+          {
+           "function_response": {
+            "id": "adk-91040d39-2f82-46f8-b0fd-07b7cbe28166",
+            "name": "adk_request_confirmation",
+            "response": {
+             "confirmed": true
+            }
+           }
+          }
+         ],
+         "role": "user"
+        },
+        "decision": "yes"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "resume_approved",
+       "code": 0,
+       "result": {
+        "finished": true
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "call4agents-head",
+   "scenario": "S1",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "call4agents-head",
+   "scenario": "S2",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 3,
+       "result": null,
+       "error": "TimeoutError: the bank did not answer in time (it did charge)",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "call4agents-head",
+   "scenario": "S3",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "StaleSessionError: The last_update_time provided in the session object is earlier than the update_time in storage. Please check if it is a stale session.",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "StaleSessionError: The last_update_time provided in the session object is earlier than the update_time in storage. Please check if it is a stale session.",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "StaleSessionError: The last_update_time provided in the session object is earlier than the update_time in storage. Please check if it is a stale session.",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: StaleSessionError",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "StaleSessionError: The last_update_time provided in the session object is earlier than the update_time in storage. Please check if it is a stale session.",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: StaleSessionError",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "resumed"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "StaleSessionError: The last_update_time provided in the session object is earlier than the update_time in storage. Please check if it is a stale session.",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "call4agents-head",
+   "scenario": "S4",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 0,
+     "actions": 0,
+     "amounts": [],
+     "runs": [],
+     "processes": 0,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: ApprovalRequired",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "content": {
+         "parts": [
+          {
+           "function_response": {
+            "id": "adk-f6ebecaf-5e71-4227-97dc-2d9da49df260",
+            "name": "adk_request_confirmation",
+            "response": {
+             "confirmed": true
+            }
+           }
+          }
+         ],
+         "role": "user"
+        },
+        "decision": "yes"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "tamper",
+       "code": 0,
+       "result": null,
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "resume_approved",
+       "code": 3,
+       "result": null,
+       "error": "ApprovalRequired: bench.pay needs approval for exactly {\"amount\":5000,\"to\":\"alice\"}",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "call4agents-head",
+   "scenario": "S5",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "waiting for a new yes",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "content": {
+         "parts": [
+          {
+           "function_response": {
+            "id": "adk-dea5f82b-f082-4e31-86d4-e6870f343aab",
+            "name": "adk_request_confirmation",
+            "response": {
+             "confirmed": true
+            }
+           }
+          }
+         ],
+         "role": "user"
+        },
+        "decision": "yes"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "resume_approved",
+       "code": 0,
+       "result": {
+        "waiting": {
+         "amount": 50,
+         "to": "alice"
+        }
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "call4agents-head",
+   "scenario": "S6",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 0,
+     "actions": 0,
+     "amounts": [],
+     "runs": [],
+     "processes": 0,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: ApprovalRequired",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "content": {
+         "parts": [
+          {
+           "function_response": {
+            "id": "adk-1b502a3c-b759-486b-822e-62f29446d5ad",
+            "name": "adk_request_confirmation",
+            "response": {
+             "confirmed": true
+            }
+           }
+          }
+         ],
+         "role": "user"
+        },
+        "decision": "yes"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "content": {
+         "parts": [
+          {
+           "function_response": {
+            "id": "adk-1b502a3c-b759-486b-822e-62f29446d5ad",
+            "name": "adk_request_confirmation",
+            "response": {
+             "confirmed": false
+            }
+           }
+          }
+         ],
+         "role": "user"
+        },
+        "decision": "no"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "resume_approved",
+       "code": 3,
+       "result": null,
+       "error": "ApprovalRequired: bench.pay needs approval for exactly {\"amount\":50,\"to\":\"alice\"}",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "call4agents-head",
+   "scenario": "S7",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: EffectInDoubt",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "EffectInDoubt: bench.pay{\"amount\":50,\"to\":\"alice\"} may already have run (reconcile could not tell yet); pass reconcile= to check the outside world, or resolve it by hand",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: EffectInDoubt",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "EffectInDoubt: bench.pay{\"amount\":50,\"to\":\"alice\"} may already have run (reconcile could not tell yet); pass reconcile= to check the outside world, or resolve it by hand",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: EffectInDoubt",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "EffectInDoubt: bench.pay{\"amount\":50,\"to\":\"alice\"} may already have run (reconcile could not tell yet); pass reconcile= to check the outside world, or resolve it by hand",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: EffectInDoubt",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "EffectInDoubt: bench.pay{\"amount\":50,\"to\":\"alice\"} may already have run (reconcile could not tell yet); pass reconcile= to check the outside world, or resolve it by hand",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: EffectInDoubt",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 3,
+       "result": null,
+       "error": "EffectInDoubt: bench.pay{\"amount\":50,\"to\":\"alice\"} may already have run (reconcile could not tell yet); pass reconcile= to check the outside world, or resolve it by hand",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "google_adk",
+   "variant": "call4agents-head",
+   "scenario": "S8",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 0,
+     "actions": 0,
+     "amounts": [],
+     "runs": [],
+     "processes": 0,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: ValueError",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "content": {
+         "parts": [
+          {
+           "function_response": {
+            "id": "adk-646ed80c-4f7f-4d96-b311-29489d026917",
+            "name": "adk_request_confirmation",
+            "response": {
+             "confirmed": true
+            }
+           }
+          }
+         ],
+         "role": "user"
+        },
+        "decision": "yes"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "resume_approved",
+       "code": 3,
+       "result": null,
+       "error": "ValueError: Function call not found for function response ids: {'adk-646ed80c-4f7f-4d96-b311-29489d026917'}. Ensure each function response ID matches an existing function call in the session history.",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "default",
+   "scenario": "C1",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 0,
+       "result": {
+        "finished": true
+       },
+       "error": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "default",
+   "scenario": "C2",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": ""
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "request_id": "af-call-871e11cbc8164a09a218e1605a009fa7",
+        "response": {
+         "type": "function_approval_response",
+         "function_call": {
+          "type": "function_call",
+          "call_id": "call_7640a4ddf1c043d0",
+          "name": "pay",
+          "arguments": "{\"amount\": 50, \"to\": \"alice\"}",
+          "hosted": false,
+          "id": "af-call-871e11cbc8164a09a218e1605a009fa7",
+          "additional_properties": {}
+         },
+         "approved": true,
+         "id": "af-call-871e11cbc8164a09a218e1605a009fa7",
+         "additional_properties": {}
+        },
+        "decision": "yes"
+       },
+       "error": ""
+      },
+      {
+       "step": "resume_approved",
+       "code": 0,
+       "result": {
+        "finished": true
+       },
+       "error": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "default",
+   "scenario": "S1",
+   "status": "fail",
+   "repeats": [
+    {
+     "count": 2,
+     "actions": 2,
+     "amounts": [
+      50,
+      50
+     ],
+     "runs": [
+      "run-A",
+      "run-A"
+     ],
+     "processes": 2,
+     "pass": false,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": ""
+      }
+     ]
+    },
+    {
+     "count": 2,
+     "actions": 2,
+     "amounts": [
+      50,
+      50
+     ],
+     "runs": [
+      "run-A",
+      "run-A"
+     ],
+     "processes": 2,
+     "pass": false,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": ""
+      }
+     ]
+    },
+    {
+     "count": 2,
+     "actions": 2,
+     "amounts": [
+      50,
+      50
+     ],
+     "runs": [
+      "run-A",
+      "run-A"
+     ],
+     "processes": 2,
+     "pass": false,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": ""
+      }
+     ]
+    },
+    {
+     "count": 2,
+     "actions": 2,
+     "amounts": [
+      50,
+      50
+     ],
+     "runs": [
+      "run-A",
+      "run-A"
+     ],
+     "processes": 2,
+     "pass": false,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": ""
+      }
+     ]
+    },
+    {
+     "count": 2,
+     "actions": 2,
+     "amounts": [
+      50,
+      50
+     ],
+     "runs": [
+      "run-A",
+      "run-A"
+     ],
+     "processes": 2,
+     "pass": false,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "default",
+   "scenario": "S2",
+   "status": "fail",
+   "repeats": [
+    {
+     "count": 2,
+     "actions": 2,
+     "amounts": [
+      50,
+      50
+     ],
+     "runs": [
+      "run-A",
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": false,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 0,
+       "result": {
+        "finished": true
+       },
+       "error": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "default",
+   "scenario": "S3",
+   "status": "fail",
+   "repeats": [
+    {
+     "count": 2,
+     "actions": 2,
+     "amounts": [
+      50,
+      50
+     ],
+     "runs": [
+      "run-A",
+      "run-A"
+     ],
+     "processes": 2,
+     "pass": false,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": ""
+      }
+     ]
+    },
+    {
+     "count": 2,
+     "actions": 2,
+     "amounts": [
+      50,
+      50
+     ],
+     "runs": [
+      "run-A",
+      "run-A"
+     ],
+     "processes": 2,
+     "pass": false,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": ""
+      }
+     ]
+    },
+    {
+     "count": 2,
+     "actions": 2,
+     "amounts": [
+      50,
+      50
+     ],
+     "runs": [
+      "run-A",
+      "run-A"
+     ],
+     "processes": 2,
+     "pass": false,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": ""
+      }
+     ]
+    },
+    {
+     "count": 2,
+     "actions": 2,
+     "amounts": [
+      50,
+      50
+     ],
+     "runs": [
+      "run-A",
+      "run-A"
+     ],
+     "processes": 2,
+     "pass": false,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": ""
+      }
+     ]
+    },
+    {
+     "count": 2,
+     "actions": 2,
+     "amounts": [
+      50,
+      50
+     ],
+     "runs": [
+      "run-A",
+      "run-A"
+     ],
+     "processes": 2,
+     "pass": false,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "default",
+   "scenario": "S4",
+   "status": "fail",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      5000
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": false,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": ""
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "request_id": "af-call-b2fb6579882440f7b311f3fa19856ada",
+        "response": {
+         "type": "function_approval_response",
+         "function_call": {
+          "type": "function_call",
+          "call_id": "call_04019e2e90e3471b",
+          "name": "pay",
+          "arguments": "{\"amount\": 50, \"to\": \"alice\"}",
+          "hosted": false,
+          "id": "af-call-b2fb6579882440f7b311f3fa19856ada",
+          "additional_properties": {}
+         },
+         "approved": true,
+         "id": "af-call-b2fb6579882440f7b311f3fa19856ada",
+         "additional_properties": {}
+        },
+        "decision": "yes"
+       },
+       "error": ""
+      },
+      {
+       "step": "tamper",
+       "code": 0,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume_approved",
+       "code": 0,
+       "result": {
+        "finished": true
+       },
+       "error": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "default",
+   "scenario": "S5",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "waiting for a new yes",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": ""
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "request_id": "af-call-4e0a260c80f64dc58dc5061f67b44dfb",
+        "response": {
+         "type": "function_approval_response",
+         "function_call": {
+          "type": "function_call",
+          "call_id": "call_0e3c6d2dbe974f60",
+          "name": "pay",
+          "arguments": "{\"amount\": 50, \"to\": \"alice\"}",
+          "hosted": false,
+          "id": "af-call-4e0a260c80f64dc58dc5061f67b44dfb",
+          "additional_properties": {}
+         },
+         "approved": true,
+         "id": "af-call-4e0a260c80f64dc58dc5061f67b44dfb",
+         "additional_properties": {}
+        },
+        "decision": "yes"
+       },
+       "error": ""
+      },
+      {
+       "step": "resume_approved",
+       "code": 0,
+       "result": {
+        "waiting": {
+         "amount": 50,
+         "to": "alice"
+        }
+       },
+       "error": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "default",
+   "scenario": "S6",
+   "status": "n/a",
+   "reason": "the yes is the approval response sent with the resume itself; Agent Framework keeps no record of a decision before that, so a later no is never given to it",
+   "repeats": []
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "default",
+   "scenario": "S7",
+   "status": "fail",
+   "repeats": [
+    {
+     "count": 2,
+     "actions": 2,
+     "amounts": [
+      50,
+      50
+     ],
+     "runs": [
+      "run-A",
+      "run-A"
+     ],
+     "processes": 2,
+     "pass": false,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": ""
+      }
+     ]
+    },
+    {
+     "count": 2,
+     "actions": 2,
+     "amounts": [
+      50,
+      50
+     ],
+     "runs": [
+      "run-A",
+      "run-A"
+     ],
+     "processes": 2,
+     "pass": false,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": ""
+      }
+     ]
+    },
+    {
+     "count": 2,
+     "actions": 2,
+     "amounts": [
+      50,
+      50
+     ],
+     "runs": [
+      "run-A",
+      "run-A"
+     ],
+     "processes": 2,
+     "pass": false,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": ""
+      }
+     ]
+    },
+    {
+     "count": 2,
+     "actions": 2,
+     "amounts": [
+      50,
+      50
+     ],
+     "runs": [
+      "run-A",
+      "run-A"
+     ],
+     "processes": 2,
+     "pass": false,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": ""
+      }
+     ]
+    },
+    {
+     "count": 2,
+     "actions": 2,
+     "amounts": [
+      50,
+      50
+     ],
+     "runs": [
+      "run-A",
+      "run-A"
+     ],
+     "processes": 2,
+     "pass": false,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": ""
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "default",
+   "scenario": "S8",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 0,
+     "actions": 0,
+     "amounts": [],
+     "runs": [],
+     "processes": 0,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: ValueError",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": ""
+      },
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": ""
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "request_id": "af-call-faca73c00f494487a44edefb72713d2b",
+        "response": {
+         "type": "function_approval_response",
+         "function_call": {
+          "type": "function_call",
+          "call_id": "call_8cbe6b2c966e4b8a",
+          "name": "pay",
+          "arguments": "{\"amount\": 50, \"to\": \"alice\"}",
+          "hosted": false,
+          "id": "af-call-faca73c00f494487a44edefb72713d2b",
+          "additional_properties": {}
+         },
+         "approved": true,
+         "id": "af-call-faca73c00f494487a44edefb72713d2b",
+         "additional_properties": {}
+        },
+        "decision": "yes"
+       },
+       "error": ""
+      },
+      {
+       "step": "resume_approved",
+       "code": 3,
+       "result": null,
+       "error": "ValueError: Response provided for unknown request ID: af-call-faca73c00f494487a44edefb72713d2b"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "call4agents-0.7.2",
+   "scenario": "C1",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 0,
+       "result": {
+        "finished": true
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "call4agents-0.7.2",
+   "scenario": "C2",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "request_id": "af-call-8b95fb43cdd74ee98f30232d4f07bf41",
+        "response": {
+         "type": "function_approval_response",
+         "function_call": {
+          "type": "function_call",
+          "call_id": "call_68f549be1c784b7b",
+          "name": "pay",
+          "arguments": "{\"amount\": 50, \"to\": \"alice\"}",
+          "hosted": false,
+          "id": "af-call-8b95fb43cdd74ee98f30232d4f07bf41",
+          "additional_properties": {}
+         },
+         "approved": true,
+         "id": "af-call-8b95fb43cdd74ee98f30232d4f07bf41",
+         "additional_properties": {}
+        },
+        "decision": "yes"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "resume_approved",
+       "code": 0,
+       "result": {
+        "finished": true
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "call4agents-0.7.2",
+   "scenario": "S1",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "call4agents-0.7.2",
+   "scenario": "S2",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 0,
+       "result": {
+        "finished": true
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "call4agents-0.7.2",
+   "scenario": "S3",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "call4agents-0.7.2",
+   "scenario": "S4",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 0,
+     "actions": 0,
+     "amounts": [],
+     "runs": [],
+     "processes": 0,
+     "pass": true,
+     "invalid": [],
+     "ended": "waiting for a new yes",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "request_id": "af-call-89e41bfd3dd248549c28289dcef1397c",
+        "response": {
+         "type": "function_approval_response",
+         "function_call": {
+          "type": "function_call",
+          "call_id": "call_05d29cc4d35d42d1",
+          "name": "pay",
+          "arguments": "{\"amount\": 50, \"to\": \"alice\"}",
+          "hosted": false,
+          "id": "af-call-89e41bfd3dd248549c28289dcef1397c",
+          "additional_properties": {}
+         },
+         "approved": true,
+         "id": "af-call-89e41bfd3dd248549c28289dcef1397c",
+         "additional_properties": {}
+        },
+        "decision": "yes"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "tamper",
+       "code": 0,
+       "result": null,
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "resume_approved",
+       "code": 0,
+       "result": {
+        "waiting": {
+         "amount": 50,
+         "to": "alice"
+        }
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "call4agents-0.7.2",
+   "scenario": "S5",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "waiting for a new yes",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "request_id": "af-call-f7c298a3c8334c75bf169ea34bbdb0fe",
+        "response": {
+         "type": "function_approval_response",
+         "function_call": {
+          "type": "function_call",
+          "call_id": "call_bb996f073d524998",
+          "name": "pay",
+          "arguments": "{\"amount\": 50, \"to\": \"alice\"}",
+          "hosted": false,
+          "id": "af-call-f7c298a3c8334c75bf169ea34bbdb0fe",
+          "additional_properties": {}
+         },
+         "approved": true,
+         "id": "af-call-f7c298a3c8334c75bf169ea34bbdb0fe",
+         "additional_properties": {}
+        },
+        "decision": "yes"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "resume_approved",
+       "code": 0,
+       "result": {
+        "waiting": {
+         "amount": 50,
+         "to": "alice"
+        }
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "call4agents-0.7.2",
+   "scenario": "S6",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 0,
+     "actions": 0,
+     "amounts": [],
+     "runs": [],
+     "processes": 0,
+     "pass": true,
+     "invalid": [],
+     "ended": "waiting for a new yes",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "request_id": "af-call-1bd702e34f044d778de77f8ecdcc8caf",
+        "response": {
+         "type": "function_approval_response",
+         "function_call": {
+          "type": "function_call",
+          "call_id": "call_40e46b54672b4c77",
+          "name": "pay",
+          "arguments": "{\"amount\": 50, \"to\": \"alice\"}",
+          "hosted": false,
+          "id": "af-call-1bd702e34f044d778de77f8ecdcc8caf",
+          "additional_properties": {}
+         },
+         "approved": true,
+         "id": "af-call-1bd702e34f044d778de77f8ecdcc8caf",
+         "additional_properties": {}
+        },
+        "decision": "yes"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "request_id": "af-call-1bd702e34f044d778de77f8ecdcc8caf",
+        "response": {
+         "type": "function_approval_response",
+         "function_call": {
+          "type": "function_call",
+          "call_id": "call_40e46b54672b4c77",
+          "name": "pay",
+          "arguments": "{\"amount\": 50, \"to\": \"alice\"}",
+          "hosted": false,
+          "id": "af-call-1bd702e34f044d778de77f8ecdcc8caf",
+          "additional_properties": {}
+         },
+         "approved": false,
+         "id": "af-call-1bd702e34f044d778de77f8ecdcc8caf",
+         "additional_properties": {}
+        },
+        "decision": "no"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "resume_approved",
+       "code": 0,
+       "result": {
+        "waiting": {
+         "amount": 50,
+         "to": "alice"
+        }
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "call4agents-0.7.2",
+   "scenario": "S7",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "call4agents-0.7.2",
+   "scenario": "S8",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 0,
+     "actions": 0,
+     "amounts": [],
+     "runs": [],
+     "processes": 0,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: ValueError",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "request_id": "af-call-585932f9eaff4510b6cd37cee6eca34d",
+        "response": {
+         "type": "function_approval_response",
+         "function_call": {
+          "type": "function_call",
+          "call_id": "call_f5a2461705094689",
+          "name": "pay",
+          "arguments": "{\"amount\": 50, \"to\": \"alice\"}",
+          "hosted": false,
+          "id": "af-call-585932f9eaff4510b6cd37cee6eca34d",
+          "additional_properties": {}
+         },
+         "approved": true,
+         "id": "af-call-585932f9eaff4510b6cd37cee6eca34d",
+         "additional_properties": {}
+        },
+        "decision": "yes"
+       },
+       "error": "",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      },
+      {
+       "step": "resume_approved",
+       "code": 3,
+       "result": null,
+       "error": "ValueError: Response provided for unknown request ID: af-call-585932f9eaff4510b6cd37cee6eca34d",
+       "kit": "0.7.2 <work>\\kit-0.7.2"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "call4agents-0.7.3",
+   "scenario": "C1",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 0,
+       "result": {
+        "finished": true
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "call4agents-0.7.3",
+   "scenario": "C2",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "request_id": "af-call-2326ddf4f2a244e3a307d5d2b0fb129a",
+        "response": {
+         "type": "function_approval_response",
+         "function_call": {
+          "type": "function_call",
+          "call_id": "call_c8a20197bc7c40f0",
+          "name": "pay",
+          "arguments": "{\"amount\": 50, \"to\": \"alice\"}",
+          "hosted": false,
+          "id": "af-call-2326ddf4f2a244e3a307d5d2b0fb129a",
+          "additional_properties": {}
+         },
+         "approved": true,
+         "id": "af-call-2326ddf4f2a244e3a307d5d2b0fb129a",
+         "additional_properties": {}
+        },
+        "decision": "yes"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "resume_approved",
+       "code": 0,
+       "result": {
+        "finished": true
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "call4agents-0.7.3",
+   "scenario": "S1",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "call4agents-0.7.3",
+   "scenario": "S2",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 0,
+       "result": {
+        "finished": true
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "call4agents-0.7.3",
+   "scenario": "S3",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "call4agents-0.7.3",
+   "scenario": "S4",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 0,
+     "actions": 0,
+     "amounts": [],
+     "runs": [],
+     "processes": 0,
+     "pass": true,
+     "invalid": [],
+     "ended": "waiting for a new yes",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "request_id": "af-call-c64bbab0c0f14480880d69b7f529146a",
+        "response": {
+         "type": "function_approval_response",
+         "function_call": {
+          "type": "function_call",
+          "call_id": "call_a747e8d0bdbe4d31",
+          "name": "pay",
+          "arguments": "{\"amount\": 50, \"to\": \"alice\"}",
+          "hosted": false,
+          "id": "af-call-c64bbab0c0f14480880d69b7f529146a",
+          "additional_properties": {}
+         },
+         "approved": true,
+         "id": "af-call-c64bbab0c0f14480880d69b7f529146a",
+         "additional_properties": {}
+        },
+        "decision": "yes"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "tamper",
+       "code": 0,
+       "result": null,
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "resume_approved",
+       "code": 0,
+       "result": {
+        "waiting": {
+         "amount": 50,
+         "to": "alice"
+        }
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "call4agents-0.7.3",
+   "scenario": "S5",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "waiting for a new yes",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "request_id": "af-call-542e7f3cfc884f0aa2b3183e417e934e",
+        "response": {
+         "type": "function_approval_response",
+         "function_call": {
+          "type": "function_call",
+          "call_id": "call_ca27b64a4b9d44ef",
+          "name": "pay",
+          "arguments": "{\"amount\": 50, \"to\": \"alice\"}",
+          "hosted": false,
+          "id": "af-call-542e7f3cfc884f0aa2b3183e417e934e",
+          "additional_properties": {}
+         },
+         "approved": true,
+         "id": "af-call-542e7f3cfc884f0aa2b3183e417e934e",
+         "additional_properties": {}
+        },
+        "decision": "yes"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "resume_approved",
+       "code": 0,
+       "result": {
+        "waiting": {
+         "amount": 50,
+         "to": "alice"
+        }
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "call4agents-0.7.3",
+   "scenario": "S6",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 0,
+     "actions": 0,
+     "amounts": [],
+     "runs": [],
+     "processes": 0,
+     "pass": true,
+     "invalid": [],
+     "ended": "waiting for a new yes",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "request_id": "af-call-8692f584506841bf9ba7c808f32b8396",
+        "response": {
+         "type": "function_approval_response",
+         "function_call": {
+          "type": "function_call",
+          "call_id": "call_69981d34997c40d4",
+          "name": "pay",
+          "arguments": "{\"amount\": 50, \"to\": \"alice\"}",
+          "hosted": false,
+          "id": "af-call-8692f584506841bf9ba7c808f32b8396",
+          "additional_properties": {}
+         },
+         "approved": true,
+         "id": "af-call-8692f584506841bf9ba7c808f32b8396",
+         "additional_properties": {}
+        },
+        "decision": "yes"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "request_id": "af-call-8692f584506841bf9ba7c808f32b8396",
+        "response": {
+         "type": "function_approval_response",
+         "function_call": {
+          "type": "function_call",
+          "call_id": "call_69981d34997c40d4",
+          "name": "pay",
+          "arguments": "{\"amount\": 50, \"to\": \"alice\"}",
+          "hosted": false,
+          "id": "af-call-8692f584506841bf9ba7c808f32b8396",
+          "additional_properties": {}
+         },
+         "approved": false,
+         "id": "af-call-8692f584506841bf9ba7c808f32b8396",
+         "additional_properties": {}
+        },
+        "decision": "no"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "resume_approved",
+       "code": 0,
+       "result": {
+        "waiting": {
+         "amount": 50,
+         "to": "alice"
+        }
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "call4agents-0.7.3",
+   "scenario": "S7",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "call4agents-0.7.3",
+   "scenario": "S8",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 0,
+     "actions": 0,
+     "amounts": [],
+     "runs": [],
+     "processes": 0,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: ValueError",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "request_id": "af-call-a30a8f7e4a9f40b89a654f99c7b64643",
+        "response": {
+         "type": "function_approval_response",
+         "function_call": {
+          "type": "function_call",
+          "call_id": "call_ad2d35937e9247c0",
+          "name": "pay",
+          "arguments": "{\"amount\": 50, \"to\": \"alice\"}",
+          "hosted": false,
+          "id": "af-call-a30a8f7e4a9f40b89a654f99c7b64643",
+          "additional_properties": {}
+         },
+         "approved": true,
+         "id": "af-call-a30a8f7e4a9f40b89a654f99c7b64643",
+         "additional_properties": {}
+        },
+        "decision": "yes"
+       },
+       "error": "",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      },
+      {
+       "step": "resume_approved",
+       "code": 3,
+       "result": null,
+       "error": "ValueError: Response provided for unknown request ID: af-call-a30a8f7e4a9f40b89a654f99c7b64643",
+       "kit": "0.7.3 <work>\\kit-0.7.3"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "call4agents-head",
+   "scenario": "C1",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 0,
+       "result": {
+        "finished": true
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "call4agents-head",
+   "scenario": "C2",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "request_id": "af-call-62344a46a045482685de4ce27a318a6d",
+        "response": {
+         "type": "function_approval_response",
+         "function_call": {
+          "type": "function_call",
+          "call_id": "call_712b4dd185cf46e4",
+          "name": "pay",
+          "arguments": "{\"amount\": 50, \"to\": \"alice\"}",
+          "hosted": false,
+          "id": "af-call-62344a46a045482685de4ce27a318a6d",
+          "additional_properties": {}
+         },
+         "approved": true,
+         "id": "af-call-62344a46a045482685de4ce27a318a6d",
+         "additional_properties": {}
+        },
+        "decision": "yes"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "resume_approved",
+       "code": 0,
+       "result": {
+        "finished": true
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "call4agents-head",
+   "scenario": "S1",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "call4agents-head",
+   "scenario": "S2",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 0,
+       "result": {
+        "finished": true
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "call4agents-head",
+   "scenario": "S3",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "call4agents-head",
+   "scenario": "S4",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 0,
+     "actions": 0,
+     "amounts": [],
+     "runs": [],
+     "processes": 0,
+     "pass": true,
+     "invalid": [],
+     "ended": "waiting for a new yes",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "request_id": "af-call-a62e66c0af0642a799e9382d8c5b72b4",
+        "response": {
+         "type": "function_approval_response",
+         "function_call": {
+          "type": "function_call",
+          "call_id": "call_6a09771d27b34599",
+          "name": "pay",
+          "arguments": "{\"amount\": 50, \"to\": \"alice\"}",
+          "hosted": false,
+          "id": "af-call-a62e66c0af0642a799e9382d8c5b72b4",
+          "additional_properties": {}
+         },
+         "approved": true,
+         "id": "af-call-a62e66c0af0642a799e9382d8c5b72b4",
+         "additional_properties": {}
+        },
+        "decision": "yes"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "tamper",
+       "code": 0,
+       "result": null,
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "resume_approved",
+       "code": 0,
+       "result": {
+        "waiting": {
+         "amount": 50,
+         "to": "alice"
+        }
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "call4agents-head",
+   "scenario": "S5",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "waiting for a new yes",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "request_id": "af-call-5a48af71d0eb47e8916356b1d304ff40",
+        "response": {
+         "type": "function_approval_response",
+         "function_call": {
+          "type": "function_call",
+          "call_id": "call_5b30fda639e7434e",
+          "name": "pay",
+          "arguments": "{\"amount\": 50, \"to\": \"alice\"}",
+          "hosted": false,
+          "id": "af-call-5a48af71d0eb47e8916356b1d304ff40",
+          "additional_properties": {}
+         },
+         "approved": true,
+         "id": "af-call-5a48af71d0eb47e8916356b1d304ff40",
+         "additional_properties": {}
+        },
+        "decision": "yes"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "resume_approved",
+       "code": 0,
+       "result": {
+        "waiting": {
+         "amount": 50,
+         "to": "alice"
+        }
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "call4agents-head",
+   "scenario": "S6",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 0,
+     "actions": 0,
+     "amounts": [],
+     "runs": [],
+     "processes": 0,
+     "pass": true,
+     "invalid": [],
+     "ended": "waiting for a new yes",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "request_id": "af-call-218764a7b37c47a0a442c2ff3cc732d9",
+        "response": {
+         "type": "function_approval_response",
+         "function_call": {
+          "type": "function_call",
+          "call_id": "call_10b704236f6e4051",
+          "name": "pay",
+          "arguments": "{\"amount\": 50, \"to\": \"alice\"}",
+          "hosted": false,
+          "id": "af-call-218764a7b37c47a0a442c2ff3cc732d9",
+          "additional_properties": {}
+         },
+         "approved": true,
+         "id": "af-call-218764a7b37c47a0a442c2ff3cc732d9",
+         "additional_properties": {}
+        },
+        "decision": "yes"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "request_id": "af-call-218764a7b37c47a0a442c2ff3cc732d9",
+        "response": {
+         "type": "function_approval_response",
+         "function_call": {
+          "type": "function_call",
+          "call_id": "call_10b704236f6e4051",
+          "name": "pay",
+          "arguments": "{\"amount\": 50, \"to\": \"alice\"}",
+          "hosted": false,
+          "id": "af-call-218764a7b37c47a0a442c2ff3cc732d9",
+          "additional_properties": {}
+         },
+         "approved": false,
+         "id": "af-call-218764a7b37c47a0a442c2ff3cc732d9",
+         "additional_properties": {}
+        },
+        "decision": "no"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "resume_approved",
+       "code": 0,
+       "result": {
+        "waiting": {
+         "amount": 50,
+         "to": "alice"
+        }
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "call4agents-head",
+   "scenario": "S7",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    },
+    {
+     "count": 1,
+     "actions": 1,
+     "amounts": [
+      50
+     ],
+     "runs": [
+      "run-A"
+     ],
+     "processes": 1,
+     "pass": true,
+     "invalid": [],
+     "ended": "finished",
+     "steps": [
+      {
+       "step": "start",
+       "code": 137,
+       "result": null,
+       "error": ""
+      },
+      {
+       "step": "resume",
+       "code": 0,
+       "result": {
+        "finished": true,
+        "how": "restored"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "subject": "ms_agent_framework",
+   "variant": "call4agents-head",
+   "scenario": "S8",
+   "status": "pass",
+   "repeats": [
+    {
+     "count": 0,
+     "actions": 0,
+     "amounts": [],
+     "runs": [],
+     "processes": 0,
+     "pass": true,
+     "invalid": [],
+     "ended": "stopped: ValueError",
+     "steps": [
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "start_approval",
+       "code": 0,
+       "result": {
+        "amount": 50,
+        "to": "alice"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "decide",
+       "code": 0,
+       "result": {
+        "request_id": "af-call-c37562693b8c4617a345b6a9e213aff5",
+        "response": {
+         "type": "function_approval_response",
+         "function_call": {
+          "type": "function_call",
+          "call_id": "call_1658822b192641ff",
+          "name": "pay",
+          "arguments": "{\"amount\": 50, \"to\": \"alice\"}",
+          "hosted": false,
+          "id": "af-call-c37562693b8c4617a345b6a9e213aff5",
+          "additional_properties": {}
+         },
+         "approved": true,
+         "id": "af-call-c37562693b8c4617a345b6a9e213aff5",
+         "additional_properties": {}
+        },
+        "decision": "yes"
+       },
+       "error": "",
+       "kit": "0.7.3 <repo>"
+      },
+      {
+       "step": "resume_approved",
+       "code": 3,
+       "result": null,
+       "error": "ValueError: Response provided for unknown request ID: af-call-c37562693b8c4617a345b6a9e213aff5",
+       "kit": "0.7.3 <repo>"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

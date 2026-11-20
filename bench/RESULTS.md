@@ -2,6 +2,8 @@
 
 Measured on **Windows only** (Windows 10, AMD64), Python 3.12.10, on 2026-11-13. Raw data: [results/2026-11-13-windows.json](results/2026-11-13-windows.json).
 
+Google ADK and Microsoft Agent Framework were measured in a separate run on 2026-11-19: see [their section](#google-adk-and-microsoft-agent-framework-a-separate-run-2026-11-19) at the end (raw data: [results/2026-11-19-windows.json](results/2026-11-19-windows.json)).
+
 Other systems are not measured yet. The CI workflow (.github/workflows/bench.yml) runs the same benchmark on Linux, macOS and Windows and keeps the JSON as an artifact; it does not change this file.
 
 Each cell is `status repeats: count`. The count is what the fake bank recorded: all actions (C1, C2, S1, S2, S3, S5, S6, S7), actions with amount 5000 (S4), actions in run B (S8). Crash cells (S1, S3, S7) ran 5 times each, the others once. The pass rules are in [scenarios.md](scenarios.md).
@@ -233,3 +235,146 @@ A pass on the count does not mean the run finished. A run that stops in doubt wa
 - **LangGraph** (bench/subjects/langgraph_graph.py). Default: StateGraph + SqliteSaver, resume with invoke(None, config); approval with interrupt() in a node before the tool and Command(resume=...); no RetryPolicy. With call4agents: the bank call wrapped in call4agents.adapters.langgraph.effect(approval=..., reconcile=bank lookup); the yes and no also recorded with c4a_lg.approve / c4a_lg.deny.
 - **OpenAI Agents SDK** (bench/subjects/openai_agents_sdk.py). Default: Runner.run with an SQLiteSession, a crash resumed by running the session again; tool errors go to the model (default failure_error_function); approval with needs_approval=True and a saved RunState (state.approve / state.reject, then Runner.run(agent, state)). With call4agents: the bank call wrapped in call4agents.adapters.openai_agents.effect(approval=..., reconcile=bank lookup) inside c4a.run(run id); the yes and no also recorded with c4a.approve / c4a.deny.
 - **Pydantic AI** (bench/subjects/pydantic_ai_agent.py). Default: agent.iter with the message history saved after each step, continued with message_history=; approval with requires_approval=True, DeferredToolRequests and DeferredToolResults. With call4agents: the bank call wrapped in call4agents.adapters.pydantic_ai.effect(approval=..., reconcile=bank lookup) inside c4a.run(run id); the yes and no also recorded with c4a.approve / c4a.deny.
+
+## Google ADK and Microsoft Agent Framework (a separate run, 2026-11-19)
+
+These two subjects were added on 2026-11-19 and measured in their own run, with the newest versions on PyPI that day. The variants are the default and call4agents 0.7.2, 0.7.3 and this checkout: 0.7.1 is left out because it has no Google ADK or Agent Framework adapter. The section below is what `bench.run` wrote for that run (`python -m bench.run --subjects google_adk,ms_agent_framework --release 0.7.2,0.7.3 --repeat 5 --require-frameworks`), with its headings one level down.
+
+Why Google ADK's default passes S2: ADK saves the tool error as an event of the invocation, and resuming that invocation (`run_async(invocation_id=...)`) ends it without running the tool again, and without a model answer. Both frameworks pass S8 because a decision carries the id of run A's request, and run B refuses an id it does not know (ValueError).
+
+Measured on **Windows only** (Windows 10, AMD64), Python 3.12.10, on 2026-11-19. Raw data: [results/2026-11-19-windows.json](results/2026-11-19-windows.json).
+
+Other systems are not measured yet. The CI workflow (.github/workflows/bench.yml) runs the same benchmark on Linux, macOS and Windows and keeps the JSON as an artifact; it does not change this file.
+
+Each cell is `status repeats: count`. The count is what the fake bank recorded: all actions (C1, C2, S1, S2, S3, S5, S6, S7), actions with amount 5000 (S4), actions in run B (S8). Crash cells (S1, S3, S7) ran 5 times each, the others once. The pass rules are in [scenarios.md](scenarios.md).
+
+Framework versions: agent-framework-core 1.26.0, google-adk 2.14.1, google-genai 2.34.0.
+
+- **call4agents 0.7.2 (release)**: call4agents 0.7.2 from git tag v0.7.2 (2da008a).
+- **call4agents 0.7.3 (release)**: call4agents 0.7.3 from git tag v0.7.3 (438cfd1).
+- **call4agents head (c07e3c3)**: call4agents 0.7.3 from this checkout (c07e3c3).
+
+| subject | variant | C1 | C2 | S1 | S2 | S3 | S4 | S5 | S6 | S7 | S8 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Google ADK | default | pass 1/1: 1 | pass 1/1: 1 | FAIL 5/5: 2 | pass 1/1: 1 | FAIL 5/5: 2 | FAIL 1/1: 1 | pass 1/1: 1 | N/A | FAIL 5/5: 2 | pass 1/1: 0 |
+| Google ADK | call4agents 0.7.2 (release) | pass 1/1: 1 | pass 1/1: 1 | pass 5/5: 1 | pass 1/1: 1 | pass 5/5: 1 | pass 1/1: 0 | pass 1/1: 1 | pass 1/1: 0 | pass 5/5: 1 | pass 1/1: 0 |
+| Google ADK | call4agents 0.7.3 (release) | pass 1/1: 1 | pass 1/1: 1 | pass 5/5: 1 | pass 1/1: 1 | pass 5/5: 1 | pass 1/1: 0 | pass 1/1: 1 | pass 1/1: 0 | pass 5/5: 1 | pass 1/1: 0 |
+| Google ADK | call4agents head (c07e3c3) | pass 1/1: 1 | pass 1/1: 1 | pass 5/5: 1 | pass 1/1: 1 | pass 5/5: 1 | pass 1/1: 0 | pass 1/1: 1 | pass 1/1: 0 | pass 5/5: 1 | pass 1/1: 0 |
+| Microsoft Agent Framework | default | pass 1/1: 1 | pass 1/1: 1 | FAIL 5/5: 2 | FAIL 1/1: 2 | FAIL 5/5: 2 | FAIL 1/1: 1 | pass 1/1: 1 | N/A | FAIL 5/5: 2 | pass 1/1: 0 |
+| Microsoft Agent Framework | call4agents 0.7.2 (release) | pass 1/1: 1 | pass 1/1: 1 | pass 5/5: 1 | pass 1/1: 1 | pass 5/5: 1 | pass 1/1: 0 | pass 1/1: 1 | pass 1/1: 0 | pass 5/5: 1 | pass 1/1: 0 |
+| Microsoft Agent Framework | call4agents 0.7.3 (release) | pass 1/1: 1 | pass 1/1: 1 | pass 5/5: 1 | pass 1/1: 1 | pass 5/5: 1 | pass 1/1: 0 | pass 1/1: 1 | pass 1/1: 0 | pass 5/5: 1 | pass 1/1: 0 |
+| Microsoft Agent Framework | call4agents head (c07e3c3) | pass 1/1: 1 | pass 1/1: 1 | pass 5/5: 1 | pass 1/1: 1 | pass 5/5: 1 | pass 1/1: 0 | pass 1/1: 1 | pass 1/1: 0 | pass 5/5: 1 | pass 1/1: 0 |
+
+Scenarios: **C1** control: a run with no fault makes one action; **C2** control: an approved call runs once; **S1** crash after the action, before the save; resume; **S2** timeout after the action; retry; **S3** two workers resume the same run at once; **S4** yes for 50, the call changes to 5000; **S5** one yes, the agent calls the tool twice; **S6** no after yes, before it runs; **S7** crash inside the action, the bank cannot tell yet; **S8** the yes of run A delivered to run B.
+
+### Passed without call4agents
+
+These framework defaults pass a scenario on their own. call4agents is not needed for them:
+
+- **Google ADK**, S2 (timeout after the action; retry): pass 1/1: 1.
+- **Google ADK**, S5 (one yes, the agent calls the tool twice): pass 1/1: 1.
+- **Google ADK**, S8 (the yes of run A delivered to run B): pass 1/1: 0.
+- **Microsoft Agent Framework**, S5 (one yes, the agent calls the tool twice): pass 1/1: 1.
+- **Microsoft Agent Framework**, S8 (the yes of run A delivered to run B): pass 1/1: 0.
+
+### Failed with call4agents
+
+None in this run.
+
+### Different between call4agents 0.7.2 (release) and call4agents 0.7.3 (release)
+
+No cell changed.
+
+### Different between call4agents 0.7.3 (release) and call4agents head (c07e3c3)
+
+No cell changed.
+
+### How each run ended
+
+A pass on the count does not mean the run finished. A run that stops in doubt waits for a person or for the provider to answer.
+
+- Google ADK / default / C1: pass 1/1: 1; ended: finished (1/1)
+- Google ADK / default / C2: pass 1/1: 1; ended: finished (1/1)
+- Google ADK / default / S1: FAIL 5/5: 2; ended: finished (5/5)
+- Google ADK / default / S2: pass 1/1: 1; ended: finished (1/1)
+- Google ADK / default / S3: FAIL 5/5: 2; ended: stopped: StaleSessionError (3/5), finished (2/5)
+- Google ADK / default / S4: FAIL 1/1: 1; ended: finished (1/1)
+- Google ADK / default / S5: pass 1/1: 1; ended: waiting for a new yes (1/1)
+- Google ADK / default / S6: N/A. the yes is the FunctionResponse sent with the resume itself; ADK keeps no record of a decision before that, so a later no is never given to it
+- Google ADK / default / S7: FAIL 5/5: 2; ended: finished (5/5)
+- Google ADK / default / S8: pass 1/1: 0; ended: stopped: ValueError (1/1)
+- Google ADK / call4agents 0.7.2 (release) / C1: pass 1/1: 1; ended: finished (1/1)
+- Google ADK / call4agents 0.7.2 (release) / C2: pass 1/1: 1; ended: finished (1/1)
+- Google ADK / call4agents 0.7.2 (release) / S1: pass 5/5: 1; ended: finished (5/5)
+- Google ADK / call4agents 0.7.2 (release) / S2: pass 1/1: 1; ended: finished (1/1)
+- Google ADK / call4agents 0.7.2 (release) / S3: pass 5/5: 1; ended: finished (4/5), stopped: StaleSessionError (1/5)
+- Google ADK / call4agents 0.7.2 (release) / S4: pass 1/1: 0; ended: stopped: ApprovalRequired (1/1)
+- Google ADK / call4agents 0.7.2 (release) / S5: pass 1/1: 1; ended: waiting for a new yes (1/1)
+- Google ADK / call4agents 0.7.2 (release) / S6: pass 1/1: 0; ended: stopped: ApprovalRequired (1/1)
+- Google ADK / call4agents 0.7.2 (release) / S7: pass 5/5: 1; ended: stopped: EffectInDoubt (5/5)
+- Google ADK / call4agents 0.7.2 (release) / S8: pass 1/1: 0; ended: stopped: ValueError (1/1)
+- Google ADK / call4agents 0.7.3 (release) / C1: pass 1/1: 1; ended: finished (1/1)
+- Google ADK / call4agents 0.7.3 (release) / C2: pass 1/1: 1; ended: finished (1/1)
+- Google ADK / call4agents 0.7.3 (release) / S1: pass 5/5: 1; ended: finished (5/5)
+- Google ADK / call4agents 0.7.3 (release) / S2: pass 1/1: 1; ended: finished (1/1)
+- Google ADK / call4agents 0.7.3 (release) / S3: pass 5/5: 1; ended: stopped: StaleSessionError (4/5), finished (1/5)
+- Google ADK / call4agents 0.7.3 (release) / S4: pass 1/1: 0; ended: stopped: ApprovalRequired (1/1)
+- Google ADK / call4agents 0.7.3 (release) / S5: pass 1/1: 1; ended: waiting for a new yes (1/1)
+- Google ADK / call4agents 0.7.3 (release) / S6: pass 1/1: 0; ended: stopped: ApprovalRequired (1/1)
+- Google ADK / call4agents 0.7.3 (release) / S7: pass 5/5: 1; ended: stopped: EffectInDoubt (5/5)
+- Google ADK / call4agents 0.7.3 (release) / S8: pass 1/1: 0; ended: stopped: ValueError (1/1)
+- Google ADK / call4agents head (c07e3c3) / C1: pass 1/1: 1; ended: finished (1/1)
+- Google ADK / call4agents head (c07e3c3) / C2: pass 1/1: 1; ended: finished (1/1)
+- Google ADK / call4agents head (c07e3c3) / S1: pass 5/5: 1; ended: finished (5/5)
+- Google ADK / call4agents head (c07e3c3) / S2: pass 1/1: 1; ended: finished (1/1)
+- Google ADK / call4agents head (c07e3c3) / S3: pass 5/5: 1; ended: finished (3/5), stopped: StaleSessionError (2/5)
+- Google ADK / call4agents head (c07e3c3) / S4: pass 1/1: 0; ended: stopped: ApprovalRequired (1/1)
+- Google ADK / call4agents head (c07e3c3) / S5: pass 1/1: 1; ended: waiting for a new yes (1/1)
+- Google ADK / call4agents head (c07e3c3) / S6: pass 1/1: 0; ended: stopped: ApprovalRequired (1/1)
+- Google ADK / call4agents head (c07e3c3) / S7: pass 5/5: 1; ended: stopped: EffectInDoubt (5/5)
+- Google ADK / call4agents head (c07e3c3) / S8: pass 1/1: 0; ended: stopped: ValueError (1/1)
+- Microsoft Agent Framework / default / C1: pass 1/1: 1; ended: finished (1/1)
+- Microsoft Agent Framework / default / C2: pass 1/1: 1; ended: finished (1/1)
+- Microsoft Agent Framework / default / S1: FAIL 5/5: 2; ended: finished (5/5)
+- Microsoft Agent Framework / default / S2: FAIL 1/1: 2; ended: finished (1/1)
+- Microsoft Agent Framework / default / S3: FAIL 5/5: 2; ended: finished (5/5)
+- Microsoft Agent Framework / default / S4: FAIL 1/1: 1; ended: finished (1/1)
+- Microsoft Agent Framework / default / S5: pass 1/1: 1; ended: waiting for a new yes (1/1)
+- Microsoft Agent Framework / default / S6: N/A. the yes is the approval response sent with the resume itself; Agent Framework keeps no record of a decision before that, so a later no is never given to it
+- Microsoft Agent Framework / default / S7: FAIL 5/5: 2; ended: finished (5/5)
+- Microsoft Agent Framework / default / S8: pass 1/1: 0; ended: stopped: ValueError (1/1)
+- Microsoft Agent Framework / call4agents 0.7.2 (release) / C1: pass 1/1: 1; ended: finished (1/1)
+- Microsoft Agent Framework / call4agents 0.7.2 (release) / C2: pass 1/1: 1; ended: finished (1/1)
+- Microsoft Agent Framework / call4agents 0.7.2 (release) / S1: pass 5/5: 1; ended: finished (5/5)
+- Microsoft Agent Framework / call4agents 0.7.2 (release) / S2: pass 1/1: 1; ended: finished (1/1)
+- Microsoft Agent Framework / call4agents 0.7.2 (release) / S3: pass 5/5: 1; ended: finished (5/5)
+- Microsoft Agent Framework / call4agents 0.7.2 (release) / S4: pass 1/1: 0; ended: waiting for a new yes (1/1)
+- Microsoft Agent Framework / call4agents 0.7.2 (release) / S5: pass 1/1: 1; ended: waiting for a new yes (1/1)
+- Microsoft Agent Framework / call4agents 0.7.2 (release) / S6: pass 1/1: 0; ended: waiting for a new yes (1/1)
+- Microsoft Agent Framework / call4agents 0.7.2 (release) / S7: pass 5/5: 1; ended: finished (5/5)
+- Microsoft Agent Framework / call4agents 0.7.2 (release) / S8: pass 1/1: 0; ended: stopped: ValueError (1/1)
+- Microsoft Agent Framework / call4agents 0.7.3 (release) / C1: pass 1/1: 1; ended: finished (1/1)
+- Microsoft Agent Framework / call4agents 0.7.3 (release) / C2: pass 1/1: 1; ended: finished (1/1)
+- Microsoft Agent Framework / call4agents 0.7.3 (release) / S1: pass 5/5: 1; ended: finished (5/5)
+- Microsoft Agent Framework / call4agents 0.7.3 (release) / S2: pass 1/1: 1; ended: finished (1/1)
+- Microsoft Agent Framework / call4agents 0.7.3 (release) / S3: pass 5/5: 1; ended: finished (5/5)
+- Microsoft Agent Framework / call4agents 0.7.3 (release) / S4: pass 1/1: 0; ended: waiting for a new yes (1/1)
+- Microsoft Agent Framework / call4agents 0.7.3 (release) / S5: pass 1/1: 1; ended: waiting for a new yes (1/1)
+- Microsoft Agent Framework / call4agents 0.7.3 (release) / S6: pass 1/1: 0; ended: waiting for a new yes (1/1)
+- Microsoft Agent Framework / call4agents 0.7.3 (release) / S7: pass 5/5: 1; ended: finished (5/5)
+- Microsoft Agent Framework / call4agents 0.7.3 (release) / S8: pass 1/1: 0; ended: stopped: ValueError (1/1)
+- Microsoft Agent Framework / call4agents head (c07e3c3) / C1: pass 1/1: 1; ended: finished (1/1)
+- Microsoft Agent Framework / call4agents head (c07e3c3) / C2: pass 1/1: 1; ended: finished (1/1)
+- Microsoft Agent Framework / call4agents head (c07e3c3) / S1: pass 5/5: 1; ended: finished (5/5)
+- Microsoft Agent Framework / call4agents head (c07e3c3) / S2: pass 1/1: 1; ended: finished (1/1)
+- Microsoft Agent Framework / call4agents head (c07e3c3) / S3: pass 5/5: 1; ended: finished (5/5)
+- Microsoft Agent Framework / call4agents head (c07e3c3) / S4: pass 1/1: 0; ended: waiting for a new yes (1/1)
+- Microsoft Agent Framework / call4agents head (c07e3c3) / S5: pass 1/1: 1; ended: waiting for a new yes (1/1)
+- Microsoft Agent Framework / call4agents head (c07e3c3) / S6: pass 1/1: 0; ended: waiting for a new yes (1/1)
+- Microsoft Agent Framework / call4agents head (c07e3c3) / S7: pass 5/5: 1; ended: finished (5/5)
+- Microsoft Agent Framework / call4agents head (c07e3c3) / S8: pass 1/1: 0; ended: stopped: ValueError (1/1)
+
+### What the subjects do
+
+- **Google ADK** (bench/subjects/google_adk_agent.py). Default: resumable App + SqliteSessionService, resume with run_async(invocation_id=...); no on_tool_error_callback (a tool error reaches the caller); approval with FunctionTool(require_confirmation=True) and an adk_request_confirmation FunctionResponse. With call4agents: the bank call wrapped in call4agents.adapters.google_adk.effect(approval=..., reconcile=bank lookup) inside c4a.run(run id); the yes and no built with c4a_adk.confirm(...), which also records them with c4a.approve / c4a.deny.
+- **Microsoft Agent Framework** (bench/subjects/ms_agent_framework.py). Default: the agent as start executor of a workflow with FileCheckpointStorage, a crash restored from the newest checkpoint with run(checkpoint_id=...); tool errors go to the model (default include_detailed_errors=False); approval with @tool(approval_mode="always_require") and to_function_approval_response, sent with run(checkpoint_id=..., responses=...). With call4agents: the bank call wrapped in call4agents.adapters.agent_framework.effect(approval=..., reconcile=bank lookup) inside c4a.run(run id); the yes and no built with c4a_maf.respond(...), which also records them with c4a.approve / c4a.deny.
