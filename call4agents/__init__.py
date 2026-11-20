@@ -25,7 +25,7 @@ from typing import Any, Callable, Dict, Optional, Tuple
 from call4agents import codec as _codec
 from call4agents import owner as _owner
 from call4agents import replay as _replay
-from call4agents.ledger import Ledger, LimitReached, TicketRefused, canonical, effect_key, intent_key
+from call4agents.ledger import Ledger, LimitReached, TicketRefused, Unsettled, canonical, effect_key, intent_key
 from call4agents.rules import RuleRefused, Rules, gate_for
 from call4agents.replay import ReplayMismatch, ReplayMissing, diff, recorded  # noqa: F401
 from call4agents.proof import prove  # noqa: F401  (module named proof: a 'prove' module would be hidden)
@@ -38,6 +38,7 @@ __version__ = "0.7.3"
 
 _LEDGER: Optional[Ledger] = None
 _RUN: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("c4a_run", default=None)
+_ORDERED: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("c4a_ordered", default=None)  # run id, if ordered
 
 
 def current_run() -> str:
@@ -106,8 +107,8 @@ class Limit:
 class ApprovalRequired(Exception):
     """The effect needs a "yes" for exactly these arguments, and none matches."""
 
-    def __init__(self, tool: str, args: Dict[str, Any]) -> None:
-        super().__init__(f"{tool} needs approval for exactly {canonical(args)}")
+    def __init__(self, tool: str, args: Dict[str, Any], why: str = "") -> None:
+        super().__init__(f"{tool} needs approval for exactly {canonical(args)}" + (f" ({why})" if why else ""))
         self.tool, self.call_args = tool, args      # not self.args: that is Exception's own message tuple
 
 
@@ -190,21 +191,46 @@ def current_ledger() -> Ledger:
 
 
 @contextlib.contextmanager
-def run(run_id: str):
+def run(run_id: str, *, ordered: bool = False):
     """`with c4a.run("thread-42"):` - every action and approval inside belongs to this run. Use the id your
     framework resumes with (a thread, conversation or session id), so a resumed run finds its record.
-    New threads do not inherit it: enter c4a.run there, or use contextvars.copy_context().run."""
-    token = _RUN.set(run_id)
+    New threads do not inherit it: enter c4a.run there, or use contextvars.copy_context().run.
+
+    ordered=True: a NEW action of this run is refused (EffectInDoubt naming the earlier action, nothing runs, nothing
+    is recorded) while another action of the run has no final outcome: running, in doubt, or a late result nobody
+    checked. Final: done, every attempt proved not to have happened, or resolved by a person. The earlier action's
+    own retry is not refused, so reconcile= or `call4agents resolve` unblocks it. The check is in the same
+    transaction as the new action's intent. The flag is per caller, not stored in the record: EVERY caller of the
+    run must pass ordered=True (a nested `with c4a.run(same id)` keeps it)."""
+    # Re-entering the same run (an adapter does) keeps it ordered; another run inside starts unordered.
+    token, flag = _RUN.set(run_id), _ORDERED.set(run_id if ordered or _ORDERED.get() == run_id else None)
     try:
         yield
     finally:
+        _ORDERED.reset(flag)
         _RUN.reset(token)
 
 
-def approve(tool: Any, **args: Any) -> str:
-    """Record a "yes" for this tool with exactly these arguments (in the current run)."""
+def _ttl(ttl: Any) -> Optional[float]:
+    import math
+    if ttl is None:
+        return None
+    if isinstance(ttl, bool) or not isinstance(ttl, (int, float)) or not math.isfinite(ttl) or ttl <= 0:
+        raise ValueError("ttl= must be a number of seconds above 0")
+    return float(ttl)
+
+
+def approve(tool: Any, *, ttl: Optional[float] = None, **args: Any) -> str:
+    """Record a "yes" for this tool with exactly these arguments (in the current run).
+
+    ttl=SECONDS: after that long the yes no longer admits a NEW action (ApprovalRequired, nothing runs). ttl limits
+    when the yes is SPENT, not when the action happens: an action it already admitted keeps it, so it can still run
+    or resume after the expiry (a resume returns the recorded result, stays in doubt, or reconciles, as without ttl),
+    and the expiry never makes it run twice. The expiry time is signed with the yes and read in the transaction that
+    spends it, by the admitting process's clock (live while now <= expiry). A tool declared with @c4a.effect(version=...) gets a yes for that version only."""
     name, args = _tool_and_args(tool, args)
-    return current_ledger().record_approval(current_run(), name, args)
+    return current_ledger().record_approval(current_run(), name, args, ttl=_ttl(ttl),
+                                            version=getattr(tool, "c4a_version", None))
 
 
 def deny(tool: Any, **args: Any) -> str:
@@ -218,7 +244,9 @@ def pause(tool: Any, *, ttl: float = 86400.0, **args: Any) -> str:
     return a ticket to show them with the call. Only c4a.decide(ticket, ...) turns it into a "yes" or "no",
     and only for these arguments: the ticket holds none, so nothing the client sends back can change them."""
     name, args = _tool_and_args(tool, args)
-    return current_ledger().issue_ticket(current_run(), name, args, ttl)
+    version = getattr(tool, "c4a_version", None)
+    return current_ledger().issue_ticket(current_run(), name, args, ttl,
+                                         **({} if version is None else {"version": version}))
 
 
 def decide(ticket: str, decision: str, *, by: str = "") -> Dict[str, Any]:
@@ -281,7 +309,8 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
            reconcile: Optional[Callable[..., Any]] = None, key: Optional[Callable[..., str]] = None,
            wait: float = 2.0, idempotent_for: Optional[float] = None, retry_on: tuple = (),
            exclude: tuple = (), undo: Optional[Callable[..., Any]] = None, retries: int = 0,
-           backoff: float = 0.5, limit: Optional["Limit"] = None, rules: Any = None, lease: float = 600.0):
+           backoff: float = 0.5, limit: Optional["Limit"] = None, rules: Any = None, lease: float = 600.0,
+           version: Optional[str] = None):
     """Mark a function that changes the outside world.
 
     - Once-only per (run, tool, exact arguments): a repeat returns the recorded result.
@@ -330,6 +359,11 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
     - rules=c4a.Rules.load(path) or rules=policy (experimental): checked against the bound arguments before a new
       attempt is admitted; RuleRefused when a rule says no (nothing runs), approval needed when it says "ask".
       See call4agents/rules.py.
+    - version="2": a "yes" is bound to this tool version (signed with it). A yes for another version, or for no
+      version, does not admit it; one given with c4a.approve(this_tool, ...) does. The version is not part of the
+      action's key: a finished action returns its recorded result under any version, and an action admitted under
+      another version's yes and still in doubt is not continued by this one (ApprovalRequired; resolve it by hand).
+      Without version= nothing changes, and 0.7 approvals keep working.
     """
     def wrap(f: Callable) -> Callable:
         if inspect.isgeneratorfunction(f) or inspect.isasyncgenfunction(f):
@@ -338,6 +372,9 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
         if name is None and getattr(f, "__name__", "") == "<lambda>":
             raise TypeError("@c4a.effect on a lambda needs name=...: two lambdas in one place would share one key")
         tool = name or _tool_name(f)
+        if version is not None and (not isinstance(version, str) or not version):
+            raise ValueError("version= must be a non-empty string, such as \"2\"")
+        bound_version = {} if version is None else {"version": version}   # unchanged calls when no version is set
         gate, per_run = gate_for(rules, tool) if rules is not None else (None, None)
         if isinstance(lease, bool) or not isinstance(lease, (int, float)) or not lease > 0:
             raise ValueError("lease= must be a number of seconds above 0")
@@ -387,7 +424,7 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
         def decide_run(lg: Any, run_id: str, call_args: Dict[str, Any], explicit: Optional[str]) -> Dict[str, Any]:
             k = base_key(run_id, call_args, explicit)
             if approval and _replay.SOURCE is not None:
-                if not lg.approved(run_id, tool, call_args):
+                if not lg.approved(run_id, tool, call_args, version):
                     raise ApprovalRequired(tool, call_args)
             if _replay.SOURCE is not None:          # replay: never touch the outside world
                 done = _replay.SOURCE.done(k)
@@ -400,18 +437,33 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
 
             spec = limit.spec(call_args) if limit is not None else None
 
+            order = {"ordered": True} if _ORDERED.get() == run_id else {}   # unchanged calls in other runs
+
             def claim(attempt: int, payload: Any) -> bool:
+                try:
+                    return claim_any(attempt, payload)
+                except Unsettled as earlier:    # ordered run: an earlier action has no final outcome yet
+                    raise EffectInDoubt(str(earlier.tool), earlier.call_args or {},
+                                        f"an earlier action of the ordered run {run_id!r}, {earlier.key[:12]}, has no "
+                                        f"final outcome yet; nothing ran. Resolve it, then try again") from None
+
+            def needs_yes() -> ApprovalRequired:
+                refuse_conflict(lg, run_id, call_args, explicit)
+                gone = lg.expired_approvals(run_id, tool, call_args, version)
+                return ApprovalRequired(tool, call_args, "the yes for it expired; approve it again" if gone else "")
+
+            def claim_any(attempt: int, payload: Any) -> bool:
                 if gate is not None:
                     return claim_ruled(attempt, payload)
                 if not approval:
                     if spec is not None:
-                        return lg.claim_limited(run_id, k, intent_key(k, attempt), payload, spec)
-                    return lg.claim(run_id, intent_key(k, attempt), payload)
+                        return lg.claim_limited(run_id, k, intent_key(k, attempt), payload, spec, **order)
+                    return lg.claim(run_id, intent_key(k, attempt), payload, **order)
                 extra = {} if spec is None else {"limit": spec}   # unchanged call when no limit is set
-                owned = lg.claim_approved(run_id, tool, call_args, k, intent_key(k, attempt), payload, **extra)
+                owned = lg.claim_approved(run_id, tool, call_args, k, intent_key(k, attempt), payload, **extra,
+                                          **bound_version, **order)
                 if owned is None:
-                    refuse_conflict(lg, run_id, call_args, explicit)
-                    raise ApprovalRequired(tool, call_args)
+                    raise needs_yes()
                 return owned
 
             def claim_ruled(attempt: int, payload: Any) -> bool:
@@ -429,14 +481,13 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
                 try:
                     if approval or decision == "ask":
                         admitted = lg.claim_approved(run_id, tool, call_args, k, intent_key(k, attempt), payload,
-                                                     limit=held or None)
+                                                     limit=held or None, **bound_version, **order)
                         if admitted is None:    # no live yes for exactly this call
-                            refuse_conflict(lg, run_id, call_args, explicit)
-                            raise ApprovalRequired(tool, call_args)
+                            raise needs_yes()
                         return admitted
                     if held:
-                        return lg.claim_limited(run_id, k, intent_key(k, attempt), payload, held)
-                    return lg.claim(run_id, intent_key(k, attempt), payload)
+                        return lg.claim_limited(run_id, k, intent_key(k, attempt), payload, held, **order)
+                    return lg.claim(run_id, intent_key(k, attempt), payload, **order)
                 except LimitReached as over:
                     if over.name != per_run_name(run_id):
                         raise
@@ -574,6 +625,7 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
                     await asyncio.sleep(delay)
                     n += 1
             async_wrapper.c4a_name, async_wrapper.c4a_fn, async_wrapper.c4a_exclude = tool, f, tuple(exclude)
+            async_wrapper.c4a_version = version
             return async_wrapper
 
         @functools.wraps(f)
@@ -603,6 +655,7 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
                 time.sleep(delay)
                 n += 1
         wrapper.c4a_name, wrapper.c4a_fn, wrapper.c4a_exclude = tool, f, tuple(exclude)
+        wrapper.c4a_version = version
         return wrapper
 
     return wrap(fn) if fn is not None else wrap

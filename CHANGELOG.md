@@ -2,6 +2,46 @@
 
 ## Unreleased (0.8.0)
 
+**New: a "yes" can expire: `c4a.approve(tool, ..., ttl=SECONDS)` (PLAN_1_0 item 1)**
+- `ttl` limits when the yes can be SPENT, not when the action happens: an action admitted in time can still run or
+  resume after the expiry. After `ttl` seconds the yes no longer admits a NEW action: `ApprovalRequired` (the message says it expired),
+  nothing runs, nothing is recorded, the yes stays unspent. A new `c4a.approve` covers the call again.
+- Safety rule: an action the yes already admitted keeps it after expiry. A finished action returns its result; one
+  in doubt stays in doubt (also after a new yes); `reconcile=` on its retry works as before. Expiry never causes a
+  second run.
+- The expiry time is stored in the approval row and signed with it (inside the HMAC), and read in the same
+  transaction that spends the yes. Clock rule as for tickets: the approving process's `time.time()` + ttl, compared
+  with the admitting process's `time.time()` (machines sharing a record need agreeing clocks).
+- Without `ttl` the approval row is byte-for-byte the 0.7 row. A 0.7 kit refuses a yes with `ttl` (fails closed).
+- `call4agents story` shows a yes that expired before any action used it. Checks K30a-K30h (K30h with real process
+  kills), ST9; 6 mutations + control, and 2 for ST9.
+
+**New: a "yes" bound to the tool's version: `@c4a.effect(version="2")` (PLAN_1_0 item 2)**
+- The version is signed with the yes. A yes for version 1, or for no version, does not run version 2; a 0.7
+  approval admits only tools without `version=`. A "no" covers every version. Tickets (`c4a.pause`, and the OpenAI
+  Agents SDK and Pydantic AI ticket bridges) carry the version.
+- The version is not part of the action's key: a finished action is replayed, never re-run, by a new version. An
+  action in doubt under another version's yes is not continued (ApprovalRequired; resolve it by hand).
+- Without `version=` nothing changes. Checks K31a-K31i; 4 mutations + control.
+
+**New (opt-in): ordered runs: `with c4a.run(id, ordered=True):`**
+- A new action is refused (`EffectInDoubt` naming the earlier action; nothing runs or is recorded; its yes stays
+  unspent) while another action of the run has no final outcome: in doubt, running, or a late result nobody checked.
+  The check is in the admission transaction. The earlier action's own retry is not refused.
+- `call4agents resolve <key> done "note"` on a done action with a late result now records that a person checked it
+  (a new `late_checked` row): it leaves `doubt`, and an ordered run may go on. Before, `resolve` refused done actions.
+- The flag is per caller: every caller of the run must pass `ordered=True` (it is not stored in the record).
+- An action is final only when it is done, every attempt proved it did not happen, or a person resolved it. Found by
+  the formal model (TLC, 22 states): an attempt closed by a same-key resend is no proof. `call4agents doubt` and
+  `story` now use the same rule: an action whose first attempt raised and whose same-key resend got a `retry_on`
+  error is IN DOUBT (it was shown as "not done").
+- Runs without the flag behave as before. `examples/multi_step.py` has a mode `guard_ordered`: the loop that carries
+  on past an uncertain step runs no later step (0 charges, 0 emails). Checks K32a-K32g, MS5; 13 mutations + control, and 1 for MS5.
+
+**Record format:** still format 1. New optional fields `exp` and `version` in approval rows (signed; absent when not
+used), and a new entry kind `late_checked`. Older kits read the record; they ignore `late_checked` and do not accept
+a yes that carries `exp` or `version`.
+
 **New (experimental): `call4agents story <record> [--run id]`**
 - What happened in a run, in plain words, for a person who did not write the code: each action in time order, who
   approved it and when, whether it is done, may or may not have happened, was refused by a rule or a person, or is

@@ -80,6 +80,7 @@ def story(record: str, run: Optional[str] = None) -> str:
     by_seq = {e["seq"]: e for e in entries}
     used = {e["key"]: (e["payload"] or {}).get("approval") for e in entries if e["kind"] == "effect_approved"}
     decided = {e["key"] for e in entries if e["kind"] == "ticket_decided"}
+    spent_yes = {e["key"].rsplit("\x00", 1)[-1] for e in entries if e["kind"] == "approval_used"}
 
     runs: Dict[str, List[tuple]] = {}
     seen = set()
@@ -98,6 +99,10 @@ def story(record: str, run: Optional[str] = None) -> str:
             by = p.get("by")
             timeline.append(("text", [f"- {_when(e['t'])}: a person said no to {_call(_tool_of(key), p.get('args'))}"
                                       f"{' (' + by + ')' if by else ''}. It will not run."]))
+        elif kind == "approval" and p.get("exp") and str(e["seq"]) not in spent_yes and time.time() > p["exp"]:
+            timeline.append(("text", [f"- {_when(e['t'])}: a person approved {_call(_tool_of(key), p.get('args'))}, but "
+                                      f"the yes expired at {_when(p['exp'])} before any action used it. Nothing ran "
+                                      "under it."]))
         elif kind == "pause" and key.startswith("ticket\x00") and key.split("\x00", 1)[1] not in decided:
             exp = p.get("exp")
             when = "has expired" if exp and time.time() > exp else f"is open until {_when(exp)}"

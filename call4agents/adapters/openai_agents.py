@@ -58,7 +58,8 @@ def tickets(result: Any, tools: Any, *, run_id: Optional[str] = None, ttl: float
         if tool is None:
             raise ValueError(f"{item.tool_name!r} is not in tools=: pass the tools wrapped with c4a_oa.effect")
         name, args = c4a._tool_and_args(tool, json.loads(item.arguments or "{}"))
-        out[item.call_id] = c4a.current_ledger().issue_ticket(str(rid), name, args, ttl, extra={"call_id": item.call_id})
+        out[item.call_id] = c4a.current_ledger().issue_ticket(str(rid), name, args, ttl, extra={"call_id": item.call_id},
+                                                                 version=getattr(tool, "c4a_version", None))
     return out
 
 

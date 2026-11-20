@@ -45,7 +45,8 @@ def tickets(result: Any, tools: Any, *, ttl: float = 86400.0) -> Dict[str, str]:
             raise ValueError(f"{call.tool_name!r} is not in tools=: pass the tools wrapped with c4a_pai.effect")
         name, args = c4a._tool_and_args(tool, call.args_as_dict())
         out[call.tool_call_id] = c4a.current_ledger().issue_ticket(str(run_id), name, args, ttl,
-                                                                   extra={"call_id": call.tool_call_id})
+                                                                   extra={"call_id": call.tool_call_id},
+                                                                   version=getattr(tool, "c4a_version", None))
     return out
 
 

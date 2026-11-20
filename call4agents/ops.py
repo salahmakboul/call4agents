@@ -60,7 +60,8 @@ def actions(lg: Ledger) -> Dict[str, Dict[str, Any]]:
             base = key.rsplit("#", 1)[0]
             a = out.setdefault(base, {"key": base, "run_id": e["run_id"], "tool": (e["payload"] or {}).get("tool"),
                                       "args": (e["payload"] or {}).get("args"), "first_t": e["t"], "attempts": [],
-                                      "abandoned": [], "done": False, "errors": [], "late": False, "resolved": None})
+                                      "abandoned": [], "by_hand": [], "done": False, "errors": [], "late": False,
+                                      "resolved": None})
             a["attempts"].append(_attempt(key))
             a["last_t"] = e["t"]
         elif key in out:
@@ -73,14 +74,20 @@ def actions(lg: Ledger) -> Dict[str, Dict[str, Any]]:
                 a["abandoned"].append((e["payload"] or {}).get("attempt"))
                 if (e["payload"] or {}).get("resolved_by"):
                     a["resolved"] = e["payload"].get("note", "")
+                    a["by_hand"].append(e["payload"].get("attempt"))
             elif kind == "tool_error":
                 a["errors"].append((e["payload"] or {}).get("error"))
             elif kind == "late_result":
                 a["late"] = True
+            elif kind == "late_checked":        # a person checked the late result (`resolve ... done`, 0.8)
+                a["late"] = False
+                a["resolved"] = (e["payload"] or {}).get("note", "")
     for a in out.values():
+        # Not done only when EVERY attempt proved it did not happen, or a person said so for the newest one: an
+        # attempt closed by a same-key resend may have reached the provider (formal review 0.8).
         latest = max(a["attempts"])
-        a["state"] = ("done" if a["done"] else
-                      "not done (may run again)" if latest in a["abandoned"] else "IN DOUBT")
+        proved = set(a["attempts"]) <= set(a["abandoned"]) or latest in a["by_hand"]
+        a["state"] = ("done" if a["done"] else "not done (may run again)" if proved else "IN DOUBT")
         if a["late"]:
             a["state"] += " + LATE RESULT (may have happened twice)"
     return out
@@ -98,9 +105,14 @@ def find_key(lg: Ledger, prefix: str) -> str:
 
 
 def resolve(lg: Ledger, prefix: str, outcome: str, note: str = "", result: Any = None) -> Dict[str, Any]:
-    """done: it happened (later calls get `result`, default None). not-done: it did not; the next call runs it."""
+    """done: it happened (later calls get `result`, default None). not-done: it did not; the next call runs it.
+    On a done action with a late result, done records that a person checked the outside system for a duplicate
+    (a `late_checked` entry): it leaves the doubt list, and an ordered run may go on."""
     key = find_key(lg, prefix)
     a = actions(lg)[key]
+    if a["done"] and a["late"] and outcome == "done":
+        lg.append(a["run_id"], "late_checked", key, {"resolved_by": "operator", "note": note, "at": time.time()})
+        return actions(lg)[key]
     if a["done"]:
         raise LedgerError(f"{key[:12]} is already done; nothing to resolve")
     stamp = {"resolved_by": "operator", "note": note, "at": time.time()}

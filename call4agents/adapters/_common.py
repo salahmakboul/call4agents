@@ -59,6 +59,7 @@ def wrap_tool(f: Callable, type_names: Tuple[str, ...], run_from: Callable[[Any]
             with c4a.run(find_run(args, kwargs)):
                 return await inner(*args, **kwargs)
         acall.c4a_name, acall.c4a_fn, acall.c4a_exclude = inner.c4a_name, f, inner.c4a_exclude
+        acall.c4a_version = inner.c4a_version
         return acall
 
     @functools.wraps(f)
@@ -66,6 +67,7 @@ def wrap_tool(f: Callable, type_names: Tuple[str, ...], run_from: Callable[[Any]
         with c4a.run(find_run(args, kwargs)):
             return inner(*args, **kwargs)
     call.c4a_name, call.c4a_fn, call.c4a_exclude = inner.c4a_name, f, inner.c4a_exclude
+    call.c4a_version = inner.c4a_version
     return call
 
 

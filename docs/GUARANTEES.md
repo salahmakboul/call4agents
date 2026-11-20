@@ -87,9 +87,125 @@ sign a "yes".
 **Not covered:**
 
 - Whether the person understood what they approved: the kit binds the "yes" to the arguments you showed.
-- A "yes" has no expiry yet. Approval tickets (`c4a.pause`) do have one. Expiry for `c4a.approve` is planned for
-  1.0 (see [PLAN_1_0.md](PLAN_1_0.md)).
-- A "yes" is not bound to the tool's version yet. This is also planned for 1.0.
+- A "yes" without `ttl=` never expires, and one for a tool without `version=` is not bound to a version
+  (see G2a and G2b).
+
+## G2a. A "yes" with `ttl=` expires, and expiry never causes a second action (0.8)
+
+**The promise.** `c4a.approve(tool, ..., ttl=SECONDS)` records a "yes" that can admit a NEW action only until
+`ttl` seconds after it was recorded. After that, the call raises `ApprovalRequired` (the message says the yes
+expired), nothing runs and nothing is recorded for it; a new `c4a.approve` covers it again.
+
+**`ttl` limits when the yes can be SPENT, not when the action happens.** An action admitted before the expiry
+can still run or resume after it (for example its retry after an error that proved nothing happened). What
+`ttl` guarantees is that no action is admitted on that yes after the expiry, and that the expiry never makes an
+admitted action run a second time.
+
+- The expiry time is stored in the approval row and signed with it (inside the HMAC). A row whose expiry was
+  changed, added or removed counts for nothing.
+- Expiry is read in the same database transaction that spends the "yes" and writes the intent. There is no
+  window between the check and the spend.
+- An action the "yes" already admitted keeps it after expiry. A finished action returns its recorded result. One
+  in doubt stays in doubt, also after a new "yes" (that yes is not spent on it). `reconcile=` on its retry works
+  as without `ttl`: a found result is recorded, and a proven "did not happen" lets the same action run once.
+- Without `ttl=` the row is exactly the 0.7 row, and works exactly as in 0.7.
+
+**Conditions:**
+
+- The clock rule is the one tickets (`c4a.pause(ttl=)`) use: the expiry time is the approving process's
+  `time.time()` plus `ttl`, and the admitting process compares it with its own `time.time()`. The yes is live
+  while `now <= exp` (at `exp` exactly it is still live; the formal model uses `now < exp`, which makes no
+  difference to any safety property). When several
+  machines share a record, their clocks must agree to well within `ttl`; a skew of S seconds moves the expiry
+  by S. A clock set back makes a yes live longer; a clock set forward makes it expire sooner.
+- The other conditions of G2.
+
+**Checks:**
+
+- K30a: an expired yes admits nothing (ApprovalRequired, no intent, the yes stays unspent); a new yes works.
+- K30b, K30f: inside its ttl it is spent once; a finished action replays after expiry.
+- K30c: without ttl the row and its MAC text are exactly 0.7's.
+- K30d: an expiry edited later, or removed, in the record is refused.
+- K30e: an action in doubt stays in doubt after expiry, and a new yes does not run it again.
+- K30h (real processes, `os._exit` during the payment, then the yes expires, then a new process resumes):
+  killed after the charge, the resume stays in doubt and a second "yes" does not pay again (1 charge); with
+  `reconcile=` the resume returns the payment (1 charge); killed before the bank, reconcile proves it did not
+  happen and the admitted action runs once (1 charge).
+- ST9: `call4agents story` shows a yes that expired before any action used it, and that nothing ran under it.
+- Mutations: the expiry never checked, also checked on an admitted action, kept outside the MAC, not stored,
+  dropped by `approve`, `ttl` not validated.
+
+**Not covered:**
+
+- Clocks that disagree (see conditions), and a clock that jumps.
+- An admitted action that proves it did not happen runs later than the expiry. That is the same one action the
+  person approved, not a second one; if that is not acceptable, use `c4a.deny` before resolving it.
+- Approval tickets: the ticket's own `ttl` limits when a person can decide; the "yes" a ticket records has no
+  expiry of its own.
+- A kit older than 0.8 reading the record: it does not know the signed expiry, so it treats a yes with `ttl` as no
+  yes at all (it refuses; it never runs on it).
+
+## G2b. A "yes" is bound to the tool's version (0.8)
+
+**The promise.** For a tool declared with `@c4a.effect(version="2")`, only a "yes" given for version "2"
+(`c4a.approve(that_tool, ...)`, or a ticket from `c4a.pause(that_tool, ...)`) admits a new action. A yes for
+another version, or for no version, does not, and a 0.7 approval row admits only tools without `version=`.
+
+- The version is stored in the approval row and signed with it.
+- A "no" (`c4a.deny`) covers every version of the tool.
+- The version is not part of the action's key: a finished version-1 action returns its recorded result to
+  version-2 code and does not run again (G1 is unchanged).
+- An action admitted under a version-1 yes and still in doubt is not continued by version-2 code: it raises
+  `ApprovalRequired`, and a new yes does not change that. Resolve it by hand.
+- Without `version=` nothing changes.
+
+**Checks:** K31a-K31i, and the mutations: the version not compared, ignored by `approve`, ignored by the
+admission, dropped by a ticket.
+
+**Not covered:**
+
+- The version is a label you set. The kit does not check that the code really changed, or that it did not.
+- `c4a.approve("module.tool", ...)` with a tool name instead of the tool gives a yes with no version.
+
+## G2c. An ordered run starts nothing new while an earlier action is uncertain (0.8, opt-in)
+
+**The promise.** Inside `with c4a.run(run_id, ordered=True):`, a NEW action (one with no intent in the record yet)
+is refused with `EffectInDoubt`, naming the earlier action, while any other action of the same run has no final
+outcome. Nothing runs, nothing is recorded for the refused action, and a yes it would have spent stays unspent.
+
+- Final means: done (with no late result left unchecked), or EVERY attempt proved not to have happened (each has
+  its own "did not happen": an error in `retry_on`, or `reconcile=` returning `None`), or a person resolved it
+  (`call4agents resolve <key> not-done`). An attempt closed by a same-key resend (`idempotent_for=`) is no proof:
+  it may have reached the provider.
+- Not final means: running, killed, raised, being resent with the same key, a late result, or any attempt
+  without a proof (`call4agents doubt` lists the same actions, plus running ones).
+- It unblocks when the earlier action becomes final: `call4agents resolve <key> done|not-done`, a `reconcile=` on
+  its retry, or, for a late result, `call4agents resolve <key> done "note"`, which records that a person checked
+  for a duplicate (a `late_checked` row).
+- The check is in the same transaction as the new action's intent: 8 threads starting 8 different actions of one
+  ordered run at once give 1 run and 7 refusals.
+- The retry or resume of an action already started is not refused; it follows the usual rules.
+- A nested `with c4a.run(same id):` (the adapters do this) keeps the run ordered.
+- Runs without `ordered=True` behave exactly as before.
+
+**Conditions:** every caller of the run passes `ordered=True`. The flag lives in the caller's context, not in
+the record: another process, a thread that did not copy the context, or an adapter that enters the same run id
+without the flag is not refused. Use one worker per ordered run, or pass the flag in each of them.
+
+**Checks:** K32a-K32g (K32g: attempt 1 raised after reaching the provider and the same-key resend got a `retry_on`
+error; the action stays uncertain, the next step is refused, and `doubt` and `story` show it as uncertain), and
+MS5 (real kills): the loop that carries on past an uncertain reserve runs no charge and
+no email in an ordered run (0 and 0), against 1 and 1 without it (MS4). Mutations: the check removed in each
+admission path, the flag dropped by `run()` or by a nested run, a retry refused, a late result ignored or never
+cleared, only the newest attempt read (by the order check, and by `doubt`), "not done" counted as uncertain, a
+person's "not done" ignored, `resolve` unable to clear a late result.
+
+**Not covered:**
+
+- Other runs: the order is per run id. Two runs that touch the same account are not ordered against each other.
+- A late result that arrives after a later action was admitted. It blocks the actions after it, but it cannot
+  undo what already ran.
+- A caller that enters the run without `ordered=True` (see conditions).
 
 ## G3. A "no" wins
 
