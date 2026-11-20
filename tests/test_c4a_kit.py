@@ -717,8 +717,12 @@ def k32():
         go = threading.Event()
 
         def slow(order):
+            # Hold the action open until every other caller has either run or been refused, so all 8 really
+            # overlap on any machine (a fixed sleep let a slow CI thread arrive after the first had finished).
             ran.append(order)
-            time.sleep(0.3)
+            deadline = time.time() + 10
+            while len(ran) + outs.count("EffectInDoubt") < 8 and time.time() < deadline:
+                time.sleep(0.01)
             return "ok"
         slow = c4a.effect(slow, name="k32.slow")
 
