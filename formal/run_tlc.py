@@ -33,8 +33,11 @@ SPEC = HERE / "Call4Agents.tla"
 BASE = {
     "NW": 2, "ARG3": '"b"', "MAX_CALLS": 2, "MAX_CALLS3": 1, "MAX_YES": 1, "MAX_NO": 1,
     "APPROVAL": "TRUE", "MODE": '"plain"', "RETRY_ON": "TRUE", "CRASHES": "TRUE", "EFFECT_FAILS": "TRUE",
-    "OWNER": '"processes"', "START_EARLY": "FALSE", "BUGS": "{}",
+    "OWNER": '"processes"', "START_EARLY": "FALSE",
+    "TTL": 0, "MAX_TIME": 0, "RESUME": '"reuse"', "ORDERED": "FALSE", "VERSIONS": 1, "BUGS": "{}",
 }
+# 0.8 (approve ttl=, effect version=, run ordered=): a ttl of 1 tick and a clock that goes 0..2
+EXPIRY = {"TTL": 1, "MAX_TIME": 2}
 SAFETY = ["TypeOK", "AtMostOnce", "NoUnapprovedEffect", "OneYesOneAction", "DoneIsTrue"]
 
 
@@ -68,7 +71,42 @@ CONFIGS = [
         spec="LiveSpec", note="progress: with fair workers every call ends (crashes and errors allowed)"),
     cfg("live_admitted_finishes", "pass", {"CRASHES": "FALSE", "EFFECT_FAILS": "FALSE"}, ["TypeOK"],
         ["AdmittedFinishes"], spec="LiveSpec", note="progress: no crash, a tool that returns: an admitted action gets its result"),
+    # ---- 0.8 design (approval expiry, version, ordered runs): must PASS
+    cfg("expiry_reuse", "pass", dict(EXPIRY, MAX_YES=2), SAFETY + ["ExpiredNotSpent", "NoSecondEffect", "DoneOnce",
+                                                                   "NoLateResult"], ["AppendOnly"],
+        note="ttl: the clock moves, a yes expires; a resumed admitted action reuses its spent yes"),
+    cfg("expiry_ask", "pass", dict(EXPIRY, MAX_YES=2, RESUME='"ask"'),
+        SAFETY + ["ExpiredNotSpent", "NoSecondEffect", "ResumeNeedsLiveYes", "DoneOnce"], ["AppendOnly"],
+        note="ttl, the other policy: a resume after expiry needs a new live yes"),
+    cfg("expiry_reconcile", "pass", dict(EXPIRY, MODE='"reconcile"'), SAFETY + ["ExpiredNotSpent", "NoSecondEffect",
+                                                                                "NoLateResult"], ["AppendOnly"],
+        note="ttl with reconcile="),
+    cfg("expiry_idem", "pass", dict(EXPIRY, MODE='"idem"'), SAFETY + ["ExpiredNotSpent", "NoSecondEffect", "DoneOnce",
+                                                                      "NoLateResult"], ["AppendOnly"],
+        note="ttl with idempotent_for="),
+    cfg("version_deploy", "pass", {"VERSIONS": 2, "MAX_YES": 2}, SAFETY + ["DoneOnce"], ["AppendOnly"],
+        note="version=: the code moves from version 1 to 2 at any time; the person approves either version"),
+    cfg("ordered_plain", "pass", {"NW": 3, "ORDERED": "TRUE", "MAX_YES": 2}, SAFETY + ["DoneOnce", "NoLateResult"],
+        ["AppendOnly", "OrderedNoLaterWhileDoubt"], note="ordered=True, approval: worker 3 is the next action of the run"),
+    cfg("ordered_no_approval", "pass", {"NW": 3, "ORDERED": "TRUE", "APPROVAL": "FALSE", "MAX_CALLS3": 2},
+        SAFETY + ["DoneOnce", "NoLateResult"], ["AppendOnly", "OrderedNoLaterWhileDoubt"],
+        note="ordered=True, plain claim"),
+    cfg("ordered_reconcile", "pass", {"NW": 3, "ORDERED": "TRUE", "APPROVAL": "FALSE", "MODE": '"reconcile"'},
+        SAFETY + ["NoLateResult"], ["AppendOnly", "OrderedNoLaterWhileDoubt"], note="ordered=True with reconcile="),
+    cfg("ordered_idem", "pass", {"NW": 3, "ORDERED": "TRUE", "APPROVAL": "FALSE", "MODE": '"idem"'},
+        SAFETY + ["NoLateResult"], ["AppendOnly", "OrderedNoLaterWhileDoubt"],
+        note="ordered=True with idempotent_for= (same-key resends)"),
+    cfg("all_0_8", "pass", dict(EXPIRY, NW=3, ORDERED="TRUE", VERSIONS=2, MAX_CALLS=1),
+        SAFETY + ["ExpiredNotSpent", "NoSecondEffect", "DoneOnce"], ["AppendOnly", "OrderedNoLaterWhileDoubt"],
+        note="ttl, version and ordered together (1 call per worker)"),
     # ---- findings in the current code: must FAIL with `expect`
+    cfg("finding_done_twice_idem", "finding", {"MODE": '"idem"', "APPROVAL": "FALSE"}, ["DoneOnce"],
+        expect="DoneOnce", note="idempotent_for= without approval: the claim of the next attempt does not check "
+                                "tool_done, so a caller whose poll missed the result resends (deduplicated) and records it again"),
+    cfg("finding_resume_after_expiry", "finding", dict(EXPIRY, RESUME='"reuse"'), ["ResumeNeedsLiveYes"],
+        expect="ResumeNeedsLiveYes",
+        note="0.8 rule (reuse): an admitted action whose first try proved nothing happened starts a new attempt "
+             "after its yes expired; ttl bounds the spend, not the effect"),
     cfg("finding_threads_window", "finding", {"MODE": '"reconcile"', "OWNER": '"threads"', "APPROVAL": "FALSE"},
         ["AtMostOnce"], expect="AtMostOnce",
         note="threads of one process: the gap between the claim and _owner.started() lets a second thread reconcile"),
@@ -104,6 +142,29 @@ CONFIGS = [
     cfg("bug_v071", "seeded", {"MODE": '"reconcile"', "APPROVAL": "FALSE",
                                "BUGS": bugs("reconcile_live_owner", "give_up_twice")}, ["AtMostOnce"],
         expect="AtMostOnce", note="0.7.1 as released (both parts)"),
+    # ---- 0.8 seeded bugs
+    cfg("bug_expiry_ignored", "seeded", dict(EXPIRY, BUGS=bugs("expiry_ignored")), ["ExpiredNotSpent"],
+        expect="ExpiredNotSpent", note="ttl stored, never checked"),
+    cfg("bug_expiry_outside_txn", "seeded", dict(EXPIRY, BUGS=bugs("expiry_outside_txn")), ["ExpiredNotSpent"],
+        expect="ExpiredNotSpent", note="expiry read before the admission transaction"),
+    cfg("bug_expiry_reopens_doubt", "seeded", dict(EXPIRY, BUGS=bugs("expiry_reopens_doubt")), ["NoSecondEffect"],
+        expect="NoSecondEffect", note="an expired yes drops the in-doubt attempt so the action can be asked again"),
+    cfg("bug_version_ignored", "seeded", {"VERSIONS": 2, "BUGS": bugs("version_ignored")}, ["NoUnapprovedEffect"],
+        expect="NoUnapprovedEffect", note="a yes for version 1 runs version 2"),
+    cfg("bug_ordered_split", "seeded", {"NW": 3, "ORDERED": "TRUE", "APPROVAL": "FALSE", "BUGS": bugs("ordered_split")},
+        [], ["OrderedNoLaterWhileDoubt"], expect="OrderedNoLaterWhileDoubt",
+        note="order check read before the admission transaction"),
+    cfg("bug_ordered_error_resolves", "seeded", {"NW": 3, "ORDERED": "TRUE", "APPROVAL": "FALSE",
+                                                 "BUGS": bugs("ordered_error_resolves")}, [],
+        ["OrderedNoLaterWhileDoubt"], expect="OrderedNoLaterWhileDoubt", note="a tool_error taken as 'did not happen'"),
+    cfg("bug_ordered_latest_only", "seeded", {"NW": 3, "ORDERED": "TRUE", "APPROVAL": "FALSE", "MODE": '"idem"',
+                                              "BUGS": bugs("ordered_latest_only")}, [],
+        ["OrderedNoLaterWhileDoubt"], expect="OrderedNoLaterWhileDoubt",
+        note="only the newest attempt is looked at (as `call4agents doubt` does)"),
+    cfg("bug_ordered_same_key_resolves", "seeded", {"NW": 3, "ORDERED": "TRUE", "APPROVAL": "FALSE", "MODE": '"idem"',
+                                                    "BUGS": bugs("ordered_same_key_resolves")}, [],
+        ["OrderedNoLaterWhileDoubt"], expect="OrderedNoLaterWhileDoubt",
+        note="tool_retry_same_key taken as 'did not happen'"),
 ]
 
 
