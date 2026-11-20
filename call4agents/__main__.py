@@ -196,6 +196,9 @@ def main() -> int:
     if len(sys.argv) > 1 and sys.argv[1] in ("audit", "audit-verify"):
         from call4agents.audit import main as audit
         return audit(sys.argv[1:])
+    if len(sys.argv) > 1 and sys.argv[1] == "story":
+        from call4agents.story import main as story
+        return story(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "spans":
         from call4agents.spans import main as spans
         return spans(sys.argv[2:])
@@ -228,7 +231,7 @@ def main() -> int:
         print(json.dumps(diff(sys.argv[2], sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else None), indent=1))
         return 0
     if len(sys.argv) < 2 or sys.argv[1] != "demo":
-        print("usage: python -m call4agents quickstart | incident | demo | crashtest <script> --test-accounts | scan <path> | audit <record> <out.json> | audit-verify <out.json> | spans <record> <out.json> | selftest | doctor | report | status|doubt|verify <record> | "
+        print("usage: python -m call4agents quickstart | incident | demo | crashtest <script> --test-accounts | scan <path> | audit <record> <out.json> | audit-verify <out.json> | story <record> [--run id] | spans <record> <out.json> | selftest | doctor | report | status|doubt|verify <record> | "
               "resolve <record> <key> done|not-done [note] | archive <record> <archive> <days> | "
               "prove <spec.json> | diff <a.sqlite> <b.sqlite> [run_id]")
         return 2
