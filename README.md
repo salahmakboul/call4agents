@@ -315,6 +315,7 @@ added to it, never changed or deleted.
 | `call4agents incident` | three approval incidents, without and with the kit |
 | `call4agents crashtest <script> --test-accounts` | kills your agent at every step, restarts it, reports what ran twice or without approval (experimental) |
 | `call4agents scan <path>` | lists tools that send, pay, delete or write with no approval or once-only guard; runs nothing (experimental) |
+| `call4agents story <record> [--run id]` | what happened in a run, in plain words: each action done, uncertain, refused or waiting, and what to do next; read-only (experimental) |
 | `call4agents audit <record> <out.json> [--run id]` | a signed export: who approved what, when, for which arguments, and what ran (experimental) |
 | `call4agents audit-verify <out.json>` | exit 0 only if nothing in the export was changed |
 | `call4agents demo` | the plain-Python demo only |

@@ -18,6 +18,8 @@ PG = "call4agents/stores/postgres.py"
 PYT = "call4agents/adapters/pytest_plugin.py"
 RULES = "call4agents/rules.py"
 SPANS = "call4agents/spans.py"
+STORY = "call4agents/story.py"
+MULTI = "call4agents/examples/multi_step.py"
 BENCH, BENCH_ENV = "bench/run.py", "bench/subject.py"
 ADK_SUBJ, MAF_SUBJ = "bench/subjects/google_adk_agent.py", "bench/subjects/ms_agent_framework.py"
 
@@ -272,6 +274,27 @@ MUTATIONS = [
      'for e in entries if e["kind"] == "rule_refused_x" for p in', "tests.test_audit"),
     ("A an older export is refused", AUDIT, 'if doc.get("format") not in SIGNED:', 'if doc.get("format") != FORMAT:',
      "tests.test_audit"),
+    # --- story: the plain-language page must never make an uncertain action look done
+    ("control (no-op)", STORY, "def _when(", "def _when(", "tests.test_story"),
+    ("ST in doubt reads as done", STORY, '    elif state.startswith("done"):', "    elif True:", "tests.test_story"),
+    ("ST no resolve commands", STORY, "{a['key'][:12]} done \\\"", "{a['key'][:8]} done \\\"", "tests.test_story"),
+    ("ST half-done change not named", STORY, "            if later:", "            if False:", "tests.test_story"),
+    ("ST approval not shown", STORY, "    if yes is not None:", "    if False:", "tests.test_story"),
+    ("ST a no is dropped", STORY, '        elif kind == "denial":', '        elif kind == "denial_x":', "tests.test_story"),
+    ("ST a refusal is dropped", STORY, '        elif kind == "rule_refused":', '        elif kind == "rule_refused_x":',
+     "tests.test_story"),
+    ("ST decided request still waiting", STORY, "not in decided:", "not in set():", "tests.test_story"),
+    ("ST limit line dropped", STORY, "    out += [NOT_SHOWN, SENSITIVE]", "    out += [SENSITIVE]", "tests.test_story"),
+    ("ST --run ignored", STORY, '        entries = [e for e in entries if e["run_id"] == run]', "        entries = list(entries)",
+     "tests.test_story"),
+    ("ST resolved by hand not shown", STORY, '    if a["resolved"] is not None:', "    if False:", "tests.test_story"),
+    # --- the multi-step recipe (docs/MULTI_STEP.md): real kills
+    ("control (no-op)", MULTI, "STEPS = (", "STEPS = (", "tests.test_multi_step"),
+    ("MS reconcile always says not done", MULTI, 'return f"{_step} ok" if happened(_step, order) else None',
+     "return None", "tests.test_multi_step"),
+    ("MS every loop carries on", MULTI, '                    if mode != "guard_carry_on":' + chr(10) + "                        raise",
+     '                    if False:' + chr(10) + "                        raise", "tests.test_multi_step"),
+    ("MS in doubt reads as done (story)", STORY, '    elif state.startswith("done"):', "    elif True:", "tests.test_multi_step"),
     # --- spans export
     ("control (no-op)", SPANS, "SCOPE = ", "SCOPE = ", "tests.test_spans"),
     ("SP arguments always written", SPANS, "        if with_args:" + chr(10) + '            pairs["gen_ai.tool.call.arguments"] = a["args"]',
@@ -519,7 +542,7 @@ def copy_tree(dst: Path) -> None:
               "test_c4a_production.py", "test_undo.py", "c4a_undo_child.py", "test_adapters.py",
               "test_shared_record.py", "test_tickets.py", "test_crashtest.py", "test_audit.py", "test_atomic_admission.py",
               "test_pytest_plugin.py", "test_spans.py", "test_recipes.py", "test_properties.py",
-              "test_formal_trace.py"):
+              "test_formal_trace.py", "test_story.py", "test_multi_step.py"):
         shutil.copy(ROOT / "tests" / f, dst / "tests" / f)
     shutil.copytree(ROOT / "bench", dst / "bench", ignore=shutil.ignore_patterns("__pycache__", "results", "*.md"))
 
