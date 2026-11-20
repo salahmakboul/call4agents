@@ -5,7 +5,8 @@
 or removes duplicates (`idempotent_for=`). The TLC model checker visits **every** reachable state of the
 model (within the limits below) and checks the properties in each one.
 
-It models the code on main after Fix 17 (commit 5b26492), not the README. Line numbers below are from that commit.
+It models the code on main after Fix 17 (commit 5b26492), not the README, plus the 0.8 design (approval expiry,
+version, ordered runs; section below). Line numbers below are from that commit.
 
 Run it: `python formal/run_tlc.py --tla2tools tla2tools.jar` (Java 11 or newer; CI uses Temurin 21 and
 tla2tools.jar v1.7.4, sha256 `936a2620...0e88`, see `.github/workflows/formal.yml`).
@@ -76,6 +77,80 @@ the result, and writes a second `tool_done`. The action happened once and both r
 newest. We keep `DoneOnce` as a property and say the code does not have it, instead of weakening it. (Two callers
 reconciling the same crashed attempt at the same time also write two rows.)
 
+## 0.8: approval expiry, version, ordered runs (model of the design, 20 Nov 2026)
+
+The model now also covers the three 0.8 changes, as designed (branch approval-expiry; the comparison with that
+code, which was not committed yet, is in `c4a-company/launch_2dec/FORMAL_REVIEW_0_8.md`):
+
+1. `c4a.approve(..., ttl=)`: each "yes" carries an expiry. A **clock** (`now`, action `Tick`) moves forward one
+   tick at a time, at any moment, in between any two steps of any worker. The expiry is read in the same
+   admission transaction that spends the yes, and only when a yes is spent. An action already admitted keeps
+   its spent yes after expiry (`RESUME = "reuse"`, the 0.8 rule); the other rule, "a resume after expiry needs a
+   new live yes" (`RESUME = "ask"`), is checked too.
+2. `@c4a.effect(version=)`: each "yes" and each intent carry a version; a yes only matches calls of its version.
+   The deployed version moves from 1 to 2 at any moment (`Deploy`); a call keeps the version it started with
+   (process memory, lost on a crash). A "no" is not bound to a version.
+3. `c4a.run(ordered=True)`: in the admission transaction of a NEW action (no intent yet), the action is refused
+   if another admitted action of the run is in doubt: no result, and some attempt not proven "did not happen"
+   (only `tool_abandoned` proves it; `tool_error` and `tool_retry_same_key` do not).
+
+Crashes, racing callers, `retry_on`, `reconcile=` and `idempotent_for=` are as before. With `TTL = 0`,
+`VERSIONS = 1` and `ORDERED = FALSE` the model is the old one: `plain_approval` has the same 130,029 states.
+
+New properties:
+
+| Property | Meaning |
+| --- | --- |
+| `ExpiredNotSpent` | A "yes" is spent only while it is live: the clock at the spending transaction is before its expiry. |
+| `NoSecondEffect` | An expired yes never leads to a second effect: `AtMostOnce`, checked with the clock moving and yeses expiring. |
+| `ResumeNeedsLiveYes` | (`RESUME = "ask"` only) every new attempt is admitted while the yes that covers it is live. |
+| `OrderedNoLaterWhileDoubt` | In an ordered run, no new action is admitted while another admitted action is unsettled. "Unsettled" is written from the **world** and the workers' memory, not from the record: no result, and the action happened, or a worker holds its claim or is inside the tool. So the property does not repeat the check the code makes. |
+| `NoLateResult` | No result arrives for an attempt already given up (holds in the model of the current code). |
+| `NoUnapprovedEffect` | (extended) also: the spent yes was for the version the call runs. |
+
+What is proven, within the bounds of each config: with the 0.8 rules, every old safety property still holds, an
+expired yes is never spent, an expired yes never causes a second effect (also with `reconcile=` and
+`idempotent_for=`), a yes for one version never runs another, and an ordered run never admits a new action while an
+earlier one is unsettled, with plain claims, approval, `reconcile=` and `idempotent_for=`.
+
+Two things the model shows that are not bugs but must be said:
+
+- `finding_resume_after_expiry` (expected to fail `ResumeNeedsLiveYes`): with the 0.8 rule, an action whose first
+  try PROVED nothing happened (a `retry_on` error) is tried again under its spent yes after the yes expired. So
+  `ttl` limits when a yes can be **spent**, not when the action happens.
+- `finding_done_twice_idem` (expected to fail `DoneOnce`; not about 0.8): with `idempotent_for=` and no approval,
+  the plain claim of the next attempt does not check `tool_done`. A caller whose poll missed the result resends
+  with the same key (the provider removes the duplicate: one payment) and records a second result.
+
+The 0.8 seeded bugs (each must be caught):
+
+- `expiry_ignored`: the ttl is stored but not checked (ExpiredNotSpent).
+- `expiry_outside_txn`: the expiry is checked in a read before the admission transaction, or the time is read
+  before the lock; the yes expires in between and is spent (ExpiredNotSpent).
+- `expiry_reopens_doubt`: "the yes expired, so drop the pending attempt and ask again": the action was in doubt
+  (it had happened), the next call runs it again (NoSecondEffect).
+- `version_ignored`: a yes for version 1 is spent by a call of version 2 (NoUnapprovedEffect).
+- `ordered_split`: the order check is a read before the admission transaction; the earlier action is admitted in
+  between (OrderedNoLaterWhileDoubt).
+- `ordered_error_resolves`: a `tool_error` is taken as "did not happen", but the tool raised after the payment.
+- `ordered_same_key_resolves`: `tool_retry_same_key` is taken as "did not happen".
+- `ordered_latest_only`: only the newest attempt is looked at. With `idempotent_for=`: attempt 1 pays then raises,
+  a second caller resends with the same key and gets a `retry_on` error, so the newest attempt is
+  `tool_abandoned`, and the next action of the run is admitted while the first one happened with no result.
+  The 0.8 code as read on 20 Nov does this (and `call4agents doubt` shows the same state as "not done"); see the
+  review file.
+
+Not proven by these configs (in addition to the list at the end of this page):
+
+- **Real time and clocks.** The model has one clock that only moves forward, in whole ticks. Not covered: skew
+  between the machine that approves and the one that admits, a wall clock set back (an expired yes would be live
+  again), and the exact boundary (`<` or `<=`).
+- **The provider**: as before, a provider that lies or forgets an idempotency key early breaks the guarantees.
+- **That every caller of an ordered run asks for the order**: the model assumes every caller of the run checks
+  it. In the 0.8 code, `ordered=True` is set per caller, not stored with the run.
+- Ordered runs with `Limit` or `Rules`, tickets with a version, `late_checked`, more than 2 actions per run,
+  more than 2 versions, a ttl longer than 1 tick or a clock longer than 2 ticks.
+
 ## What is modelled
 
 - **Workers**: 2 or 3. Workers 1 and 2 make the same call (same run, tool and arguments, so the same key).
@@ -124,43 +199,63 @@ How they map to the promises in [GUARANTEES.md](GUARANTEES.md):
 
 ## Results
 
-One full run on 13 Nov 2026: 24 configs, all as expected, 12,182,980 distinct states in total, 594 s.
+One full run on 20 Nov 2026: 44 configs, all as expected, 31,555,339 distinct states in total, 1748 s. The 24 older configs give the same state counts as on 13 Nov for every passing config (the 0.8 additions are switched off there).
 
 | Config | Kind | Bounds (besides the defaults below) | Result | Distinct states | Depth / trace | Time |
 | --- | --- | --- | --- | --- | --- | --- |
-| plain_approval | pass | 3 workers | no error | 130,029 | 35 | 8 s |
-| plain_second_action | pass | 3 workers, worker 3 = 2nd action, same args; 2 yes, 0 no | no error | 732,165 | 40 | 42 s |
-| plain_no_approval | pass | 3 workers, no approval, worker 3: 2 calls | no error | 2,286,009 | 45 | 59 s |
-| reconcile_processes | pass | reconcile, 3 calls each | no error | 2,263,158 | 81 | 94 s |
-| reconcile_three | pass | reconcile, 3 workers, worker 3 = 2nd action | no error | 552,897 | 56 | 25 s |
-| idem_processes | pass | idempotent_for, 3 calls each | no error | 4,729,851 | 78 | 253 s |
-| reconcile_threads_start_early | pass | threads, the 0.7.3 code (Fix 19) | no error | 1,393,360 | 83 | 69 s |
-| live_calls_end | pass | progress, reconcile, no approval | no error | 32,138 | 51 | 8 s |
-| live_admitted_finishes | pass | progress, no crash, tool returns | no error | 1,509 | 24 | 3 s |
-| finding_threads_window | finding | threads, the 0.7.2 code | AtMostOnce violated | 5,133 | trace 22 | 2 s |
-| finding_done_twice | finding | reconcile, no approval | DoneOnce violated | 3,062 | trace 21 | 2 s |
-| bug_split_admission | seeded | | NoUnapprovedEffect violated | 727 | trace 10 | 2 s |
-| bug_no_spend | seeded | 3 workers, 2nd action | OneYesOneAction violated | 2,017 | trace 10 | 2 s |
-| bug_no_deny_in_doubt | seeded | | NoUnapprovedEffect violated | 4,164 | trace 16 | 2 s |
-| bug_reconcile_lies_none | seeded | reconcile | AtMostOnce violated | 4,485 | trace 21 | 2 s |
-| bug_reconcile_lies_found | seeded | reconcile | DoneIsTrue violated | 1,796 | trace 16 | 2 s |
-| bug_retry_on_lies | seeded | | AtMostOnce violated | 1,546 | trace 14 | 2 s |
-| bug_provider_forgets | seeded | idempotent_for | AtMostOnce violated | 2,528 | trace 17 | 2 s |
-| bug_no_unique_intent | seeded | no approval | AtMostOnce violated | 1,004 | trace 13 | 2 s |
-| bug_delete_on_abandon | seeded | | AppendOnly violated | 215 | trace 8 | 2 s |
+| plain_approval | pass | 3 workers | no error | 130,029 | 35 | 10 s |
+| plain_second_action | pass | 3 workers, worker 3 = 2nd action, same args; 2 yes, 0 no | no error | 732,165 | 40 | 45 s |
+| plain_no_approval | pass | 3 workers, no approval, worker 3: 2 calls | no error | 2,286,009 | 45 | 79 s |
+| reconcile_processes | pass | reconcile, 3 calls each | no error | 2,263,158 | 81 | 110 s |
+| reconcile_three | pass | reconcile, 3 workers, worker 3 = 2nd action | no error | 552,897 | 56 | 26 s |
+| idem_processes | pass | idempotent_for, 3 calls each | no error | 4,729,851 | 78 | 244 s |
+| reconcile_threads_start_early | pass | threads, the 0.7.3 code (Fix 19) | no error | 1,393,360 | 83 | 90 s |
+| live_calls_end | pass | progress, reconcile, no approval | no error | 32,138 | 51 | 10 s |
+| live_admitted_finishes | pass | progress, no crash, tool returns | no error | 1,509 | 24 | 4 s |
+| expiry_reuse | pass | ttl 1 tick, clock 0..2, 2 yes; resume reuses the spent yes | no error | 1,451,515 | 35 | 77 s |
+| expiry_ask | pass | as expiry_reuse, resume needs a live yes | no error | 878,671 | 35 | 50 s |
+| expiry_reconcile | pass | ttl, reconcile | no error | 3,480,677 | 55 | 159 s |
+| expiry_idem | pass | ttl, idempotent_for | no error | 5,183,471 | 56 | 266 s |
+| version_deploy | pass | 2 versions, deploy at any time, 2 yes | no error | 431,908 | 34 | 22 s |
+| ordered_plain | pass | ordered, 3 workers (worker 3 = next action), 2 yes | no error | 4,204,368 | 41 | 315 s |
+| ordered_no_approval | pass | ordered, 3 workers, no approval, worker 3: 2 calls | no error | 653,587 | 45 | 41 s |
+| ordered_reconcile | pass | ordered, 3 workers, reconcile, no approval | no error | 1,443,016 | 59 | 61 s |
+| ordered_idem | pass | ordered, 3 workers, idempotent_for, no approval | no error | 703,095 | 60 | 31 s |
+| all_0_8 | pass | ttl + 2 versions + ordered, 3 workers, 1 call each | no error | 821,693 | 24 | 43 s |
+| finding_done_twice_idem | finding | idempotent_for, no approval | DoneOnce violated | 5,444 | trace 21 | 3 s |
+| finding_resume_after_expiry | finding | ttl, the 0.8 resume rule | ResumeNeedsLiveYes violated | 10,747 | trace 14 | 3 s |
+| finding_threads_window | finding | threads, the 0.7.2 code | AtMostOnce violated | 4,982 | trace 22 | 2 s |
+| finding_done_twice | finding | reconcile, no approval | DoneOnce violated | 3,195 | trace 19 | 2 s |
+| bug_split_admission | seeded | | NoUnapprovedEffect violated | NoUnapprovedEffect violated | 923 | trace 10 | 2 s |
+| bug_no_spend | seeded | 3 workers, 2nd action | OneYesOneAction violated | 2,095 | trace 10 | 2 s |
+| bug_no_deny_in_doubt | seeded | | NoUnapprovedEffect violated | NoUnapprovedEffect violated | 3,859 | trace 16 | 2 s |
+| bug_reconcile_lies_none | seeded | reconcile | AtMostOnce violated | 4,023 | trace 21 | 2 s |
+| bug_reconcile_lies_found | seeded | reconcile | DoneIsTrue violated | 1,916 | trace 16 | 2 s |
+| bug_retry_on_lies | seeded | | AtMostOnce violated | AtMostOnce violated | 1,498 | trace 14 | 2 s |
+| bug_provider_forgets | seeded | idempotent_for | AtMostOnce violated | 2,381 | trace 17 | 3 s |
+| bug_no_unique_intent | seeded | no approval | AtMostOnce violated | 1,125 | trace 13 | 3 s |
+| bug_delete_on_abandon | seeded | | AppendOnly violated | AppendOnly violated | 262 | trace 8 | 2 s |
 | bug_no_timeout | seeded | progress, reconcile | AllCallsEnd violated | 9,364 | trace 18 | 4 s |
-| bug_reconcile_live_owner | seeded | reconcile | AtMostOnce violated | 5,977 | trace 22 | 2 s |
-| bug_give_up_twice | seeded | reconcile | AtMostOnce violated | 13,859 | trace 29 | 3 s |
-| bug_v071 | seeded | reconcile, both 0.7.1 parts | AtMostOnce violated | 5,987 | trace 22 | 2 s |
+| bug_reconcile_live_owner | seeded | reconcile | AtMostOnce violated | 5,600 | trace 22 | 3 s |
+| bug_give_up_twice | seeded | reconcile | AtMostOnce violated | 13,856 | trace 29 | 4 s |
+| bug_v071 | seeded | reconcile, both 0.7.1 parts | AtMostOnce violated | 5,816 | trace 22 | 3 s |
+| bug_expiry_ignored | seeded | ttl | ExpiredNotSpent violated | 688 | trace 7 | 2 s |
+| bug_expiry_outside_txn | seeded | ttl | ExpiredNotSpent violated | 971 | trace 8 | 2 s |
+| bug_expiry_reopens_doubt | seeded | ttl | NoSecondEffect violated | 57,568 | trace 19 | 5 s |
+| bug_version_ignored | seeded | 2 versions | NoUnapprovedEffect violated | 1,444 | trace 8 | 2 s |
+| bug_ordered_split | seeded | ordered, 3 workers, no approval | OrderedNoLaterWhileDoubt violated | 1,559 | trace 11 | 2 s |
+| bug_ordered_error_resolves | seeded | ordered, 3 workers, no approval | OrderedNoLaterWhileDoubt violated | 2,265 | trace 12 | 2 s |
+| bug_ordered_latest_only | seeded | ordered, 3 workers, idempotent_for, no approval | OrderedNoLaterWhileDoubt violated | 29,647 | trace 22 | 4 s |
+| bug_ordered_same_key_resolves | seeded | ordered, 3 workers, idempotent_for, no approval | OrderedNoLaterWhileDoubt violated | 10,994 | trace 18 | 3 s |
 
 Defaults (`BASE` in `formal/run_tlc.py`): 2 workers making the same call (worker 3, when present, makes 1 call),
 2 calls each, 1 "yes", 1 "no", approval on, `retry_on` set, crashes at any step, the tool may raise,
-separate processes. Each config's exact constants are in `formal/cfg/<name>.cfg` (generated from the table in
+separate processes; no ttl (the clock does not move), one version, not ordered. Each config's exact constants are in `formal/cfg/<name>.cfg` (generated from the table in
 `run_tlc.py`; the runner fails if a file and the table differ).
 
-TLC 1.7.4, Temurin 21.0.13, `-workers auto`, Windows 10 laptop. "Depth" is the longest shortest path in the
-state graph (for a pass) and "trace" is the length of the shortest counterexample (for a violation; TLC
-searches breadth-first, so no shorter one exists in the model).
+TLC 1.7.4, `-workers auto`, Windows 10 laptop (13 Nov: Temurin 21.0.13; 20 Nov: Microsoft OpenJDK 17.0.21). "Depth" is the longest shortest path in the
+state graph (for a pass) and "trace" is the length of the shortest counterexample (for a violation). TLC searches breadth-first, but with several workers the trace it prints is not always the
+shortest: `finding_done_twice` printed 21 states on 13 Nov and 19 on 20 Nov with the same model.
 
 ## Seeded bugs (each must be caught)
 
@@ -184,6 +279,7 @@ A model whose properties can never fail proves nothing. Each seeded bug puts one
 - `no_timeout`: `wait` never ends while there is no result; after a crash of the owner, the waiting worker waits
   forever (AllCallsEnd, a lasso of 18 states).
 - `reconcile_live_owner`, `give_up_twice`, and both together (`v071`): the 0.7.1 bug above (AtMostOnce, 22 / 29 / 22).
+- The eight 0.8 seeded bugs (expiry, version, ordered runs) are listed in the 0.8 section above.
 
 The runner was also checked against itself: `--selftest` checks the output parser on canned TLC outputs, and a
 parser that reads the first state count (a progress line) instead of the last one fails it.
@@ -229,7 +325,7 @@ also keeps a `Limit` hold from being released twice, which the model does not co
    modelled as "same arguments". `KeyConflict` (a named key reused with other arguments) is not modelled.
 2. Each SQLite statement or transaction is one atomic step. `record_result`'s read of `tool_abandoned` and its
    `late_result` append are merged into one step (it only adds a warning row).
-3. Time is not modelled. `wait` ends at any moment. The `idempotent_for` window is a free choice at each check.
+3. Time is not modelled, except the 0.8 approval clock (`now`, whole ticks). `wait` ends at any moment. The `idempotent_for` window is a free choice at each check.
    `lease`: the owner check says "gone" in the model only when the owner crashed or finished. The code is
    stricter (a live pid or another host counts as running until `lease` seconds), so it allows fewer reconciles
    than the model. The model ASSUMES no attempt runs longer than `lease`; an owner still running after its lease
@@ -251,7 +347,8 @@ also keeps a `Limit` hold from being released twice, which the model does not co
   that lie), or that `BEGIN IMMEDIATE` and the UNIQUE indexes behave as one atomic step. The model assumes it.
 - **HMAC**: that a "yes" cannot be forged, or that the secret is kept secret.
 - **Clocks**: `idempotent_for` windows, `lease`, ticket expiry. A clock that jumps, or an attempt longer than
-  `lease`, is outside the model.
+  `lease`, is outside the model. The 0.8 approval expiry uses one model clock that only moves forward: skew
+  between machines and a clock set back are outside the model.
 - **Limit and Rules** (not modelled).
 - **More workers, calls or answers** than the bounds above.
 - **A provider that lies**: `reconcile` that says "not done" when it was done, a `retry_on` error raised after
