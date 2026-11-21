@@ -92,7 +92,8 @@ code, which was not committed yet, is in `c4a-company/launch_2dec/FORMAL_REVIEW_
    (process memory, lost on a crash). A "no" is not bound to a version.
 3. `c4a.run(ordered=True)`: in the admission transaction of a NEW action (no intent yet), the action is refused
    if another admitted action of the run is in doubt: no result, and some attempt not proven "did not happen"
-   (only `tool_abandoned` proves it; `tool_error` and `tool_retry_same_key` do not).
+   (only `tool_abandoned` proves it; `tool_error` and `tool_retry_same_key` do not). Since 21 Nov the flag is
+   stored: see "Callers without the flag" below.
 
 Crashes, racing callers, `retry_on`, `reconcile=` and `idempotent_for=` are as before. With `TTL = 0`,
 `VERSIONS = 1` and `ORDERED = FALSE` the model is the old one: `plain_approval` has the same 130,029 states.
@@ -134,6 +135,8 @@ The 0.8 seeded bugs (each must be caught):
   between (OrderedNoLaterWhileDoubt).
 - `ordered_error_resolves`: a `tool_error` is taken as "did not happen", but the tool raised after the payment.
 - `ordered_same_key_resolves`: `tool_retry_same_key` is taken as "did not happen".
+- `ordered_not_stored` (21 Nov): the flag lives only in the caller; worker 2 enters the run without it and starts
+  a new action while worker 3's action (admitted by a caller with the flag) is running (OrderedNoLaterWhileDoubt).
 - `ordered_latest_only`: only the newest attempt is looked at. With `idempotent_for=`: attempt 1 pays then raises,
   a second caller resends with the same key and gets a `retry_on` error, so the newest attempt is
   `tool_abandoned`, and the next action of the run is admitted while the first one happened with no result.
@@ -146,8 +149,12 @@ Not proven by these configs (in addition to the list at the end of this page):
   between the machine that approves and the one that admits, a wall clock set back (an expired yes would be live
   again), and the exact boundary (`<` or `<=`).
 - **The provider**: as before, a provider that lies or forgets an idempotency key early breaks the guarantees.
-- **That every caller of an ordered run asks for the order**: the model assumes every caller of the run checks
-  it. In the 0.8 code, `ordered=True` is set per caller, not stored with the run.
+- **Callers without the flag** (added 21 Nov, when the code started to store the flag): a worker in `FORGET`
+  enters the run without `ordered=True`. A worker with the flag writes a `run_ordered` row in its admission
+  transaction (whatever the outcome), and a worker in `FORGET` is ordered once that row exists. For these configs
+  `OrderedNoLaterWhileDoubt` is checked from the step that writes the row on. Configs `ordered_forgetful` and
+  `ordered_forgetful_approval` pass; the seeded `ordered_not_stored` (the flag per caller only, as in the code
+  before 21 Nov) fails. Not modelled: `ordered=False` on a marked run (the code refuses it: one more refusal).
 - Ordered runs with `Limit` or `Rules`, tickets with a version, `late_checked`, more than 2 actions per run,
   more than 2 versions, a ttl longer than 1 tick or a clock longer than 2 ticks.
 
@@ -199,7 +206,7 @@ How they map to the promises in [GUARANTEES.md](GUARANTEES.md):
 
 ## Results
 
-One full run on 20 Nov 2026: 44 configs, all as expected, 31,555,339 distinct states in total, 1748 s. The 24 older configs give the same state counts as on 13 Nov for every passing config (the 0.8 additions are switched off there).
+21 Nov 2026 (stored order): the 13 ordered and new configs and plain_approval were re-run with the `run_ordered` row in the model; their rows below are from that run (the mark is a new log entry, so the ordered configs with approval have more states). Configs with `ORDERED = FALSE` are unchanged (plain_approval: 130,029 again). One full run on 20 Nov 2026: 44 configs, all as expected, 31,555,339 distinct states in total, 1748 s. The 24 older configs give the same state counts as on 13 Nov for every passing config (the 0.8 additions are switched off there).
 
 | Config | Kind | Bounds (besides the defaults below) | Result | Distinct states | Depth / trace | Time |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -217,11 +224,13 @@ One full run on 20 Nov 2026: 44 configs, all as expected, 31,555,339 distinct st
 | expiry_reconcile | pass | ttl, reconcile | no error | 3,480,677 | 55 | 159 s |
 | expiry_idem | pass | ttl, idempotent_for | no error | 5,183,471 | 56 | 266 s |
 | version_deploy | pass | 2 versions, deploy at any time, 2 yes | no error | 431,908 | 34 | 22 s |
-| ordered_plain | pass | ordered, 3 workers (worker 3 = next action), 2 yes | no error | 4,204,368 | 41 | 315 s |
-| ordered_no_approval | pass | ordered, 3 workers, no approval, worker 3: 2 calls | no error | 653,587 | 45 | 41 s |
-| ordered_reconcile | pass | ordered, 3 workers, reconcile, no approval | no error | 1,443,016 | 59 | 61 s |
-| ordered_idem | pass | ordered, 3 workers, idempotent_for, no approval | no error | 703,095 | 60 | 31 s |
-| all_0_8 | pass | ttl + 2 versions + ordered, 3 workers, 1 call each | no error | 821,693 | 24 | 43 s |
+| ordered_plain | pass | ordered, 3 workers (worker 3 = next action), 2 yes | no error | 6,189,834 | 41 | 339 s |
+| ordered_no_approval | pass | ordered, 3 workers, no approval, worker 3: 2 calls | no error | 653,587 | 45 | 24 s |
+| ordered_reconcile | pass | ordered, 3 workers, reconcile, no approval | no error | 1,443,016 | 59 | 53 s |
+| ordered_idem | pass | ordered, 3 workers, idempotent_for, no approval | no error | 703,095 | 60 | 30 s |
+| all_0_8 | pass | ttl + 2 versions + ordered, 3 workers, 1 call each | no error | 1,297,112 | 25 | 50 s |
+| ordered_forgetful | pass | ordered, worker 2 without the flag (follows the run_ordered row), no approval | no error | 126,957 | 38 | 8 s |
+| ordered_forgetful_approval | pass | as ordered_forgetful, with approval, 2 yes | no error | 9,875,087 | 41 | 582 s |
 | finding_done_twice_idem | finding | idempotent_for, no approval | DoneOnce violated | 5,444 | trace 21 | 3 s |
 | finding_resume_after_expiry | finding | ttl, the 0.8 resume rule | ResumeNeedsLiveYes violated | 10,747 | trace 14 | 3 s |
 | finding_threads_window | finding | threads, the 0.7.2 code | AtMostOnce violated | 4,982 | trace 22 | 2 s |
@@ -243,10 +252,11 @@ One full run on 20 Nov 2026: 44 configs, all as expected, 31,555,339 distinct st
 | bug_expiry_outside_txn | seeded | ttl | ExpiredNotSpent violated | 971 | trace 8 | 2 s |
 | bug_expiry_reopens_doubt | seeded | ttl | NoSecondEffect violated | 57,568 | trace 19 | 5 s |
 | bug_version_ignored | seeded | 2 versions | NoUnapprovedEffect violated | 1,444 | trace 8 | 2 s |
-| bug_ordered_split | seeded | ordered, 3 workers, no approval | OrderedNoLaterWhileDoubt violated | 1,559 | trace 11 | 2 s |
-| bug_ordered_error_resolves | seeded | ordered, 3 workers, no approval | OrderedNoLaterWhileDoubt violated | 2,265 | trace 12 | 2 s |
-| bug_ordered_latest_only | seeded | ordered, 3 workers, idempotent_for, no approval | OrderedNoLaterWhileDoubt violated | 29,647 | trace 22 | 4 s |
-| bug_ordered_same_key_resolves | seeded | ordered, 3 workers, idempotent_for, no approval | OrderedNoLaterWhileDoubt violated | 10,994 | trace 18 | 3 s |
+| bug_ordered_split | seeded | ordered, 3 workers, no approval | OrderedNoLaterWhileDoubt violated | 1,487 | trace 11 | 2 s |
+| bug_ordered_error_resolves | seeded | ordered, 3 workers, no approval | OrderedNoLaterWhileDoubt violated | 2,358 | trace 12 | 1 s |
+| bug_ordered_latest_only | seeded | ordered, 3 workers, idempotent_for, no approval | OrderedNoLaterWhileDoubt violated | 29,610 | trace 22 | 3 s |
+| bug_ordered_same_key_resolves | seeded | ordered, 3 workers, idempotent_for, no approval | OrderedNoLaterWhileDoubt violated | 10,758 | trace 18 | 3 s |
+| bug_ordered_not_stored | seeded | ordered, worker 2 without the flag, flag per caller only | OrderedNoLaterWhileDoubt violated | 1,493 | trace 9 | 2 s |
 
 Defaults (`BASE` in `formal/run_tlc.py`): 2 workers making the same call (worker 3, when present, makes 1 call),
 2 calls each, 1 "yes", 1 "no", approval on, `retry_on` set, crashes at any step, the tool may raise,

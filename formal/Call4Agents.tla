@@ -35,6 +35,7 @@ CONSTANTS
     MAX_TIME,      \* 0.8: the clock goes 0..MAX_TIME (a bound for the model checker)
     RESUME,        \* 0.8: an admitted action resumed after its yes expired: "reuse" the spent yes, or "ask" for a live one
     ORDERED,       \* 0.8: c4a.run(ordered=True): a NEW action is refused while an earlier action of the run is in doubt
+    FORGET,        \* 0.8: workers that enter the run WITHOUT ordered=True (they follow the record's run_ordered mark)
     VERSIONS,      \* 0.8: @c4a.effect(version=): versions 1..VERSIONS; the code moves from one to the next (Deploy)
     BUGS           \* set of seeded bugs (see the end of the file); {} for the code as it is
 
@@ -147,7 +148,15 @@ AttemptsOf(k) == {log[i].n : i \in Pos("tool_intent", k)}
 InDoubt(k) ==
     /\ Has("tool_intent", k) /\ ~Has("tool_done", k)
     /\ \E n \in (IF Bug("ordered_latest_only") THEN {Max(AttemptsOf(k))} ELSE AttemptsOf(k)) : ~ProvenNot(k, n)
-OrderBlocked(k) == ORDERED /\ \E k2 \in Keys \ {k} : InDoubt(k2)
+\* 0.8 stored order (owner order 21 Nov): a worker that passed ordered=True writes the run_ordered mark in its
+\* admission transaction (whatever the outcome); a worker in FORGET passed no flag and is ordered once the record
+\* has the mark. Seeded ordered_not_stored: the flag is per caller only (main before 21 Nov): FORGET workers never
+\* read the mark. The mark is written in both cases, so the property below can see when the run was opened.
+Flag(w) == ORDERED /\ w \notin FORGET
+Marked == Has("run_ordered", "run")
+MarkE == E("run_ordered", "run", "a", 0)          \* fixed fields: which worker wrote it is not modelled
+OrderedFor(w) == Flag(w) \/ (Marked /\ ~Bug("ordered_not_stored"))
+OrderBlocked(w, k) == OrderedFor(w) /\ \E k2 \in Keys \ {k} : InDoubt(k2)
 OrderInTxn == ~Bug("ordered_split")
 NewAction(k) == ~Has("tool_intent", k)
 
@@ -155,7 +164,7 @@ R(r, s) == [r |-> r, s |-> s]
 \* The decision the transaction takes, read from the record as it is now.
 \* r: "true" (owns it), "false" (already claimed or done), "none" (needs approval), "blocked" (ordered run: an
 \* earlier action is in doubt), "reopen" (seeded expiry_reopens_doubt only). s: the "yes" to spend (0: reuse).
-Decide(k, a, n, v) ==
+Decide(w, k, a, n, v) ==
     LET spent == Max(Pos("effect_approved", k))
         denied == Max(Matching("denial", a))
         approvals == {s \in Matching("approval", a) : Bug("version_ignored") \/ log[s].v = v}
@@ -168,7 +177,7 @@ Decide(k, a, n, v) ==
        ELSE IF Bug("expiry_reopens_doubt") /\ spent > 0 /\ ~LiveNow(yesOf) /\ HasN("tool_intent", k, n)
             THEN R("reopen", 0)                       \* seeded: "the yes expired: drop the pending attempt, ask again"
        ELSE IF HasN("tool_intent", k, n) THEN R("false", 0)
-       ELSE IF OrderInTxn /\ NewAction(k) /\ OrderBlocked(k) THEN R("blocked", 0)
+       ELSE IF OrderInTxn /\ NewAction(k) /\ OrderBlocked(w, k) THEN R("blocked", 0)
        ELSE IF spent > 0 /\ (RESUME = "reuse" \/ LiveNow(yesOf)) THEN R("true", 0)   \* a resume
        ELSE IF free = {} THEN R("none", 0)
        ELSE R("true", Min(free))
@@ -180,23 +189,25 @@ AdmitEntries(k, a, n, s, v) ==
 TryClaim(w, n, falsePc, splitPc) ==
     LET k == KeyOf(w)
         a == ArgsOf(w)
-        d == Decide(k, a, n, wv[w])
+        d == Decide(w, k, a, n, wv[w])
+        \* the run_ordered mark, written first in the transaction (kept when the admission is then refused)
+        L0 == IF Flag(w) /\ ~Marked THEN Append(log, MarkE) ELSE log
     IN \/ /\ ~APPROVAL
           /\ IF ~Bug("no_unique_intent") /\ HasN("tool_intent", k, n)
-             THEN Fail(w, falsePc, n) /\ UNCHANGED log
-             ELSE IF OrderInTxn /\ NewAction(k) /\ OrderBlocked(k)
-             THEN Idle(w) /\ UNCHANGED log                           \* ordered run: refused
-             ELSE log' = Append(log, IntentE(k, a, n, wv[w])) /\ SetW(w, "claimed", n, iter[w], 0)
+             THEN Fail(w, falsePc, n) /\ log' = L0
+             ELSE IF OrderInTxn /\ NewAction(k) /\ OrderBlocked(w, k)
+             THEN Idle(w) /\ log' = L0                               \* ordered run: refused
+             ELSE log' = Append(L0, IntentE(k, a, n, wv[w])) /\ SetW(w, "claimed", n, iter[w], 0)
        \/ /\ APPROVAL /\ Bug("split_admission")                 \* seeded: check, then write later
-          /\ UNCHANGED log
+          /\ log' = L0
           /\ IF d.r = "true" THEN SetW(w, splitPc, n, iter[w], d.s)
              ELSE IF d.r = "false" THEN Fail(w, falsePc, n) ELSE Idle(w)
        \/ /\ APPROVAL /\ ~Bug("split_admission")                \* one transaction (BEGIN IMMEDIATE)
           /\ IF d.r = "true"
-             THEN log' = log \o AdmitEntries(k, a, n, d.s, wv[w]) /\ SetW(w, "claimed", n, iter[w], 0)
-             ELSE IF d.r = "false" THEN Fail(w, falsePc, n) /\ UNCHANGED log
-             ELSE IF d.r = "reopen" THEN Idle(w) /\ log' = Append(log, E("tool_abandoned", k, a, n))
-             ELSE Idle(w) /\ UNCHANGED log                           \* ApprovalRequired, or refused (ordered)
+             THEN log' = L0 \o AdmitEntries(k, a, n, d.s, wv[w]) /\ SetW(w, "claimed", n, iter[w], 0)
+             ELSE IF d.r = "false" THEN Fail(w, falsePc, n) /\ log' = L0
+             ELSE IF d.r = "reopen" THEN Idle(w) /\ log' = Append(L0, E("tool_abandoned", k, a, n))
+             ELSE Idle(w) /\ log' = L0                               \* ApprovalRequired, or refused (ordered)
 
 \* seeded split_admission only: the write step; the UNIQUE indexes still refuse a duplicate row
 ClaimWriteStep(w, falsePc) ==
@@ -248,7 +259,7 @@ Precheck(w) ==
         denied == Max(Matching("denial", a))
         liveFree == {s \in Matching("approval", a) : log[s].v = wv[w] /\ s > denied /\ ~Used(s) /\ now < log[s].exp}
         expBad == Bug("expiry_outside_txn") /\ APPROVAL /\ ~Has("effect_approved", k) /\ liveFree = {}
-        ordBad == Bug("ordered_split") /\ NewAction(k) /\ OrderBlocked(k)
+        ordBad == Bug("ordered_split") /\ NewAction(k) /\ OrderBlocked(w, k)
     IN /\ pc[w] = "precheck"
        /\ IF expBad \/ ordBad THEN Idle(w) ELSE Go(w, "claim")
        /\ UNCHANGED <<log, world, ran, calls, yes, no, now, ver>>
@@ -492,8 +503,10 @@ Unsettled(k) ==
        \/ \E w \in Workers : KeyOf(w) = k /\ pc[w] \in {"claimed", "effect"}
 \* In an ordered run, no NEW action is admitted (its first intent written) while another admitted action is
 \* unsettled. An action property: it looks at the step that writes the first intent.
+\* With FORGET workers the promise starts when the run is opened as ordered: from the step that writes the
+\* run_ordered mark on (Marked'), every new action of ANY worker, with or without the flag, is checked.
 OrderedNoLaterWhileDoubt ==
-    [][ORDERED => \A k \in Keys :
+    [][ORDERED /\ (FORGET = {} \/ Marked') => \A k \in Keys :
           (~Has("tool_intent", k) /\ Has("tool_intent", k)') => \A k2 \in Keys \ {k} : ~Unsettled(k2)]_vars
 
 \* No result arrives for an attempt that was already given up (so a check that ignores late_result loses nothing
@@ -522,4 +535,5 @@ NoLateResult == \A i \in 1..Len(log) : log[i].kind # "late_result"
 \*   ordered_error_resolves  a tool_error is taken as "it did not happen"
 \*   ordered_latest_only     only the newest attempt is looked at (as `call4agents doubt` does today)
 \*   ordered_same_key_resolves  tool_retry_same_key is taken as "it did not happen"
+\*   ordered_not_stored      the flag is per caller (main before 21 Nov): a worker without it ignores the mark
 ================================================================================

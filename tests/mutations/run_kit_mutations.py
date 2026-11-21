@@ -102,21 +102,24 @@ MUTATIONS = [
      "vb = {}", "tests.test_c4a_kit"),
     # --- K32 (0.8): ordered runs
     ("control (no-op)", LEDGER, "_OUTCOMES = (", "_OUTCOMES = (", "tests.test_c4a_kit"),
-    ("K32 ordered not checked (with a yes)", LEDGER, "if ordered:              # before the yes is spent: a refused action leaves it unspent",
-     "if False:",
+    ("K32 ordered not checked (with a yes)", LEDGER,
+     "a refused action leaves it unspent (only a run_ordered mark is kept)" + chr(10) + "                if order:",
+     "a refused action leaves it unspent (only a run_ordered mark is kept)" + chr(10) + "                if False:",
      "tests.test_c4a_kit"),
-    ("K32 ordered not checked (no yes)", LEDGER,
-     "                if ordered:" + chr(10) + "                    self._refuse_unsettled_in(conn, run_id, effect)" + chr(10)
-     + "                self._reserve_in", "                if False:" + chr(10)
-     + "                    self._refuse_unsettled_in(conn, run_id, effect)" + chr(10) + "                self._reserve_in",
+    ("K32 ordered not checked (limit)", LEDGER,
+     "                if order:" + chr(10) + "                    blocked = self._unsettled_new_in(conn, run_id, effect)" + chr(10)
+     + "                if blocked is None:" + chr(10) + "                    self._reserve_in",
+     "                if False:" + chr(10) + "                    blocked = self._unsettled_new_in(conn, run_id, effect)" + chr(10)
+     + "                if blocked is None:" + chr(10) + "                    self._reserve_in",
      "tests.test_c4a_kit"),
-    ("K32 run() drops the flag", INIT, "_ORDERED.set(run_id if ordered or _ORDERED.get() == run_id else None)",
+    ("K32 ordered not checked (plain claim)", LEDGER,
+     "                    if self._ordered_in(conn, run_id, ordered, effect):" + chr(10) + "                        if (",
+     "                    if False:" + chr(10) + "                        if (", "tests.test_c4a_kit"),
+    ("K32 run() drops the flag", INIT, "_ORDERED.set(None if ordered is None else (run_id, bool(ordered)))",
      "_ORDERED.set(None)", "tests.test_c4a_kit"),
-    ("K32 a nested run drops the flag", INIT, "_ORDERED.set(run_id if ordered or _ORDERED.get() == run_id else None)",
-     "_ORDERED.set(run_id if ordered else None)", "tests.test_c4a_kit"),
     ("K32 a retry is refused like a new action", LEDGER,
-     '        if self._latest_in(conn, "tool_intent", intent_key(effect, 1)) is not None:' + chr(10) + "            return" + chr(10),
-     '        if False:' + chr(10) + "            return" + chr(10), "tests.test_c4a_kit"),
+     '        if self._latest_in(conn, "tool_intent", intent_key(effect, 1)) is not None:' + chr(10) + "            return None" + chr(10),
+     '        if False:' + chr(10) + "            return None" + chr(10), "tests.test_c4a_kit"),
     ("K32 a late result is ignored", LEDGER, 'a["late"] = kind == "late_result"', 'a["late"] = False', "tests.test_c4a_kit"),
     ("K32 a check does not clear a late result", LEDGER, 'a["late"] = kind == "late_result"',
      'a["late"] = a["late"] or kind == "late_result"', "tests.test_c4a_kit"),
@@ -132,6 +135,33 @@ MUTATIONS = [
      "if False:", "tests.test_c4a_kit"),
     ("K32 the refusal does not name the action", INIT, 'f"an earlier action of the ordered run {run_id!r}',
      'f"an earlier action of the run {run_id!r}', "tests.test_c4a_kit"),
+    # --- K33 (0.8, owner order 21 Nov): the ordered flag is stored in the run (run_ordered mark)
+    ("control (no-op)", LEDGER, "def _ordered_in(", "def _ordered_in(", "tests.test_c4a_kit"),
+    ("K33 the mark is never written", LEDGER,
+     '            self._insert(conn, run_id, "run_ordered", run_id, {"effect": effect})' + chr(10) + "            return True",
+     "            return True", "tests.test_c4a_kit"),
+    ("K33 the mark is never read", LEDGER, 'mark = self._latest_in(conn, "run_ordered", run_id)', "mark = None",
+     "tests.test_c4a_kit"),
+    ("K33 ordered=False accepted on a marked run", LEDGER,
+     "            if ordered is False:" + chr(10) + '                raise RunIsOrdered(run_id, mark["seq"])',
+     "            if False:" + chr(10) + '                raise RunIsOrdered(run_id, mark["seq"])', "tests.test_c4a_kit"),
+    ("K33 the mark is lost when refused", LEDGER,
+     "                        blocked = self._unsettled_new_in(conn, run_id, effect)" + chr(10) + "                    if blocked is None:",
+     "                        blocked = self._unsettled_new_in(conn, run_id, effect)" + chr(10)
+     + "                        if blocked is not None:" + chr(10) + "                            raise blocked" + chr(10)
+     + "                    if blocked is None:", "tests.test_c4a_kit"),
+    ("K33 a nested run drops ordered=True", INIT, "ordered = outer[1] if ordered is None else ordered",
+     "ordered = ordered", "tests.test_c4a_kit"),
+    ("K33 a nested run turns ordered off", INIT, "if outer[1] and ordered is False:", "if False:", "tests.test_c4a_kit"),
+    ("K33f the refused action is not named", INIT,
+     "self.refused_tool, self.refused_args, self.earlier_key = refused_tool, refused_args, earlier_key",
+     "self.refused_tool, self.refused_args, self.earlier_key = tool, args, earlier_key", "tests.test_c4a_kit"),
+    ("K33f the refusal is a plain EffectInDoubt", INIT, "                    raise OrderRefused(str(earlier.tool),",
+     "                    raise (lambda *a: EffectInDoubt(*a[:3]))(str(earlier.tool),", "tests.test_c4a_kit"),
+    ("K34c the version refusal is not explained", INIT, 'if (spent is not None and lg.latest("tool_done", k) is None',
+     'if (False and lg.latest("tool_done", k) is None', "tests.test_c4a_kit"),
+    ("K34b the admitter's clock is not read", LEDGER, "now = time.time()        # the record's clock rule",
+     "now = 0.0        # the record's clock rule", "tests.test_c4a_kit"),
     ("MS5 the ordered loop is not ordered", MULTI, 'ordered=mode == "guard_ordered"', "ordered=False", "tests.test_multi_step"),
     ("ST9 an expired yes is not shown", STORY, 'elif kind == "approval" and p.get("exp")', 'elif False and p.get("exp")',
      "tests.test_story"),
@@ -152,7 +182,9 @@ MUTATIONS = [
     ("P12 one connection shared by threads", LEDGER, "self._local = threading.local()", "self._local = self", "tests.test_c4a_production"),
     ("P19 a busy new record is called unusable", LEDGER, "if not any(w in str(exc) for w in (\"locked\", \"busy\")) or time.monotonic() > deadline:",
      "if True:", "tests.test_c4a_production"),
-    ("P20 an append is not tried again", LEDGER, "        return self._when_free(once)", "        return once()",
+    ("P20 an append is not tried again", LEDGER,
+     "                return self._insert(conn, run_id, kind, key, payload)" + chr(10) + "        return self._when_free(once)",
+     "                return self._insert(conn, run_id, kind, key, payload)" + chr(10) + "        return once()",
      "tests.test_c4a_production"),
     ("P20 a new connection is not tried again", LEDGER, "conn = self._when_free(self._open)", "conn = self._open()",
      "tests.test_c4a_production"),
@@ -265,9 +297,11 @@ MUTATIONS = [
     # --- K27: shared limits
     ("K27 the limit is never checked", LEDGER, "if used + cost > maximum:", "if False:", "tests.test_c4a_kit"),
     ("K27 the hold is outside the admission lock", LEDGER,
-     "                self._begin_admission(conn)" + chr(10) + "                if self._latest_in(conn, \"tool_done\", effect) is not None:"
+     "                self._begin_admission(conn)" + chr(10) + "                order = self._ordered_in(conn, run_id, ordered, effect)"
+     + chr(10) + "                if self._latest_in(conn, \"tool_done\", effect) is not None:"
      + chr(10) + "                    return False" + chr(10) + "                if self._latest_in(conn, \"tool_intent\", key)",
-     "                if self._latest_in(conn, \"tool_done\", effect) is not None:"
+     "                order = self._ordered_in(conn, run_id, ordered, effect)" + chr(10)
+     + "                if self._latest_in(conn, \"tool_done\", effect) is not None:"
      + chr(10) + "                    return False" + chr(10) + "                if self._latest_in(conn, \"tool_intent\", key)",
      "tests.test_atomic_admission AtomicAdmission.test_shared_limit_holds_under_contention"),
     ("K27 the cost is never given back", INIT, "                    lg.release_limit(plan[\"run_id\"], plan[\"key\"], held)",
@@ -390,8 +424,8 @@ MUTATIONS = [
     ("A SQLite admission takes no write lock", LEDGER, 'conn.execute("BEGIN IMMEDIATE")', 'conn.execute("BEGIN")',
      "tests.test_atomic_admission AtomicAdmission.test_many_processes_admit_distinct_approved_effects_at_once"),
     ("A SQLite commits before intent", LEDGER,
-     '                self._insert(conn, run_id, "tool_intent", key, payload)',
-     '                conn.execute("COMMIT")\n                self._insert(conn, run_id, "tool_intent", key, payload)',
+     '                self._insert(conn, run_id, "tool_intent", key, payload)\n                return True',
+     '                conn.execute("COMMIT")\n                self._insert(conn, run_id, "tool_intent", key, payload)\n                return True',
      "tests.test_atomic_admission"),
     ("control (atomic PostgreSQL)", PG, 'conn.execute("LOCK TABLE entries IN SHARE ROW EXCLUSIVE MODE")',
      'conn.execute("LOCK TABLE entries IN SHARE ROW EXCLUSIVE MODE")', "tests.test_atomic_admission --postgres"),
@@ -616,15 +650,19 @@ def main() -> int:
     if sys.argv[1:] == ["--bench"]:
         return bench_batch()
     only = None              # --suite NAME: only the entries whose suite starts with NAME (default: all)
-    if len(sys.argv) == 3 and sys.argv[1] == "--suite":
+    match = None             # --suite NAME --match A,B: only entries whose name starts with A or B, and the controls
+    if len(sys.argv) in (3, 5) and sys.argv[1] == "--suite" and (len(sys.argv) == 3 or sys.argv[3] == "--match"):
         only = sys.argv[2]
+        match = tuple(sys.argv[4].split(",")) if len(sys.argv) == 5 else None
     elif len(sys.argv) != 1:
         print("usage: python -m tests.mutations.run_kit_mutations [--postgres-admission | --adapters-more2 | "
-              "--adapters-more | --bench | --suite NAME]")
+              "--adapters-more | --bench | --suite NAME [--match PREFIX,...]]")
         return 2
     bad = 0
     for name, rel, old, new, suite in MUTATIONS:
         if only is not None and not suite.startswith(only):
+            continue
+        if match is not None and not name.startswith(match + ("control",)):
             continue
         tmp = Path(tempfile.mkdtemp(prefix="c4a-mut-"))
         try:

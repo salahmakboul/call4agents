@@ -25,7 +25,8 @@ from typing import Any, Callable, Dict, Optional, Tuple
 from call4agents import codec as _codec
 from call4agents import owner as _owner
 from call4agents import replay as _replay
-from call4agents.ledger import Ledger, LimitReached, TicketRefused, Unsettled, canonical, effect_key, intent_key
+from call4agents.ledger import (Ledger, LimitReached, RunIsOrdered, TicketRefused, Unsettled, canonical, effect_key,
+                                 intent_key)
 from call4agents.rules import RuleRefused, Rules, gate_for
 from call4agents.replay import ReplayMismatch, ReplayMissing, diff, recorded  # noqa: F401
 from call4agents.proof import prove  # noqa: F401  (module named proof: a 'prove' module would be hidden)
@@ -33,12 +34,13 @@ from call4agents.proof import prove  # noqa: F401  (module named proof: a 'prove
 __all__ = ["init", "run", "effect", "approve", "deny", "current_ledger", "idempotency_key", "idempotency_headers", "recorded", "diff", "prove",
            "undo", "UndoFailed", "ReplayMismatch", "ReplayMissing", "ApprovalRequired", "EffectInDoubt", "Ledger",
            "pause", "decide", "TicketRefused", "KeyConflict", "UNKNOWN", "Limit", "LimitReached",
-           "Rules", "RuleRefused"]
-__version__ = "0.7.3"
+           "Rules", "RuleRefused", "OrderRefused", "RunIsOrdered"]
+__version__ = "0.8.0"
 
 _LEDGER: Optional[Ledger] = None
 _RUN: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("c4a_run", default=None)
-_ORDERED: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("c4a_ordered", default=None)  # run id, if ordered
+# (run id, ordered flag the caller passed: True or False); None when no enclosing c4a.run of this id passed one
+_ORDERED: contextvars.ContextVar[Optional[Tuple[str, bool]]] = contextvars.ContextVar("c4a_ordered", default=None)
 
 
 def current_run() -> str:
@@ -122,6 +124,18 @@ class EffectInDoubt(Exception):
         self.tool, self.call_args = tool, args
 
 
+class OrderRefused(EffectInDoubt):
+    """Ordered runs (0.8): a NEW action was refused because an EARLIER action of the run has no final outcome.
+    Nothing ran and nothing was recorded for the refused action. Like every EffectInDoubt, e.tool and e.call_args
+    name the action that may have happened: the EARLIER one, the one to resolve. e.refused_tool and
+    e.refused_args name the action that was refused; e.earlier_key is the earlier action's key (for resolve)."""
+
+    def __init__(self, tool: str, args: Dict[str, Any], why: str, refused_tool: str,
+                 refused_args: Dict[str, Any], earlier_key: str) -> None:
+        super().__init__(tool, args, why)
+        self.refused_tool, self.refused_args, self.earlier_key = refused_tool, refused_args, earlier_key
+
+
 class KeyConflict(ValueError):
     """A named action (c4a_key= or key=) was called again with arguments that mean something else.
     Nothing ran: an explicit key names ONE action, like an idempotency key at a payment API."""
@@ -191,19 +205,28 @@ def current_ledger() -> Ledger:
 
 
 @contextlib.contextmanager
-def run(run_id: str, *, ordered: bool = False):
+def run(run_id: str, *, ordered: Optional[bool] = None):
     """`with c4a.run("thread-42"):` - every action and approval inside belongs to this run. Use the id your
     framework resumes with (a thread, conversation or session id), so a resumed run finds its record.
     New threads do not inherit it: enter c4a.run there, or use contextvars.copy_context().run.
 
-    ordered=True: a NEW action of this run is refused (EffectInDoubt naming the earlier action, nothing runs, nothing
-    is recorded) while another action of the run has no final outcome: running, in doubt, or a late result nobody
+    ordered=True: a NEW action of this run is refused (OrderRefused, an EffectInDoubt naming the earlier action as
+    e.tool and the refused one as e.refused_tool; nothing runs, nothing is recorded) while another action of the run has no final outcome: running, in doubt, or a late result nobody
     checked. Final: done, every attempt proved not to have happened, or resolved by a person. The earlier action's
     own retry is not refused, so reconcile= or `call4agents resolve` unblocks it. The check is in the same
-    transaction as the new action's intent. The flag is per caller, not stored in the record: EVERY caller of the
-    run must pass ordered=True (a nested `with c4a.run(same id)` keeps it)."""
-    # Re-entering the same run (an adapter does) keeps it ordered; another run inside starts unordered.
-    token, flag = _RUN.set(run_id), _ORDERED.set(run_id if ordered or _ORDERED.get() == run_id else None)
+    transaction as the new action's intent (OrderRefused, a kind of EffectInDoubt).
+    The flag is stored in the record: the first action an ordered=True caller tries (admitted or refused) marks
+    the run as ordered, in the same transaction, and from then on EVERY action of the run is ordered, also from a
+    caller (process, worker, adapter) that left the flag out. ordered=False on a run the record marks as ordered
+    raises RunIsOrdered (nothing runs, nothing is recorded): an ordered run cannot be made unordered. Leaving the
+    flag out (None) follows the record. A nested `with c4a.run(same id)` keeps the outer flag."""
+    outer = _ORDERED.get()
+    if outer is not None and outer[0] == run_id:
+        # Re-entering the same run (an adapter does) keeps the outer flag; another run inside starts without it.
+        if outer[1] and ordered is False:
+            raise RunIsOrdered(run_id, None)
+        ordered = outer[1] if ordered is None else ordered
+    token, flag = _RUN.set(run_id), _ORDERED.set(None if ordered is None else (run_id, bool(ordered)))
     try:
         yield
     finally:
@@ -227,7 +250,13 @@ def approve(tool: Any, *, ttl: Optional[float] = None, **args: Any) -> str:
     when the yes is SPENT, not when the action happens: an action it already admitted keeps it, so it can still run
     or resume after the expiry (a resume returns the recorded result, stays in doubt, or reconciles, as without ttl),
     and the expiry never makes it run twice. The expiry time is signed with the yes and read in the transaction that
-    spends it, by the admitting process's clock (live while now <= expiry). A tool declared with @c4a.effect(version=...) gets a yes for that version only."""
+    spends it, by the admitting process's clock (live while now <= expiry). A tool declared with @c4a.effect(version=...) gets a yes for that version only.
+
+    Clocks: the expiry is THIS process's time.time() + ttl; the process that spends the yes compares it with ITS
+    time.time() (with PostgreSQL too: the database clock is not used). If the two machines' clocks differ by S
+    seconds, the yes lives S seconds longer or shorter; a clock set back makes an expired yes live again. No safety
+    promise depends on the clock (a yes is still spent once, nothing runs twice). Keep clocks synchronized to well
+    within ttl (docs/GUARANTEES.md, G2a)."""
     name, args = _tool_and_args(tool, args)
     return current_ledger().record_approval(current_run(), name, args, ttl=_ttl(ttl),
                                             version=getattr(tool, "c4a_version", None))
@@ -437,18 +466,31 @@ def effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optio
 
             spec = limit.spec(call_args) if limit is not None else None
 
-            order = {"ordered": True} if _ORDERED.get() == run_id else {}   # unchanged calls in other runs
+            # The flag this caller passed (True / False); none passed: the record decides (its run_ordered mark).
+            flag = _ORDERED.get()
+            order = {"ordered": flag[1]} if flag is not None and flag[0] == run_id else {}
 
             def claim(attempt: int, payload: Any) -> bool:
                 try:
                     return claim_any(attempt, payload)
                 except Unsettled as earlier:    # ordered run: an earlier action has no final outcome yet
-                    raise EffectInDoubt(str(earlier.tool), earlier.call_args or {},
-                                        f"an earlier action of the ordered run {run_id!r}, {earlier.key[:12]}, has no "
-                                        f"final outcome yet; nothing ran. Resolve it, then try again") from None
+                    raise OrderRefused(str(earlier.tool), earlier.call_args or {},
+                                       f"an earlier action of the ordered run {run_id!r}, {earlier.key[:12]}, has no "
+                                       f"final outcome yet; nothing ran for {tool}{canonical(call_args)}. Resolve "
+                                       "the earlier action, then try again", tool, call_args, earlier.key) from None
 
             def needs_yes() -> ApprovalRequired:
                 refuse_conflict(lg, run_id, call_args, explicit)
+                spent = lg.latest("effect_approved", k)
+                if (spent is not None and lg.latest("tool_done", k) is None and spent["payload"]["approval"]
+                        not in lg.matching_approvals(run_id, tool, call_args, version)
+                        and spent["seq"] > lg.last_denial(run_id, tool, call_args)):
+                    # Started under a yes for another version (K31h): a new yes does not continue it (risk 5, 0.8).
+                    return ApprovalRequired(tool, call_args, f"it was started under a yes for another version than "
+                                            f"{version!r} and has no result; a new yes does not continue it. If it "
+                                            f"happened: call4agents resolve {k[:12]} done. If it did not, only code "
+                                            "of the version it started under can retry it; or start it as a new "
+                                            "action (another run id or c4a_key=)")
                 gone = lg.expired_approvals(run_id, tool, call_args, version)
                 return ApprovalRequired(tool, call_args, "the yes for it expired; approve it again" if gone else "")
 

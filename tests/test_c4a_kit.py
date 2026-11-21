@@ -33,6 +33,7 @@ c4a.init(str(work / "rec.sqlite"), secret=b"k29-secret")
 
 def pay(amount):
     if mode == "die":
+        print(os.getpid(), flush=True)  # the owner pid in the intent (K29e checks it was not reused)
         os._exit(9)                     # killed inside the call: nothing reached the bank
     time.sleep(0.5)
     with open(work / "bank.txt", "a") as f:
@@ -51,7 +52,7 @@ with c4a.run("k29"):
     try:
         print(pay(50))
     except Exception as e:
-        print(type(e).__name__)
+        print(type(e).__name__, str(e)[:300])
 """
 
 
@@ -206,21 +207,34 @@ def k29():
           bank3 == [10] and sorted(out3) == ["in doubt", "paid"], (bank3, out3))
 
     # e: real processes: one killed inside the call, then two resume at the same moment (twice)
-    charges = []
-    for _ in range(2):
+    # (0.8 skeptic, risk 7) A run is repeated, at most twice, only when the killed process's pid was given to a live
+    # process before the resumers looked: then "may still be running" is the right answer (0 charges, the safe side
+    # the owner check promises), not the case under test. 2 charges are never repeated. The resumers' answers are
+    # kept, so a failure shows why.
+    charges, seen, reused = [], [], 0
+    while len(charges) < 2:
         work = Path(tempfile.mkdtemp(prefix="c4a-k29-"))
         (work / "child.py").write_text(K29_CHILD, encoding="utf-8")
         env = dict(__import__("os").environ, PYTHONPATH=str(Path(c4a.__file__).resolve().parents[1]))
-        subprocess.run([sys.executable, str(work / "child.py"), str(work), "die"], env=env)
+        died = subprocess.run([sys.executable, str(work / "child.py"), str(work), "die"], env=env,
+                              capture_output=True, text=True, timeout=180)
+        dead_pid = int(died.stdout.split()[0])
         ps = [subprocess.Popen([sys.executable, str(work / "child.py"), str(work), "race"], env=env,
                                stdout=subprocess.PIPE, text=True) for _ in range(2)]
         time.sleep(1.0)
+        pid_taken = c4a_owner.pid_alive(dead_pid)
         (work / "go").write_text("go")
-        [p.wait(timeout=60) for p in ps]
+        outs = [p.communicate(timeout=180)[0].strip() for p in ps]
+        pid_taken = pid_taken or c4a_owner.pid_alive(dead_pid)
         bank_file = work / "bank.txt"
-        charges.append(len(bank_file.read_text().splitlines()) if bank_file.exists() else 0)
+        n = len(bank_file.read_text().splitlines()) if bank_file.exists() else 0
+        if n == 0 and pid_taken and reused < 2:
+            reused += 1
+            continue
+        charges.append(n)
+        seen.append(outs)
     check("K29e a kill, then two processes resume at once with a truthful reconcile: 1 charge each time",
-          charges == [1, 1], charges)
+          charges == [1, 1], (charges, seen, f"repeated {reused} run(s) with a reused pid"))
 
 
 K30_CHILD = """
@@ -651,7 +665,7 @@ def k32():
             nested = _outcome(pay, order="A")
         spent = lg.count_run_kind("k32d", "approval_used")
     check("K32d the action in doubt itself stays in doubt (not refused as 'earlier'); a nested run keeps ordered; "
-          "the refused step's yes stays unspent", own == "EffectInDoubt" and nested == "EffectInDoubt" and spent == 0
+          "the refused step's yes stays unspent", own == "EffectInDoubt" and nested == "OrderRefused" and spent == 0
           and ran == ["charge"], (own, nested, spent, ran))
 
     # f: only a NEW action is refused: the retry of one already started goes on even while another is unsettled
@@ -721,7 +735,7 @@ def k32():
             # overlap on any machine (a fixed sleep let a slow CI thread arrive after the first had finished).
             ran.append(order)
             deadline = time.time() + 10
-            while len(ran) + outs.count("EffectInDoubt") < 8 and time.time() < deadline:
+            while len(ran) + outs.count("OrderRefused") < 8 and time.time() < deadline:
                 time.sleep(0.01)
             return "ok"
         slow = c4a.effect(slow, name="k32.slow")
@@ -735,11 +749,297 @@ def k32():
         go.set()
         [t.join() for t in ts]
         if ordered:
-            serial = (len(ran), outs.count("ok"), outs.count("EffectInDoubt"))
+            serial = (len(ran), outs.count("ok"), outs.count("OrderRefused"))
         else:
             parallel = (len(ran), outs.count("ok"))
     check("K32e 8 different actions at once in one ordered run: exactly 1 runs, 7 refused (control unordered: 8 run)",
           serial == (1, 1, 7) and parallel == (8, 8), (serial, parallel))
+
+
+K33_CHILD = """
+import os, sys
+from pathlib import Path
+import call4agents as c4a
+work, step, flag = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
+c4a.init(str(work / "rec.sqlite"), secret=b"k33-secret-k33-secret")
+
+def act(order):
+    if step == "charge":
+        os._exit(9)                      # killed inside the call: the charge is in doubt
+    with open(work / "ran.txt", "a") as f:
+        f.write(step + "\\n")
+    return "ok"
+
+act = c4a.effect(act, name="k33." + step)
+with c4a.run("k33e", **({"ordered": True} if flag == "ordered" else {})):
+    try:
+        print(act(order="A"))
+    except c4a.OrderRefused as e:
+        print("OrderRefused", e.tool, e.refused_tool)
+"""
+
+
+def k33():
+    """K33 (0.8, owner order 21 Nov): the ordered flag is STORED in the run. The first action an ordered=True caller
+    tries marks the run (run_ordered, in the admission transaction, kept even when that action is refused); every
+    later action of the run is then ordered, also from a caller that forgot the flag. ordered=False on a marked run
+    is refused loudly (RunIsOrdered, nothing runs or is recorded)."""
+    import os
+    import subprocess
+    import threading
+    from call4agents.ledger import effect_key
+    ran = []
+
+    def step(name, fail=False, **kw):
+        def body(order, amount=0):
+            ran.append(name)
+            if fail:
+                raise ConnectionError(f"{name}: timeout")
+            return f"{name} ok"
+        return c4a.effect(body, name=f"k33.{name}", **kw)
+
+    def attempt(rid, fn, flag="unset", **kw):
+        """Run fn in ANOTHER thread (a separate caller: no context inherited), entering the run with or without the
+        flag. Returns the outcome name."""
+        out = []
+
+        def caller():
+            try:
+                with c4a.run(rid, **({} if flag == "unset" else {"ordered": flag})):
+                    fn(order="A", **kw)
+                out.append("ran")
+            except c4a.OrderRefused as e:
+                out.append("refused:" + str(e.tool) + ">" + str(e.refused_tool))
+            except c4a.RunIsOrdered:
+                out.append("RunIsOrdered")
+            except Exception as e:                         # noqa: BLE001 (named in the check)
+                out.append(type(e).__name__)
+        t = threading.Thread(target=caller)
+        t.start()
+        t.join()
+        return out[0]
+
+    def doubt_first(rid, flag):
+        charge = step("charge", fail=True)
+        return attempt(rid, charge, flag)                  # ConnectionError: the charge is in doubt
+
+    # a: caller 1 opens the run as ordered; caller 2 (another thread, no flag) is refused. Control: caller 1 unordered
+    found = {}
+    for flag in (True, "unset"):
+        lg = fresh()
+        ran.clear()
+        doubt_first("k33a", flag)
+        email = step("email")
+        found[flag] = (attempt("k33a", email), list(ran), lg.is_ordered("k33a"),
+                       lg.latest("tool_intent", effect_key("k33a", "k33.email", {"order": "A", "amount": 0}) + "#1") is None)
+    check("K33a once a caller opened the run with ordered=True, a caller that forgot the flag is refused (nothing runs "
+          "or is recorded)", found[True] == ("refused:k33.charge>k33.email", ["charge"], True, True), found[True])
+    check("K33a control: no caller passed ordered=True: the run is not marked and the later step runs",
+          found["unset"] == ("ran", ["charge", "email"], False, False), found["unset"])
+
+    # b: ordered=False on a marked run is refused loudly, on every admission path; nothing is written
+    lg = fresh()
+    ran.clear()
+    doubt_first("k33b", True)
+    paths = {"plain": step("plain"), "limit": step("limited", limit=c4a.Limit("k33-lim", 5)),
+             "approval": step("approved", approval=True),
+             "rules": step("ruled", rules=c4a.Rules({"k33.ruled": {"max": {"amount": 10}}}))}
+    with c4a.run("k33b"):
+        c4a.approve(paths["approval"], order="A")
+    before = len(lg.entries())
+    loud = {how: attempt("k33b", fn, False, **({"amount": 1} if how == "rules" else {})) for how, fn in paths.items()}
+    after = len(lg.entries())
+    try:
+        with c4a.run("k33b-nested", ordered=True):
+            with c4a.run("k33b-nested", ordered=False):
+                pass
+        nested = "accepted"
+    except c4a.RunIsOrdered:
+        nested = "RunIsOrdered"
+    check("K33b ordered=False on a marked run raises RunIsOrdered on every path (plain, limit, approval, rules); "
+          "nothing runs or is recorded; a nested run cannot drop the flag",
+          set(loud.values()) == {"RunIsOrdered"} and ran == ["charge"] and after == before
+          and nested == "RunIsOrdered", (loud, ran, after - before, nested))
+
+    # c: the mark is written even when the ordered caller's own first action is refused (plain claim path), so a
+    # forgetful caller that comes later is refused too. Control: before any ordered caller, nothing is ordered.
+    lg = fresh()
+    ran.clear()
+    doubt_first("k33c", "unset")                           # a forgetful caller's action is in doubt
+    early = attempt("k33c", step("early"))                 # still unordered: no caller asked for order yet
+    refused_own = attempt("k33c", step("report"), True)    # the ordered caller is refused, and marks the run
+    marked = lg.is_ordered("k33c")
+    late = attempt("k33c", step("late"))                   # a forgetful caller after the mark: refused
+    check("K33c the mark is kept when the ordered caller's first action is refused; a later forgetful caller is "
+          "refused; before the mark the run is unordered", (early, refused_own.split(">")[0], marked,
+          late.split(">")[0], ran) == ("ran", "refused:k33.charge", True, "refused:k33.charge", ["charge", "early"]),
+          (early, refused_own, marked, late, ran))
+
+    # d: each admission path reads the mark (a forgetful caller after the mark, with an action in doubt)
+    lg = fresh()
+    ran.clear()
+    doubt_first("k33d", True)
+    paths = {"plain": step("plain"), "limit": step("limited", limit=c4a.Limit("k33d-lim", 5)),
+             "approval": step("approved", approval=True),
+             "rules": step("ruled", rules=c4a.Rules({"k33.ruled": {"max": {"amount": 10}}}))}
+    with c4a.run("k33d"):
+        c4a.approve(paths["approval"], order="A")
+    each = {how: attempt("k33d", fn, **({"amount": 1} if how == "rules" else {})).split(">")[0]
+            for how, fn in paths.items()}
+    spent = lg.count_run_kind("k33d", "approval_used")
+    check("K33d a forgetful caller is refused on every admission path (plain, limit, approval, rules); the yes "
+          "stays unspent", set(each.values()) == {"refused:k33.charge"} and ran == ["charge"] and spent == 0,
+          (each, ran, spent))
+
+    # e: real processes: process 1 opens the run ordered and is killed inside the charge; process 2 starts with NO
+    # flag and is refused. Control: process 1 without the flag, then process 2 runs.
+    outcome = {}
+    for flag in ("ordered", "none"):
+        work = Path(tempfile.mkdtemp(prefix="c4a-k33-"))
+        (work / "child.py").write_text(K33_CHILD, encoding="utf-8")
+        env = dict(os.environ, PYTHONPATH=str(Path(c4a.__file__).resolve().parents[1]))
+        subprocess.run([sys.executable, str(work / "child.py"), str(work), "charge", flag], env=env, timeout=120)
+        second = subprocess.run([sys.executable, str(work / "child.py"), str(work), "email", "none"], env=env,
+                                capture_output=True, text=True, timeout=120)
+        outcome[flag] = (second.stdout.strip(), (work / "ran.txt").exists())
+    check("K33e real processes: a process killed inside an action of an ordered run; a new process without the flag "
+          "is refused (control without the flag: it runs)", outcome == {
+              "ordered": ("OrderRefused k33.charge k33.email", False), "none": ("ok", True)}, outcome)
+
+    # f: the refusal names both actions: e.tool / e.call_args = the earlier one (to resolve), e.refused_tool /
+    # e.refused_args = the refused one; it is an EffectInDoubt (old handlers still catch it)
+    lg = fresh()
+    ran.clear()
+    doubt_first("k33f", True)
+    try:
+        with c4a.run("k33f"):
+            step("email")(order="B")
+        got = None
+    except c4a.EffectInDoubt as e:
+        got = e
+    earlier = effect_key("k33f", "k33.charge", {"order": "A", "amount": 0})
+    check("K33f OrderRefused: e.tool is the earlier action, e.refused_tool the refused one, both named in the message",
+          isinstance(got, c4a.OrderRefused) and got.tool == "k33.charge" and got.call_args == {"order": "A", "amount": 0}
+          and got.refused_tool == "k33.email" and got.refused_args == {"order": "B", "amount": 0} and got.earlier_key == earlier
+          and "k33.email" in str(got) and "k33.charge" in str(got), repr(got))
+
+    # g: a nested `with c4a.run(same id)` keeps the outer ordered=True before the run is marked (an adapter enters
+    # the run again): a forgetful caller's action is in doubt, the ordered caller's first action is in the nested block
+    lg = fresh()
+    ran.clear()
+    doubt_first("k33g", "unset")
+    out = []
+
+    def nested_caller():
+        with c4a.run("k33g", ordered=True):
+            with c4a.run("k33g"):
+                out.append(_outcome(step("email"), order="A"))
+    t = threading.Thread(target=nested_caller)
+    t.start()
+    t.join()
+    check("K33g a nested run inside an ordered one keeps the flag (refused, and the run is marked)",
+          out == ["OrderRefused"] and ran == ["charge"] and lg.is_ordered("k33g"), (out, ran))
+
+
+def k34():
+    """K34 (0.8 skeptic review): the documented edges of expiry and versions, reproduced so the docs stay true."""
+    import call4agents.ledger as ledger_mod
+    from call4agents import ops
+    from call4agents.ledger import effect_key
+
+    # a (risk 1): a yes with ttl admits an action; attempt 1 PROVES nothing happened (retry_on); after the ttl the
+    # retry still runs under the spent yes, once. ttl bounds the spend, not the effect (documented).
+    fresh()
+    paid = []
+
+    class Busy(Exception):
+        pass
+    answers = [Busy("429"), None]
+
+    def pay(amount):
+        a = answers.pop(0)
+        if a:
+            raise a
+        paid.append(amount)
+        return "paid"
+    pay = c4a.effect(pay, name="k34.pay", approval=True, retry_on=(Busy,))
+    with c4a.run("k34a"):
+        c4a.approve(pay, amount=5, ttl=0.3)
+        try:
+            pay(amount=5)
+            first = "ran"
+        except Busy:
+            first = "Busy"
+        time.sleep(0.5)
+        late = _outcome(pay, amount=5)
+    check("K34a (by design) an admitted action whose first try proved nothing happened runs once after its ttl",
+          (first, late, paid) == ("Busy", "paid", [5]), (first, late, paid))
+
+    # b (risk 3): expiry compares the APPROVER's clock + ttl with the ADMITTING process's clock. Simulated skew:
+    # an approver 30 s behind gives a 10 s yes that is already expired; one 30 s ahead gives a 1 s yes that is
+    # still live after 1 s; an admitter whose clock is set back makes an expired yes live again.
+    real = ledger_mod.time.time
+
+    class Clock:
+        offset = 0.0
+
+        @staticmethod
+        def time():
+            return real() + Clock.offset
+
+        def __getattr__(self, name):
+            return getattr(__import__("time"), name)
+    seen = {}
+    ledger_mod.time = Clock()
+    try:
+        for name, approver, ttl, admitter in (("approver behind", -30, 10, 0), ("approver ahead", 30, 1, 2),
+                                              ("admitter set back", 0, 1, -5)):
+            fresh()
+            fn = c4a.effect(lambda amount: "paid", name=f"k34.skew{len(seen)}", approval=True)
+            with c4a.run("k34b"):
+                Clock.offset = approver
+                c4a.approve(fn, amount=1, ttl=ttl)
+                Clock.offset = admitter if name != "admitter set back" else 3      # expired at +3 s ...
+                expired_then = _outcome(fn, amount=1) if name == "admitter set back" else None
+                Clock.offset = admitter                                           # ... live again at -5 s
+                seen[name] = (expired_then, _outcome(fn, amount=1))
+    finally:
+        ledger_mod.time = __import__("time")
+        Clock.offset = 0.0
+    check("K34b clock skew moves the expiry by the skew (no second run, no run without a yes)", seen == {
+        "approver behind": (None, "ApprovalRequired:expired"), "approver ahead": (None, "paid"),
+        "admitter set back": ("ApprovalRequired:expired", "paid")}, seen)
+
+    # c (risk 5): an action started under a version-1 yes and in doubt: version-2 code does not continue it, also
+    # after `resolve not-done` and a new version-2 yes; the message says what to do. resolve done: v2 replays.
+    tries = []
+
+    def flaky(amount):
+        tries.append(amount)
+        raise ConnectionError("timeout")
+    out = {}
+    for how in ("not-done", "done"):
+        lg = fresh()
+        with c4a.run("k34c"):
+            f1 = c4a.effect(flaky, name="k34.flaky", approval=True, version="1")
+            c4a.approve(f1, amount=10)
+            try:
+                f1(amount=10)
+            except ConnectionError:
+                pass
+            f2 = c4a.effect(lambda amount: "v2 paid", name="k34.flaky", approval=True, version="2")
+            c4a.approve(f2, amount=10)
+            ops.resolve(lg, effect_key("k34c", "k34.flaky", {"amount": 10})[:12], how, "checked")
+            c4a.approve(f2, amount=10)
+            try:
+                out[how] = f2(amount=10)
+            except c4a.ApprovalRequired as e:
+                out[how] = "ApprovalRequired" + (":explained" if "another version" in str(e) and "c4a_key=" in str(e)
+                                                 else "")
+    check("K34c a version-1 action in doubt: version-2 code never runs it (after not-done the refusal explains "
+          "why); after resolve done it returns the recorded result", out == {"not-done": "ApprovalRequired:explained",
+                                                                            "done": None} and tries == [10, 10],
+          (out, tries))
 
 
 def main():
@@ -1881,6 +2181,8 @@ def main():
     k30()
     k31()
     k32()
+    k33()
+    k34()
 
     # K7 the core imports only the standard library
     import ast

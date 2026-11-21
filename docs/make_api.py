@@ -19,7 +19,8 @@ sys.path.insert(0, str(ROOT))
 
 STABLE = {"init", "run", "effect", "approve", "deny", "current_ledger", "idempotency_key", "idempotency_headers",
           "ApprovalRequired", "EffectInDoubt", "KeyConflict", "UNKNOWN"}
-EXPERIMENTAL = {"pause", "decide", "TicketRefused", "Limit", "LimitReached", "Rules", "RuleRefused"}
+EXPERIMENTAL = {"pause", "decide", "TicketRefused", "Limit", "LimitReached", "Rules", "RuleRefused", "OrderRefused",
+                "RunIsOrdered"}
 TOOLS = {"recorded", "diff", "prove", "undo", "UndoFailed", "ReplayMismatch", "ReplayMissing", "Ledger"}
 GROUPS = [("Stable", STABLE, "Covered by the 1.0 promise (see PLAN_1_0.md)."),
           ("Experimental", EXPERIMENTAL, "Works and is tested; the exact form may still change in a 1.x release."),
