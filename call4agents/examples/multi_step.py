@@ -2,7 +2,7 @@
 # Copyright 2026 Salah Eddine Makboul
 """A change of several steps (reserve, then charge, then email) that crashes in the middle. See docs/MULTI_STEP.md.
 
-    python -m call4agents.examples.multi_step <folder> plain|guard|guard_reconcile|guard_carry_on [crash]
+    python -m call4agents.examples.multi_step <folder> plain|guard|guard_reconcile|guard_carry_on|guard_ordered [crash]
 
 crash is "<step>:before" or "<step>:after" (the process is killed before, or right after, the step's effect) and
 is left out on the resume. The fake shop writes one line per effect to <folder>/shop.txt, so repeats can be
@@ -14,6 +14,8 @@ Modes:
   guard_reconcile the same, and each step can ask the shop whether it already happened
   guard_carry_on  like guard, but the loop catches the in-doubt error and goes on, as an agent loop that hands
                   the error to the model may do; later steps then run while an earlier one is uncertain
+  guard_ordered   the same loop as guard_carry_on, inside `c4a.run(..., ordered=True)`: each later step is refused
+                  while the earlier one is uncertain, so the swallowed error cannot let them run
 """
 import os
 import sys
@@ -58,12 +60,12 @@ def main(argv) -> int:
     c4a.init(str(folder / "record.sqlite"), secret=b"multi-step-example-secret")
     out = []
     try:
-        with c4a.run("order-A-1"):
+        with c4a.run("order-A-1", ordered=mode == "guard_ordered"):
             for f in steps:
                 try:
                     out.append(f(order="A-1"))
                 except c4a.EffectInDoubt:
-                    if mode != "guard_carry_on":
+                    if mode not in ("guard_carry_on", "guard_ordered"):
                         raise
                     out.append("uncertain")
     except c4a.EffectInDoubt as e:

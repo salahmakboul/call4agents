@@ -8,6 +8,7 @@ Every module reads and writes the same entries:
   approval      an HMAC over (tool, canonical arguments), signed with a local secret
   denial        a "no" for exact arguments; cancels earlier approvals for them
   approval_used one approval spent by one effect (unique: a "yes" is used once)
+  late_checked  a person checked a late result (`call4agents resolve ... done`); read by ordered runs (0.8)
   limit_reserved / limit_released   a shared limit's cost, held by one effect / given back (experimental)
 Entries are never updated or deleted.
 """
@@ -117,6 +118,20 @@ class LimitReached(Exception):
         super().__init__(f"limit {name!r}: {used:g} already held, this action needs {cost:g}, the maximum is "
                          f"{maximum:g}. Nothing ran.")
         self.name, self.used, self.cost, self.maximum = name, used, cost, maximum
+
+
+class Unsettled(Exception):
+    """Ordered runs (0.8): another action of this run has no final outcome yet (running, in doubt, or a late result
+    nobody checked). Nothing was written; the caller turns this into EffectInDoubt naming that action."""
+
+    def __init__(self, key: str, tool: Any, args: Any) -> None:
+        super().__init__(f"{tool}{canonical(args)} ({key[:12]}) has no final outcome yet")
+        self.key, self.tool, self.call_args = key, tool, args
+
+
+# The approval fields signed together with (tool, arguments) since 0.8. A "yes" without them is signed exactly as in
+# 0.7, so old records keep working and new plain approvals are readable by 0.7 (PLAN_1_0.md, "The record").
+BOUND = ("exp", "version")
 
 
 class TicketRefused(Exception):
@@ -285,8 +300,11 @@ class Ledger:
                            (run_id, kind, key, None if payload is None else canonical(payload), time.time()))
         return cur.lastrowid
 
-    def claim(self, run_id: str, key: str, payload: Any = None) -> bool:
-        """Atomically record an intent. True = this caller owns the effect; False = someone already does."""
+    def claim(self, run_id: str, key: str, payload: Any = None, ordered: bool = False) -> bool:
+        """Atomically record an intent. True = this caller owns the effect; False = someone already does.
+        ordered=True: Unsettled if another action of the run has no final outcome (checked in the same transaction)."""
+        if ordered:
+            return self.claim_limited(run_id, key.rsplit("#", 1)[0], key, payload, [], ordered=True)
         try:
             self.append(run_id, "tool_intent", key, payload)
             return True
@@ -299,29 +317,39 @@ class Ledger:
 
     def claim_approved(self, run_id: str, tool: str, args: Dict[str, Any], effect: str,
                        key: str, payload: Any = None,
-                       limit: Optional[Tuple[str, float, float, Optional[float]]] = None) -> Optional[bool]:
+                       limit: Optional[Any] = None, version: Optional[str] = None,
+                       ordered: bool = False) -> Optional[bool]:
         """One transaction for a live yes and its intent: True owns it, False already claimed,
         None needs approval. No application code runs until the transaction has committed.
         Old records with effect_approved but no intent remain resumable under the same rules.
+        version: only a yes signed for this tool version counts (None: a yes with no version, as in 0.7).
+        Expiry (0.8) is read here, in the same transaction that spends the yes, and only when a yes is SPENT: an
+        action already admitted keeps its yes after it expires (its resume replays, stays in doubt, or reconciles).
         """
         try:
             with self._lock, self._conn() as conn:
                 self._begin_admission(conn)
                 if self._latest_in(conn, "tool_done", effect) is not None:
                     return False
+                if ordered:              # before the yes is spent: a refused action leaves it unspent
+                    self._refuse_unsettled_in(conn, run_id, effect)
                 spent = self._latest_in(conn, "effect_approved", effect)
                 denied = max(self._matching_in(conn, run_id, tool, args, "denial"), default=0)
-                approvals = self._matching_in(conn, run_id, tool, args, "approval")
+                expires = self._approvals_in(conn, run_id, tool, args, version)
+                approvals = list(expires)
                 if spent is not None:
                     if (denied > spent["seq"] or spent["payload"]["approval"] not in approvals):
                         return None
                 if self._latest_in(conn, "tool_intent", key) is not None:
                     return False
                 if spent is None:
+                    now = time.time()        # the record's clock rule, as for tickets: this process's wall clock
                     for seq in approvals:
                         used_key = f"{run_id}\x00{tool}\x00{seq}"
                         if seq <= denied or self._latest_in(conn, "approval_used", used_key) is not None:
                             continue
+                        if expires[seq] is not None and now > expires[seq]:
+                            continue         # this yes expired: it can no longer admit a NEW action
                         self._insert(conn, run_id, "approval_used", used_key, {"effect": effect})
                         self._insert(conn, run_id, "effect_approved", effect, {"approval": seq})
                         break
@@ -368,9 +396,9 @@ class Ledger:
         self._insert(conn, run_id, "limit_reserved", name, {"effect": effect, "cost": cost})
 
     def claim_limited(self, run_id: str, effect: str, key: str, payload: Any,
-                      limit: Tuple[str, float, float, Optional[float]]) -> bool:
+                      limit: Any, ordered: bool = False) -> bool:
         """One transaction for the limit check, the reservation and the intent. True owns it, False already
-        claimed; LimitReached when it would go over (nothing written)."""
+        claimed; LimitReached when it would go over (nothing written). ordered=True: see claim()."""
         try:
             # the same lock as claim_approved: two workers can never both take the last unit
             with self._lock, self._conn() as conn:
@@ -379,11 +407,60 @@ class Ledger:
                     return False
                 if self._latest_in(conn, "tool_intent", key) is not None:
                     return False
+                if ordered:
+                    self._refuse_unsettled_in(conn, run_id, effect)
                 self._reserve_in(conn, run_id, effect, limit)
                 self._insert(conn, run_id, "tool_intent", key, payload=payload)   # same transaction as the reservation
                 return True
         except self._DUPLICATE:
             return False
+
+    # ------------------------------------------------------------ ordered runs (0.8)
+    _OUTCOMES = ("tool_intent", "tool_done", "tool_abandoned", "late_result", "late_checked")
+
+    def unsettled(self, run_id: str) -> Optional[Dict[str, Any]]:
+        """The first action of this run with no final outcome: {key, tool, args}, or None."""
+        with self._conn() as conn:
+            return self._unsettled_in(conn, run_id)
+
+    def _unsettled_in(self, conn: Any, run_id: str) -> Optional[Dict[str, Any]]:
+        # Final = done with no unchecked late result, or EVERY attempt proved not to have happened (its own
+        # tool_abandoned), or a person resolved the newest one as not done. An attempt closed by a same-key resend
+        # is no proof: it may have reached the provider (formal review 0.8, TLC config bug_ordered_latest_only).
+        # Running, crashed, raised, or being resent with the same key: not final. The same states as `doubt`.
+        marks = ",".join("?" * len(self._OUTCOMES))
+        acts: Dict[str, Dict[str, Any]] = {}
+        for seq, kind, key, text in conn.execute(f"SELECT seq, kind, key, payload FROM entries WHERE run_id = ? AND "
+                                                 f"kind IN ({marks}) ORDER BY seq", (run_id, *self._OUTCOMES)).fetchall():
+            if kind == "tool_intent":
+                base, _, n = key.rpartition("#")
+                p = self._payload(seq, text) or {}
+                a = acts.setdefault(base, {"key": base, "tool": p.get("tool"), "args": p.get("args"), "tried": set(),
+                                           "closed": set(), "by_hand": set(), "done": False, "late": False})
+                a["tried"].add(int(n) if n.isdigit() else 1)
+            elif key in acts:
+                a = acts[key]
+                if kind == "tool_done":
+                    a["done"] = True
+                elif kind == "tool_abandoned":
+                    gone = self._payload(seq, text) or {}
+                    a["closed"].add(gone.get("attempt"))
+                    if gone.get("resolved_by"):
+                        a["by_hand"].add(gone.get("attempt"))
+                else:
+                    a["late"] = kind == "late_result"      # a check clears the late results written before it
+        for a in acts.values():                            # in the order the actions started
+            if a["late"] or not (a["done"] or a["tried"] <= a["closed"] or max(a["tried"]) in a["by_hand"]):
+                return {"key": a["key"], "tool": a["tool"], "args": a["args"]}
+        return None
+
+    def _refuse_unsettled_in(self, conn: Any, run_id: str, effect: str) -> None:
+        """Only a NEW action is refused: a retry or resume of one already started goes on under the usual rules."""
+        if self._latest_in(conn, "tool_intent", intent_key(effect, 1)) is not None:
+            return
+        found = self._unsettled_in(conn, run_id)
+        if found is not None:
+            raise Unsettled(found["key"], found["tool"], found["args"])
 
     def release_limit(self, run_id: str, effect: str, name: str) -> None:
         """Give back this effect's reservation: only when the kit has proved the effect did not happen."""
@@ -486,12 +563,24 @@ class Ledger:
                  "payload": self._payload(r[0], r[4], r[2]), "t": r[5]} for r in rows]
 
     # ------------------------------------------------------------ approvals
-    def sign(self, tool: str, args: Dict[str, Any], key: Optional[bytes] = None) -> str:
-        return hmac.new(key or self.secret, f"{tool}\x00{canonical(args)}".encode(), hashlib.sha256).hexdigest()
+    def sign(self, tool: str, args: Dict[str, Any], key: Optional[bytes] = None,
+             bound: Optional[Dict[str, Any]] = None) -> str:
+        """HMAC over (tool, arguments) and, since 0.8, the BOUND fields a yes carries (expiry, tool version). With
+        none of them the text signed is exactly 0.7's, so 0.7 approvals still match and plain new ones read in 0.7."""
+        msg = f"{tool}\x00{canonical(args)}" + (f"\x00{canonical(bound)}" if bound else "")
+        return hmac.new(key or self.secret, msg.encode(), hashlib.sha256).hexdigest()
 
-    def record_approval(self, run_id: str, tool: str, args: Dict[str, Any]) -> str:
-        mac = self.sign(tool, args)
-        self.append(run_id, "approval", f"{run_id}\x00{tool}", {"mac": mac, "args": args})
+    def record_approval(self, run_id: str, tool: str, args: Dict[str, Any], ttl: Optional[float] = None,
+                        version: Optional[str] = None) -> str:
+        """A "yes". ttl: seconds after which it can no longer admit a new action (the expiry time is signed, so it
+        cannot be edited). version: the tool version it is for (signed too)."""
+        bound: Dict[str, Any] = {}
+        if ttl is not None:
+            bound["exp"] = round(time.time() + ttl, 3)
+        if version is not None:
+            bound["version"] = version
+        mac = self.sign(tool, args, bound=bound)
+        self.append(run_id, "approval", f"{run_id}\x00{tool}", {"mac": mac, "args": args, **bound})
         return mac
 
     def record_denial(self, run_id: str, tool: str, args: Dict[str, Any]) -> str:
@@ -504,33 +593,68 @@ class Ledger:
         with self._conn() as conn:
             return self._matching_in(conn, run_id, tool, args, kind)
 
-    def _matching_in(self, conn: Any, run_id: str, tool: str, args: Dict[str, Any], kind: str) -> List[int]:
-        wants = [self.sign(tool, args, key) for key in [self.secret] + list(getattr(self, "old_secrets", []))]
+    def _signed_in(self, conn: Any, run_id: str, tool: str, args: Dict[str, Any], kind: str) -> List[Tuple[int, Any]]:
+        """(seq, payload) of every row of `kind` whose MAC matches these exact arguments and the BOUND fields the
+        row carries: a changed expiry or version, or one added to or removed from a row, no longer matches."""
+        keys = [self.secret] + list(getattr(self, "old_secrets", []))
         rows = conn.execute("SELECT seq, payload FROM entries WHERE kind = ? AND key = ? ORDER BY seq",
                             (kind, f"{run_id}\x00{tool}")).fetchall()
-        return [r[0] for r in rows if r[1] and any(hmac.compare_digest(self._payload(r[0], r[1], kind)["mac"], w)
-                                                   for w in wants)]
+        out = []
+        for r in rows:
+            if not r[1]:
+                continue
+            p = self._payload(r[0], r[1], kind)
+            bound = {f: p[f] for f in BOUND if f in p}
+            if any(hmac.compare_digest(p["mac"], self.sign(tool, args, key, bound)) for key in keys):
+                out.append((r[0], p))
+        return out
 
-    def matching_approvals(self, run_id: str, tool: str, args: Dict[str, Any]) -> List[int]:
-        """seq of every "yes" recorded for exactly these arguments, spent or not."""
-        return self._matching(run_id, tool, args, "approval")
+    def _matching_in(self, conn: Any, run_id: str, tool: str, args: Dict[str, Any], kind: str) -> List[int]:
+        """seq of every matching row. A "no" covers every version of the tool (a denial is never bound)."""
+        return [seq for seq, _ in self._signed_in(conn, run_id, tool, args, kind)]
+
+    def _approvals_in(self, conn: Any, run_id: str, tool: str, args: Dict[str, Any],
+                      version: Optional[str]) -> Dict[int, Optional[float]]:
+        """{seq: expiry time or None} of every "yes" for exactly these arguments AND this tool version."""
+        return {seq: p.get("exp") for seq, p in self._signed_in(conn, run_id, tool, args, "approval")
+                if p.get("version") == version}
+
+    def matching_approvals(self, run_id: str, tool: str, args: Dict[str, Any],
+                           version: Optional[str] = None) -> List[int]:
+        """seq of every "yes" for exactly these arguments (and this tool version), spent or not, expired or not."""
+        with self._conn() as conn:
+            return list(self._approvals_in(conn, run_id, tool, args, version))
+
+    def expired_approvals(self, run_id: str, tool: str, args: Dict[str, Any],
+                          version: Optional[str] = None) -> List[float]:
+        """Expiry times of the unspent "yes" answers for these arguments that have expired (to explain a refusal)."""
+        with self._conn() as conn:
+            found = self._approvals_in(conn, run_id, tool, args, version)
+            spent = {seq for seq in found
+                     if self._latest_in(conn, "approval_used", f"{run_id}\x00{tool}\x00{seq}") is not None}
+        now = time.time()
+        return [exp for seq, exp in found.items() if seq not in spent and exp is not None and now > exp]
 
     def last_denial(self, run_id: str, tool: str, args: Dict[str, Any]) -> int:
         """seq of the latest "no" for these exact arguments, 0 if none."""
         return max(self._matching(run_id, tool, args, "denial"), default=0)
 
-    def approved(self, run_id: str, tool: str, args: Dict[str, Any]) -> bool:
-        """True only if an approval exists whose MAC matches THESE exact arguments and no later "no"
-        cancelled it. (Whether it is still unused is use_approval's job.)"""
+    def approved(self, run_id: str, tool: str, args: Dict[str, Any], version: Optional[str] = None) -> bool:
+        """True only if an approval exists whose MAC matches THESE exact arguments (and tool version) and no later
+        "no" cancelled it. (Whether it is unused and unexpired is the admission's job.)"""
         denied = self.last_denial(run_id, tool, args)
-        return any(seq > denied for seq in self._matching(run_id, tool, args, "approval"))
+        return any(seq > denied for seq in self.matching_approvals(run_id, tool, args, version))
 
-    def use_approval(self, run_id: str, tool: str, args: Dict[str, Any], effect: str) -> bool:
+    def use_approval(self, run_id: str, tool: str, args: Dict[str, Any], effect: str,
+                     version: Optional[str] = None) -> bool:
         """Spend ONE unused, not-denied "yes" on this effect, atomically: a UNIQUE index allows one use
-        per approval, so two callers can never spend the same "yes" (K17)."""
+        per approval, so two callers can never spend the same "yes" (K17). Legacy split admission, used by tests only:
+        it never spends a yes with ttl, whose expiry must be read in the admission transaction."""
         denied = self.last_denial(run_id, tool, args)
-        for seq in self._matching(run_id, tool, args, "approval"):
-            if seq <= denied:
+        with self._conn() as conn:
+            found = self._approvals_in(conn, run_id, tool, args, version)
+        for seq, exp in found.items():
+            if seq <= denied or exp is not None:      # a yes with ttl is spent only by claim_approved (one transaction)
                 continue
             try:
                 self.append(run_id, "approval_used", f"{run_id}\x00{tool}\x00{seq}", {"effect": effect})
@@ -546,11 +670,12 @@ class Ledger:
         return hmac.new(key, msg.encode(), hashlib.sha256).hexdigest()
 
     def issue_ticket(self, run_id: str, tool: str, args: Dict[str, Any], ttl: float,
-                     extra: Optional[Dict[str, Any]] = None) -> str:
+                     extra: Optional[Dict[str, Any]] = None, version: Optional[str] = None) -> str:
         """Record a pause for a person to decide on exactly (tool, args), and return a ticket to show them.
         The ticket holds no arguments: only a random id and a MAC. What may run is read from THIS record
         when the decision comes back, never from what the client sends."""
-        approval_mac = self.sign(tool, args)
+        vb = {} if version is None else {"version": version}      # the tool version the "yes" will be for (0.8)
+        approval_mac = self.sign(tool, args, bound=vb)
         # The same call paused again while its ticket is still open (a LangGraph node re-runs from the top on
         # resume): give back the same ticket, so one person's decision answers it (T11). Open = not decided
         # yet, or approved and the action has not used the "yes". After a "no", or once the action ran, a new
@@ -560,7 +685,7 @@ class Ledger:
             p = e["payload"] or {}
             if (e["kind"] == "pause" and p.get("tool") == tool and p.get("mac") == approval_mac
                     and p.get("exp", 0) > time.time()
-                    and {k: v for k, v in p.items() if k not in ("tool", "args", "mac", "exp")} == (extra or {})):
+                    and {k: v for k, v in p.items() if k not in ("tool", "args", "mac", "exp")} == dict(extra or {}, **vb)):
                 old = e["key"].split("\x00", 1)[1]
                 decided = self.latest("ticket_decided", old)
                 yes = [r["seq"] for r in rows if r["kind"] == "approval" and (r["payload"] or {}).get("ticket") == old]
@@ -570,7 +695,7 @@ class Ledger:
         nonce = secrets.token_hex(12)
         exp = round(time.time() + ttl, 3)
         self.append(run_id, "pause", f"ticket\x00{nonce}",
-                    {"tool": tool, "args": args, "mac": approval_mac, "exp": exp, **(extra or {})})
+                    {"tool": tool, "args": args, "mac": approval_mac, "exp": exp, **(extra or {}), **vb})
         return f"c4a1.{nonce}.{self._ticket_mac(self.secret, nonce, run_id, tool, approval_mac, exp)}"
 
     def decide_ticket(self, ticket: str, decision: str, by: str = "") -> Dict[str, Any]:
@@ -596,7 +721,9 @@ class Ledger:
         except self._DUPLICATE:
             raise TicketRefused("this ticket was already decided") from None
         kind = "approval" if decision == "approve" else "denial"
+        vb = {"version": p["version"]} if kind == "approval" and "version" in p else {}   # a "no" is never bound
+        mac = p["mac"] if kind == "approval" or "version" not in p else self.sign(p["tool"], p["args"])
         self.append(row["run_id"], kind, f"{row['run_id']}\x00{p['tool']}",
-                    {"mac": p["mac"], "args": p["args"], "ticket": nonce, "by": by})
+                    {"mac": mac, "args": p["args"], "ticket": nonce, "by": by, **vb})
         extra = {k: v for k, v in p.items() if k not in ("tool", "args", "mac", "exp")}
         return {"run_id": row["run_id"], "tool": p["tool"], "args": p["args"], "decision": decision, "by": by, **extra}

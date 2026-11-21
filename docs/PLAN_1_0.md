@@ -17,7 +17,7 @@ These are the parts most users need. They change only in 2.0.
 |---|---|---|
 | `c4a.init`, `c4a.run` | the record and the run id | done |
 | `@c4a.effect` | once per (run, tool, exact arguments); `name=`, `key=`, `c4a_key=`, `exclude=`, `wait=` | done |
-| `approval=True`, `c4a.approve`, `c4a.deny` | a "yes" bound to the exact arguments, spent by one action; a "no" revokes | expiry (see below) |
+| `approval=True`, `c4a.approve`, `c4a.deny` | a "yes" bound to the exact arguments, spent by one action; a "no" revokes | expiry and version: in 0.8 (G2a, G2b) |
 | `reconcile=` | the provider says: here is the result / it did not happen (`None`) / it cannot tell yet (`c4a.UNKNOWN`) | `UNKNOWN` leaves "experimental" |
 | `retry_on=`, `idempotent_for=`, `c4a.idempotency_key()` | errors that prove nothing happened; resending with the same key | done |
 | `retries=` | retry inside one call, only when the record decides the next try is safe | leaves "experimental" |

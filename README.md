@@ -195,6 +195,10 @@ with c4a.run("thread-42"):                     # use the id your framework resum
 Rules worth knowing before you start:
 - **Always inside `c4a.run(...)`.** An action or approval outside a run raises `RuntimeError`. New threads
   do not inherit the run, so enter `c4a.run` in the thread (or use `contextvars.copy_context().run`).
+- **A yes can expire and be bound to a version (0.8).** `c4a.approve(pay, ttl=600, ...)` stops starting new
+  actions after 10 minutes (an action it already started is never run twice because of it), and
+  `@c4a.effect(approval=True, version="2")` refuses a yes given for another version. `c4a.run(id, ordered=True)`
+  starts no new action while an earlier one of the run is uncertain. See [docs/GUARANTEES.md](docs/GUARANTEES.md).
 - **A tool is identified by module + function name** (`billing.charge`). If you move or rename the
   function between deploys, a resumed run sees a new tool. Give long-lived tools a fixed `name="charge"`.
 - **Arguments need a stable text form**: numbers, strings, lists, dicts, sets, dataclasses, Pydantic models.

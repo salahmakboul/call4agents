@@ -25,17 +25,24 @@ same secret on every machine).
 ### `run`
 
 ```python
-run(run_id: str)
+run(run_id: str, *, ordered: bool = False)
 ```
 
 `with c4a.run("thread-42"):` - every action and approval inside belongs to this run. Use the id your
 framework resumes with (a thread, conversation or session id), so a resumed run finds its record.
 New threads do not inherit it: enter c4a.run there, or use contextvars.copy_context().run.
 
+ordered=True: a NEW action of this run is refused (EffectInDoubt naming the earlier action, nothing runs, nothing
+is recorded) while another action of the run has no final outcome: running, in doubt, or a late result nobody
+checked. Final: done, every attempt proved not to have happened, or resolved by a person. The earlier action's
+own retry is not refused, so reconcile= or `call4agents resolve` unblocks it. The check is in the same
+transaction as the new action's intent. The flag is per caller, not stored in the record: EVERY caller of the
+run must pass ordered=True (a nested `with c4a.run(same id)` keeps it).
+
 ### `effect`
 
 ```python
-effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optional[str] = None, reconcile: Optional[Callable[..., Any]] = None, key: Optional[Callable[..., str]] = None, wait: float = 2.0, idempotent_for: Optional[float] = None, retry_on: tuple = (), exclude: tuple = (), undo: Optional[Callable[..., Any]] = None, retries: int = 0, backoff: float = 0.5, limit: Optional[ForwardRef('Limit')] = None, rules: Any = None, lease: float = 600.0)
+effect(fn: Optional[Callable] = None, *, approval: bool = False, name: Optional[str] = None, reconcile: Optional[Callable[..., Any]] = None, key: Optional[Callable[..., str]] = None, wait: float = 2.0, idempotent_for: Optional[float] = None, retry_on: tuple = (), exclude: tuple = (), undo: Optional[Callable[..., Any]] = None, retries: int = 0, backoff: float = 0.5, limit: Optional[ForwardRef('Limit')] = None, rules: Any = None, lease: float = 600.0, version: Optional[str] = None)
 ```
 
 Mark a function that changes the outside world.
@@ -86,14 +93,25 @@ Mark a function that changes the outside world.
 - rules=c4a.Rules.load(path) or rules=policy (experimental): checked against the bound arguments before a new
   attempt is admitted; RuleRefused when a rule says no (nothing runs), approval needed when it says "ask".
   See call4agents/rules.py.
+- version="2": a "yes" is bound to this tool version (signed with it). A yes for another version, or for no
+  version, does not admit it; one given with c4a.approve(this_tool, ...) does. The version is not part of the
+  action's key: a finished action returns its recorded result under any version, and an action admitted under
+  another version's yes and still in doubt is not continued by this one (ApprovalRequired; resolve it by hand).
+  Without version= nothing changes, and 0.7 approvals keep working.
 
 ### `approve`
 
 ```python
-approve(tool: Any, **args: Any) -> str
+approve(tool: Any, *, ttl: Optional[float] = None, **args: Any) -> str
 ```
 
 Record a "yes" for this tool with exactly these arguments (in the current run).
+
+ttl=SECONDS: after that long the yes no longer admits a NEW action (ApprovalRequired, nothing runs). ttl limits
+when the yes is SPENT, not when the action happens: an action it already admitted keeps it, so it can still run
+or resume after the expiry (a resume returns the recorded result, stays in doubt, or reconciles, as without ttl),
+and the expiry never makes it run twice. The expiry time is signed with the yes and read in the transaction that
+spends it, by the admitting process's clock (live while now <= expiry). A tool declared with @c4a.effect(version=...) gets a yes for that version only.
 
 ### `deny`
 
@@ -131,7 +149,7 @@ idempotency_headers(header: str = 'Idempotency-Key') -> Dict[str, str]
 ### `ApprovalRequired`
 
 ```python
-class ApprovalRequired(tool: str, args: Dict[str, Any]) -> None
+class ApprovalRequired(tool: str, args: Dict[str, Any], why: str = '') -> None
 ```
 
 The effect needs a "yes" for exactly these arguments, and none matches.

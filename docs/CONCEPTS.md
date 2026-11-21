@@ -93,6 +93,18 @@ those arguments.
   action that is in doubt.
 - Spending the "yes" and writing the intent happen in **one database transaction**. Eight callers racing on
   one "yes": exactly one runs.
+- **A yes can expire (0.8).** `c4a.approve(tool, ttl=600, **args)`: after 10 minutes it no longer starts a new
+  action. An action it already started keeps it: its retry returns the result or stays in doubt, never runs twice.
+- **A yes can be bound to the tool's version (0.8).** With `@c4a.effect(approval=True, version="2")`, a yes given
+  for version 1 (or for no version) does not run version 2.
+
+## Ordered runs (0.8, opt-in)
+
+`with c4a.run("order-A-1", ordered=True):` starts no new action while an earlier action of the same run is
+uncertain (in doubt, still running, or a late result nobody checked). The new action raises `EffectInDoubt`
+naming the earlier one, and nothing runs. Resolving the earlier action (`call4agents resolve`, or `reconcile=` on
+its retry) lets the run go on. This is for a loop that might swallow `EffectInDoubt` and carry on
+(see [MULTI_STEP.md](MULTI_STEP.md)).
 
 ## Waiting for a person (tickets, experimental)
 

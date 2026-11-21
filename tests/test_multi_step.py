@@ -4,6 +4,7 @@ MS1 control: without the kit, a crash after a step's effect makes that step happ
 MS2 with the kit and no reconcile=, no step happens twice at any crash point; the plan stops in doubt instead.
 MS3 with reconcile= on each step, every crash point ends with exactly one reserve, one charge and one email.
 MS4 a loop that carries on past an uncertain step lets later steps run; `call4agents story` names that case.
+MS5 the same loop in an ordered run (`c4a.run(..., ordered=True)`) runs no later step: 0 charges, 0 emails.
 The numbers in docs/MULTI_STEP.md are the ones these checks assert."""
 import os
 import subprocess
@@ -71,6 +72,22 @@ def main_test():
     check("MS4 story names the half-done change",
           "reserve(" in page and "later actions still started" in page
           and page.count("It may or may not have happened: it started") == 1 and page.count("Done: it ran") == 2, page)
+
+    folder, first, second, counts = cell("guard_ordered", "reserve:after")
+    check("MS5 the carry-on loop in an ordered run: no later step runs (charge 0, email 0), each is refused",
+          counts == {"reserve": 1, "charge": 0, "email": 0} and second.stdout.count("uncertain") == 3,
+          (counts, second.stdout, second.stderr[-300:]))
+    page = story(str(folder / "record.sqlite"))
+    check("MS5 story shows one uncertain action and no later one started",
+          page.count("It may or may not have happened: it started") == 1 and "later actions still started" not in page
+          and "Done: it ran" not in page, page)
+    later = []
+    for c in ("charge:before", "email:after"):
+        folder, first, second, counts = cell("guard_ordered", c)
+        later.append((c, counts))
+    check("MS5 crashes at later steps: no step twice and nothing after the crashed step",
+          later == [("charge:before", {"reserve": 1, "charge": 0, "email": 0}),
+                    ("email:after", {"reserve": 1, "charge": 1, "email": 1})], later)
 
     if FAILED:
         print(f"{len(FAILED)} multi-step check(s) failed")

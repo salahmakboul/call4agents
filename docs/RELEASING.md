@@ -33,6 +33,10 @@ reused), or leaks something.
 4. **Run records are safe across versions.** The record format has a version number: a newer kit reads older
    records, and an older kit refuses a record written by a newer format instead of misreading it. Going back to
    an older release is therefore safe unless the record format changed (the changelog says when it does).
+   - New information goes into new optional fields or new entry kinds, never into a changed meaning of an old one,
+     and the format number stays the same. A field that a safety check depends on is signed, and an older kit that
+     does not know it must fail closed: a 0.8 approval with `exp` or `version` does not match in 0.7 (refused, never
+     run), and a 0.7 approval still matches in 0.8 for tools without `version=`.
 
 ## After every release
 

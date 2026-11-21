@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 
 import call4agents as c4a
+from call4agents.ledger import canonical
 
 FAILED = []
 
@@ -220,6 +221,525 @@ def k29():
         charges.append(len(bank_file.read_text().splitlines()) if bank_file.exists() else 0)
     check("K29e a kill, then two processes resume at once with a truthful reconcile: 1 charge each time",
           charges == [1, 1], charges)
+
+
+K30_CHILD = """
+import os, sys
+from pathlib import Path
+import call4agents as c4a
+work, mode = Path(sys.argv[1]), sys.argv[2]
+c4a.init(str(work / "rec.sqlite"), secret=b"k30-secret-k30-secret")
+
+def pay(amount):
+    if mode == "pay_die_before":
+        os._exit(9)                     # killed before the bank was reached
+    with open(work / "bank.txt", "a") as f:
+        f.write("%s\\n" % amount)
+    if mode == "pay_die_after":
+        os._exit(9)                     # the bank charged; the result is never saved
+    return "paid"
+
+def charged(amount):
+    p = work / "bank.txt"
+    return "paid" if p.exists() and p.read_text().strip() else None
+
+pay = c4a.effect(pay, name="k30.pay", approval=True, reconcile=charged if mode.endswith("_rc") else None)
+with c4a.run("k30"):
+    if mode.startswith("pay"):
+        c4a.approve(pay, ttl=float(sys.argv[3]), amount=10)
+    if mode == "approve_again":
+        c4a.approve(pay, ttl=60, amount=10)
+    try:
+        print(pay(amount=10))
+    except Exception as e:
+        print(type(e).__name__)
+"""
+
+
+def _raw_rows(lg, kind):
+    conn = sqlite3.connect(lg.path)
+    try:
+        return conn.execute("SELECT seq, payload FROM entries WHERE kind = ? ORDER BY seq", (kind,)).fetchall()
+    finally:
+        conn.close()
+
+
+def _raw_edit(lg, seq, payload):
+    conn = sqlite3.connect(lg.path)
+    try:
+        with conn:
+            conn.execute("UPDATE entries SET payload = ? WHERE seq = ?", (json.dumps(payload), seq))
+    finally:
+        conn.close()
+
+
+def _outcome(fn, **kw):
+    try:
+        return fn(**kw)
+    except (c4a.ApprovalRequired, c4a.EffectInDoubt) as e:
+        return type(e).__name__ + (":expired" if "expired" in str(e) else "")
+
+
+def k30():
+    """K30 (0.8, PLAN_1_0 item 1): approve(..., ttl=SECONDS). An expired yes admits no NEW action; an action it
+    already admitted keeps its behaviour (replay, in doubt, reconcile), never a second run."""
+    import hashlib
+    import hmac as _hmac
+    import subprocess
+    paid = []
+
+    def make(name="k30.pay", **kw):
+        def pay(amount):
+            paid.append(amount)
+            return f"paid {amount}"
+        return c4a.effect(pay, name=name, approval=True, **kw)
+
+    # a: an expired yes admits nothing; nothing runs, no intent, the yes stays unspent; a new yes works
+    lg = fresh()
+    pay = make()
+    with c4a.run("k30a"):
+        c4a.approve(pay, ttl=0.3, amount=10)
+        time.sleep(0.5)
+        late = _outcome(pay, amount=10)
+        intents = lg.count_run_kind("k30a", "tool_intent")
+        used = lg.count_run_kind("k30a", "approval_used")
+        c4a.approve(pay, ttl=60, amount=10)
+        again = _outcome(pay, amount=10)
+    check("K30a an expired yes admits no new action: ApprovalRequired saying it expired, nothing runs or is recorded",
+          late == "ApprovalRequired:expired" and paid == [10] and intents == 0 and used == 0 and again == "paid 10",
+          (late, paid, intents, used, again))
+
+    # b: within its ttl it works like any yes; a retry returns the recorded result
+    lg = fresh()
+    paid.clear()
+    pay = make()
+    with c4a.run("k30b"):
+        c4a.approve(pay, ttl=60, amount=10)
+        first, second = pay(amount=10), pay(amount=10)
+        time.sleep(0.01)
+    check("K30b a yes inside its ttl admits once; the retry returns the recorded result", (first, second, paid) ==
+          ("paid 10", "paid 10", [10]), (first, second, paid))
+
+    # c: without ttl the row is exactly 0.7's (same fields, same MAC text), and a 0.7 row still admits
+    lg = fresh()
+    paid.clear()
+    pay = make()
+    with c4a.run("k30c"):
+        c4a.approve(pay, amount=10)
+        seq, text = _raw_rows(lg, "approval")[0]
+        row = json.loads(text)
+        old_mac = _hmac.new(b"test-secret", f"{pay.c4a_name}\x00{canonical({'amount': 10})}".encode(),
+                            hashlib.sha256).hexdigest()
+    check("K30c without ttl the yes is stored exactly as in 0.7 (fields and MAC)",
+          set(row) == {"mac", "args"} and row["mac"] == old_mac, row)
+
+    # d: the expiry is inside the MAC: pushing it later, or removing it, makes the yes count for nothing
+    results = []
+    for change in ("later", "removed"):
+        lg = fresh()
+        paid.clear()
+        pay = make()
+        with c4a.run("k30d"):
+            c4a.approve(pay, ttl=0.2, amount=10)
+            seq, text = _raw_rows(lg, "approval")[0]
+            row = json.loads(text)
+            if change == "later":
+                row["exp"] += 3600
+            else:
+                del row["exp"]
+            _raw_edit(lg, seq, row)
+            results.append(_outcome(pay, amount=10))
+    check("K30d an expiry edited later or removed in the record is refused (it is signed with the yes)",
+          results == ["ApprovalRequired", "ApprovalRequired"] and paid == [], (results, paid))
+
+    # e: admitted, then in doubt (it raised), then the yes expires: still in doubt, a new yes changes nothing
+    lg = fresh()
+    tries = []
+
+    def flaky(amount):
+        tries.append(amount)
+        raise ConnectionError("timeout after the charge")
+    flaky = c4a.effect(flaky, name="k30.flaky", approval=True)
+    with c4a.run("k30e"):
+        c4a.approve(flaky, ttl=0.3, amount=10)
+        try:
+            flaky(amount=10)
+        except ConnectionError:
+            pass
+        time.sleep(0.5)
+        after = _outcome(flaky, amount=10)
+        c4a.approve(flaky, ttl=60, amount=10)
+        after_new_yes = _outcome(flaky, amount=10)
+    check("K30e an action in doubt stays in doubt after its yes expires, and a new yes does not run it again",
+          after == "EffectInDoubt" and after_new_yes == "EffectInDoubt" and tries == [10], (after, after_new_yes, tries))
+
+    # f: admitted and done, the yes expires: the result is replayed, nothing runs
+    lg = fresh()
+    paid.clear()
+    pay = make()
+    with c4a.run("k30f"):
+        c4a.approve(pay, ttl=0.3, amount=10)
+        pay(amount=10)
+        time.sleep(0.5)
+        replay = _outcome(pay, amount=10)
+    check("K30f a finished action replays its result after its yes expired", replay == "paid 10" and paid == [10],
+          (replay, paid))
+
+    # g: ttl must be seconds above 0
+    bad = []
+    for ttl in (0, -1, True, "5", float("nan"), float("inf")):
+        try:
+            with c4a.run("k30g"):
+                c4a.approve(pay, ttl=ttl, amount=10)
+            bad.append(ttl)
+        except ValueError:
+            pass
+    check("K30g ttl= 0, negative, a bool, text, NaN or infinite is refused", not bad, bad)
+
+    # h: real processes: killed during the payment, the yes expires, then the resume
+    def child_case(kill, resume, then=None):
+        work = Path(tempfile.mkdtemp(prefix="c4a-k30-"))
+        (work / "child.py").write_text(K30_CHILD, encoding="utf-8")
+        env = dict(__import__("os").environ, PYTHONPATH=str(Path(c4a.__file__).resolve().parents[1]))
+        first = subprocess.run([sys.executable, str(work / "child.py"), str(work), kill, "0.5"], env=env,
+                               capture_output=True, text=True)
+        time.sleep(0.8)                                   # the yes has expired
+        outs = [first.returncode]
+        for mode in [resume] + ([then] if then else []):
+            outs.append(subprocess.run([sys.executable, str(work / "child.py"), str(work), mode], env=env,
+                                       capture_output=True, text=True).stdout.strip())
+        bank = work / "bank.txt"
+        return outs, len(bank.read_text().splitlines()) if bank.exists() else 0
+    killed_plain = child_case("pay_die_after", "resume", then="approve_again")
+    killed_rc = child_case("pay_die_after", "resume_rc")
+    killed_before_rc = child_case("pay_die_before", "resume_rc")
+    check("K30h killed after the charge, yes expired: the resume stays in doubt, a new yes does not pay again (1 charge)",
+          killed_plain == ([9, "EffectInDoubt", "EffectInDoubt"], 1), killed_plain)
+    check("K30h with reconcile the resume returns the recorded payment, it does not pay again (1 charge)",
+          killed_rc == ([9, "paid"], 1), killed_rc)
+    check("K30h killed before the bank, reconcile proves it did not happen: the admitted action runs once (1 charge)",
+          killed_before_rc == ([9, "paid"], 1), killed_before_rc)
+
+
+def k31():
+    """K31 (0.8, PLAN_1_0 item 2): @c4a.effect(version="2"). The version is signed with the yes; a yes for another
+    version, or for none, does not run it. Without version= nothing changes, and 0.7 approvals keep working."""
+    import hashlib
+    import hmac as _hmac
+    from call4agents.ops import actions
+    paid = []
+
+    def make(version=None, name="k31.pay"):
+        def pay(amount):
+            paid.append((version, amount))
+            return f"paid {amount} v{version}"
+        return c4a.effect(pay, name=name, approval=True, version=version)
+
+    # a: a yes for version 1, or for no version, does not run version 2; a yes for version 2 does
+    fresh()
+    v1, v2, plain = make("1"), make("2"), make(None)
+    with c4a.run("k31a"):
+        c4a.approve(v1, amount=10)
+        c4a.approve(plain, amount=10)
+        refused = _outcome(v2, amount=10)
+        c4a.approve(v2, amount=10)
+        ran = _outcome(v2, amount=10)
+    check("K31a a yes for version 1 or for no version does not run version 2; a yes for version 2 does",
+          refused == "ApprovalRequired" and ran == "paid 10 v2" and paid == [("2", 10)], (refused, ran, paid))
+
+    # b: without version= a yes without version admits, a versioned yes does not (0.7 behaviour kept)
+    fresh()
+    paid.clear()
+    v2, plain = make("2"), make(None)
+    with c4a.run("k31b"):
+        c4a.approve(v2, amount=10)
+        no = _outcome(plain, amount=10)
+        c4a.approve("k31.pay", amount=10)
+        yes = _outcome(plain, amount=10)
+    check("K31b a tool without version= is admitted by a yes without version only", (no, yes) ==
+          ("ApprovalRequired", "paid 10 vNone"), (no, yes, paid))
+
+    # c: a 0.7 row (old MAC text, no version) still admits a tool without version, never a versioned one
+    lg = fresh()
+    paid.clear()
+    old_mac = _hmac.new(b"test-secret", f"k31.pay\x00{canonical({'amount': 10})}".encode(), hashlib.sha256).hexdigest()
+    with c4a.run("k31c"):
+        lg.append("k31c", "approval", "k31c\x00k31.pay", {"mac": old_mac, "args": {"amount": 10}})
+        versioned = _outcome(make("2"), amount=10)
+        old_tool = _outcome(make(None), amount=10)
+    check("K31c a 0.7 approval row admits the tool without version, not the versioned one",
+          (versioned, old_tool) == ("ApprovalRequired", "paid 10 vNone"), (versioned, old_tool))
+
+    # d: the version is inside the MAC: a row edited from 2 to 3 does not run version 3
+    lg = fresh()
+    paid.clear()
+    with c4a.run("k31d"):
+        c4a.approve(make("2"), amount=10)
+        seq, text = _raw_rows(lg, "approval")[0]
+        row = json.loads(text)
+        row["version"] = "3"
+        _raw_edit(lg, seq, row)
+        edited = _outcome(make("3"), amount=10)
+        broken = _outcome(make("2"), amount=10)
+    check("K31d a version edited in the record counts for neither version", (edited, broken, paid) ==
+          ("ApprovalRequired", "ApprovalRequired", []), (edited, broken, paid))
+
+    # e: the version is not part of the key: a finished v1 action is replayed by v2 code, not run again
+    fresh()
+    paid.clear()
+    with c4a.run("k31e"):
+        v1 = make("1")
+        c4a.approve(v1, amount=10)
+        v1(amount=10)
+        replay = _outcome(make("2"), amount=10)
+    check("K31e a finished version-1 action returns its result to version-2 code and does not run again",
+          replay == "paid 10 v1" and paid == [("1", 10)], (replay, paid))
+
+    # f: a no covers every version
+    fresh()
+    paid.clear()
+    with c4a.run("k31f"):
+        v2 = make("2")
+        c4a.approve(v2, amount=10)
+        c4a.deny("k31.pay", amount=10)
+        denied = _outcome(v2, amount=10)
+    check("K31f a no without version cancels a yes for version 2", denied == "ApprovalRequired" and paid == [],
+          (denied, paid))
+
+    # g: tickets carry the version: a ticket for version 2 runs version 2; one for version 1 does not
+    lg = fresh()
+    paid.clear()
+    with c4a.run("k31g"):
+        t1 = c4a.pause(make("1"), amount=10)
+        c4a.decide(t1, "approve", by="anna")
+        v1_ticket = _outcome(make("2"), amount=10)
+        t2 = c4a.pause(make("2"), amount=10)
+        c4a.decide(t2, "approve", by="anna")
+        v2_ticket = _outcome(make("2"), amount=10)
+    check("K31g a ticket decided for version 1 does not run version 2; one for version 2 does",
+          (v1_ticket, v2_ticket) == ("ApprovalRequired", "paid 10 v2") and t1 != t2, (v1_ticket, v2_ticket))
+
+    # h: in doubt under a version-1 yes: version-2 code does not continue it
+    fresh()
+    paid.clear()
+    tries = []
+
+    def flaky(amount):
+        tries.append(amount)
+        raise ConnectionError("timeout")
+    with c4a.run("k31h"):
+        f1 = c4a.effect(flaky, name="k31.flaky", approval=True, version="1",
+                        reconcile=lambda amount: None)
+        c4a.approve(f1, amount=10)
+        try:
+            f1(amount=10)
+        except ConnectionError:
+            pass
+        f2 = c4a.effect(flaky, name="k31.flaky", approval=True, version="2", reconcile=lambda amount: None)
+        c4a.approve(f2, amount=10)
+        cont = _outcome(f2, amount=10)
+    check("K31h an action admitted under a version-1 yes and in doubt is not continued by version-2 code",
+          cont == "ApprovalRequired" and tries == [10], (cont, tries))
+
+    bad = []
+    for v in (2, "", b"2"):
+        try:
+            c4a.effect(lambda amount: None, name="k31.bad", version=v)
+            bad.append(v)
+        except ValueError:
+            pass
+    check("K31i version= must be a non-empty string", not bad, bad)
+
+
+def k32():
+    """K32 (0.8): `with c4a.run(id, ordered=True)`: a new action is refused while another action of the run has no
+    final outcome (in doubt, running, or an unchecked late result). Resolving it, or reconcile on its retry, unblocks."""
+    import threading
+    from call4agents import ops
+    from call4agents.ledger import effect_key
+    ran = []
+
+    def step(name, fail=False, reconcile=None, approval=False):
+        def body(order):
+            ran.append(name)
+            if fail:
+                raise ConnectionError(f"{name}: timeout")
+            return f"{name} ok"
+        return c4a.effect(body, name=f"k32.{name}", reconcile=reconcile, approval=approval)
+
+    def blocked(rid, ordered, later):
+        try:
+            with c4a.run(rid, ordered=ordered):
+                later(order="A")
+            return "ran"
+        except c4a.EffectInDoubt as e:
+            return "refused:" + ("k32.charge" in str(e) and "ordered run" in str(e) and "nothing ran" in str(e)) * "named"
+
+    # a: an earlier action in doubt refuses a new one; nothing runs, nothing is recorded for it. Control: unordered.
+    found = {}
+    for ordered in (True, False):
+        lg = fresh()
+        ran.clear()
+        charge, email = step("charge", fail=True), step("email")
+        with c4a.run("k32a", ordered=ordered):
+            try:
+                charge(order="A")
+            except ConnectionError:
+                pass
+        found[ordered] = (blocked("k32a", ordered, email), list(ran),
+                          lg.latest("tool_intent", effect_key("k32a", "k32.email", {"order": "A"}) + "#1") is None)
+    check("K32a ordered: a new action after one in doubt is refused naming it; nothing runs or is recorded",
+          found[True] == ("refused:named", ["charge"], True), found[True])
+    check("K32a control: the same run without ordered=True runs the later step (as in 0.7)",
+          found[False] == ("ran", ["charge", "email"], False), found[False])
+
+    # b: resolve done, resolve not-done, and reconcile on the retry each unblock
+    unblocked = {}
+    for how in ("done", "not-done", "reconcile"):
+        lg = fresh()
+        ran.clear()
+        charge = step("charge", fail=True, reconcile=(lambda order: "charge ok") if how == "reconcile" else None)
+        email = step("email")
+        with c4a.run("k32b", ordered=True):
+            try:
+                charge(order="A")
+            except ConnectionError:
+                pass
+            before = blocked("k32b", True, email)
+            if how == "reconcile":
+                charge(order="A")                          # the retry asks the provider: it happened
+            else:
+                ops.resolve(lg, effect_key("k32b", "k32.charge", {"order": "A"})[:12], how, "checked the bank")
+            after = blocked("k32b", True, email)
+        unblocked[how] = (before, after, list(ran))
+    check("K32b resolve done, resolve not-done, or a reconcile on the retry unblocks the next step",
+          all(b == "refused:named" and a == "ran" and r == ["charge", "email"] for b, a, r in unblocked.values()),
+          unblocked)
+
+    # c: a late result blocks until a person checks it (`resolve ... done` writes late_checked)
+    lg = fresh()
+    ran.clear()
+    charge, email = step("charge"), step("email")
+    with c4a.run("k32c", ordered=True):
+        charge(order="A")
+        k = effect_key("k32c", "k32.charge", {"order": "A"})
+        lg.append("k32c", "late_result", k, {"attempt": 1})
+        late = blocked("k32c", True, email)
+        listed = len(ops.in_doubt(lg))
+        try:
+            ops.resolve(lg, k[:12], "done", "no duplicate at the bank")
+        except Exception as e:                             # noqa: BLE001 (shown in the check below)
+            listed = repr(e)
+        checked = blocked("k32c", True, email)
+        listed_after = len(ops.in_doubt(lg))
+    check("K32c a late result blocks the next step until `resolve ... done` records that it was checked",
+          (late, checked, listed, listed_after) == ("refused:named", "ran", 1, 0), (late, checked, listed, listed_after))
+
+    # d: the uncertain action's own retry is not refused, a re-entered run keeps the flag, a refused step keeps its yes
+    lg = fresh()
+    ran.clear()
+    charge = step("charge", fail=True)
+    pay = step("pay", approval=True)
+    with c4a.run("k32d", ordered=True):
+        try:
+            charge(order="A")
+        except ConnectionError:
+            pass
+        own = _outcome(charge, order="A")
+        c4a.approve(pay, order="A")
+        with c4a.run("k32d"):                              # an adapter enters the same run again
+            nested = _outcome(pay, order="A")
+        spent = lg.count_run_kind("k32d", "approval_used")
+    check("K32d the action in doubt itself stays in doubt (not refused as 'earlier'); a nested run keeps ordered; "
+          "the refused step's yes stays unspent", own == "EffectInDoubt" and nested == "EffectInDoubt" and spent == 0
+          and ran == ["charge"], (own, nested, spent, ran))
+
+    # f: only a NEW action is refused: the retry of one already started goes on even while another is unsettled
+    lg = fresh()
+    ran.clear()
+    charge = step("charge")
+    email = step("email", fail=True, reconcile=lambda order: None)   # the provider says: it did not happen
+    with c4a.run("k32f", ordered=True):
+        charge(order="A")
+        try:
+            email(order="A")
+        except ConnectionError:
+            pass
+        lg.append("k32f", "late_result", effect_key("k32f", "k32.charge", {"order": "A"}), {"attempt": 1})
+        try:
+            email(order="A")                                 # reconcile: not done -> attempt 2 runs
+        except ConnectionError:
+            pass
+        except c4a.EffectInDoubt:
+            ran.append("retry refused")
+        new = blocked("k32f", True, step("receipt"))
+    check("K32f the retry of an action already started is not refused; a new one is (late result unchecked)",
+          ran == ["charge", "email", "email"] and new == "refused:named", (ran, new))
+
+    # g (formal review 0.8, TLC bug_ordered_latest_only): attempt 1 reached the provider then raised; the same-key
+    # resend (attempt 2) got an error in retry_on. Attempt 2 proves nothing about attempt 1: the action is still
+    # uncertain, so the next step is refused, and `doubt` / `story` show it as uncertain.
+    lg = fresh()
+    ran.clear()
+
+    class Busy(Exception):
+        pass
+    answers = [ConnectionError("timeout reading the answer"), Busy("429: resend refused")]
+
+    def charge_idem(order):
+        ran.append(("charge", c4a.idempotency_key()))
+        raise answers.pop(0)
+    charge_idem = c4a.effect(charge_idem, name="k32.charge", idempotent_for=60, retry_on=(Busy,))
+    with c4a.run("k32g", ordered=True):
+        for _ in range(2):
+            try:
+                charge_idem(order="A")
+            except (ConnectionError, Busy):
+                pass
+        after = blocked("k32g", True, step("email"))
+    from call4agents.story import story as _story
+    state = [a["state"] for a in ops.actions(lg).values()]
+    page = _story(str(lg.path))
+    check("K32g attempt 1 raised, the same-key resend got a retry_on error: still uncertain, the next step is refused, "
+          "and doubt/story say it may have happened", after == "refused:named" and len(ran) == 2
+          and ran[0][1] == ran[1][1] and state == ["IN DOUBT"] and len(ops.in_doubt(lg)) == 1
+          and "It may or may not have happened" in page, (after, ran, state, page[-400:]))
+    with c4a.run("k32g", ordered=True):
+        ops.resolve(lg, effect_key("k32g", "k32.charge", {"order": "A"})[:12], "not-done", "the bank has no charge")
+        by_hand = blocked("k32g", True, step("email"))
+    check("K32g ... and a person resolving it as not done unblocks the next step", by_hand == "ran", by_hand)
+
+    # e: 8 threads start 8 different actions of one ordered run at once: one runs, 7 are refused (one transaction)
+    for ordered in (True, False):
+        lg = fresh()
+        ran.clear()
+        outs = []
+        go = threading.Event()
+
+        def slow(order):
+            # Hold the action open until every other caller has either run or been refused, so all 8 really
+            # overlap on any machine (a fixed sleep let a slow CI thread arrive after the first had finished).
+            ran.append(order)
+            deadline = time.time() + 10
+            while len(ran) + outs.count("EffectInDoubt") < 8 and time.time() < deadline:
+                time.sleep(0.01)
+            return "ok"
+        slow = c4a.effect(slow, name="k32.slow")
+
+        def racer(i):
+            go.wait()
+            with c4a.run("k32e", ordered=ordered):
+                outs.append(_outcome(slow, order=f"o{i}"))
+        ts = [threading.Thread(target=racer, args=(i,)) for i in range(8)]
+        [t.start() for t in ts]
+        go.set()
+        [t.join() for t in ts]
+        if ordered:
+            serial = (len(ran), outs.count("ok"), outs.count("EffectInDoubt"))
+        else:
+            parallel = (len(ran), outs.count("ok"))
+    check("K32e 8 different actions at once in one ordered run: exactly 1 runs, 7 refused (control unordered: 8 run)",
+          serial == (1, 1, 7) and parallel == (8, 8), (serial, parallel))
 
 
 def main():
@@ -1358,6 +1878,9 @@ def main():
           "CancelledError" in said and k24 == ["A"], (said, k24))
 
     k29()
+    k30()
+    k31()
+    k32()
 
     # K7 the core imports only the standard library
     import ast

@@ -8,7 +8,8 @@ ST4 who approved what and when is shown; a no and a rule's refusal are shown, an
 ST5 an action resolved by hand shows the person's note; a request still waiting for a person is shown.
 ST6 --run shows one run only; an unknown run and a missing record fail (exit 1) and create no file.
 ST7 it is read-only: the record file is byte-for-byte the same afterwards, and no secret file appears.
-ST8 the page always says that steps never started are not listed."""
+ST8 the page always says that steps never started are not listed.
+ST9 a yes that expired before any action used it says so and that nothing ran; a used one does not."""
 import hashlib
 import io
 import os
@@ -187,6 +188,28 @@ def main_test():
     p = subprocess.run([sys.executable, "-m", "call4agents", "story", record, "--run", "clean"], capture_output=True,
                        text=True, cwd=str(ROOT), env=dict(os.environ, PYTHONIOENCODING="utf-8"))
     check("ST6 the command line works", p.returncode == 0 and "## Run clean" in p.stdout, (p.returncode, p.stderr[-300:]))
+
+    # ST9: approve(..., ttl=) that expired unused, next to one that was used in time
+    import time
+    record9 = str(Path(folder) / "r9.sqlite")
+    c4a.init(record9, secret=SECRET)
+
+    @c4a.effect(approval=True, name="shop.refund")
+    def refund9(order, cents):
+        return "refunded"
+    with c4a.run("ttl"):
+        c4a.approve(refund9, ttl=0.2, order="A-9", cents=900)
+        c4a.approve(refund9, ttl=0.2, order="A-8", cents=800)
+        refund9(order="A-8", cents=800)
+        time.sleep(0.4)
+        try:
+            refund9(order="A-9", cents=900)
+        except c4a.ApprovalRequired:
+            pass
+    page9 = story(record9)
+    check("ST9 an expired, unused yes is shown as expired, with nothing run under it; the used one is not",
+          page9.count("the yes expired at") == 1 and '"order": "A-9"' in page9.split("the yes expired")[0].splitlines()[-1]
+          and "Nothing ran under it." in page9, page9)
 
     if FAILED:
         print(f"{len(FAILED)} story check(s) failed")

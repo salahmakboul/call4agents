@@ -29,7 +29,9 @@ with c4a.run("order-A-1"):              # the same id on every restart
 1. Make each step its own `@c4a.effect`, and use one run id for the whole job.
 2. Give a step a `reconcile=` when the outside system can say whether it happened. Return `None` only when it
    surely did not.
-3. Do not swallow `c4a.EffectInDoubt` and carry on. Let it stop the job, or hand it to a person.
+3. Do not swallow `c4a.EffectInDoubt` and carry on. Let it stop the job, or hand it to a person. If you cannot
+   be sure of that (an agent loop that hands every error to the model), use `c4a.run("order-A-1", ordered=True)`:
+   then no later step can start while an earlier one is uncertain (0.8).
 4. After a crash, read `call4agents story <record> --run order-A-1`.
 
 ## What happens at each crash point
@@ -40,8 +42,9 @@ with c4a.run("order-A-1"):              # the same id on every restart
 | each step a `@c4a.effect`, no `reconcile=` | 0 of 6 | stops in doubt at the crashed step, every time; no later step runs |
 | the same, with `reconcile=` on each step | 0 of 6 | finishes with exactly one reserve, one charge and one email, at every crash point and in the no-crash control |
 | `@c4a.effect`, but the loop catches `EffectInDoubt` and carries on | 0 | the later steps run while the earlier one is uncertain; `story` says so |
+| the same loop in `c4a.run(..., ordered=True)` (mode `guard_ordered`) | 0 | no later step runs (0 charges, 0 emails after a crash after reserve); each is refused as in doubt until the reserve is resolved |
 
-The last row is the case to watch for. An agent loop that turns every error into a message for the model can do
+The fourth row is the case to watch for. An agent loop that turns every error into a message for the model can do
 this. The record still knows which step is uncertain, and `call4agents story` prints:
 
 ```
