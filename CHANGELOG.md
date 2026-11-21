@@ -2,6 +2,13 @@
 
 ## Unreleased (0.8.0)
 
+**The crash test in any CI ([docs/CI_CRASHTEST.md](docs/CI_CRASHTEST.md))**
+- The GitHub Action writes the crashtest report (which call ran twice, where, the one-line fix) to the job summary,
+  and an error annotation when an action ran twice or without approval. Exit codes and inputs are unchanged.
+- `tests/test_action.py` runs the steps of `action.yml` with bash the way GitHub runs them (inputs, `if:`,
+  `GITHUB_OUTPUT`, `GITHUB_STEP_SUMMARY`), on every OS in the kit job. Nine bugs put back in `action.yml` one at a
+  time are each caught; the no-op control is missed (`run_kit_mutations --suite tests.test_action`).
+
 **New: a "yes" can expire: `c4a.approve(tool, ..., ttl=SECONDS)` (PLAN_1_0 item 1)**
 - `ttl` limits when the yes can be SPENT, not when the action happens: an action admitted in time can still run or
   resume after the expiry. After `ttl` seconds the yes no longer admits a NEW action: `ApprovalRequired` (the message says it expired),

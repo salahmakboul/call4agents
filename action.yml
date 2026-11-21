@@ -33,7 +33,7 @@ inputs:
 
 outputs:
   exit-code:
-    description: 0 nothing repeated, 1 an action ran twice or without approval, 2 crashtest could not run the script.
+    description: 0 nothing repeated, 1 an action ran twice or without approval, 2 crashtest could not run the script. The same verdict and the full report go to the job summary.
     value: ${{ steps.crashtest.outputs.exit-code }}
 
 runs:
@@ -63,7 +63,28 @@ runs:
       run: |
         args=("$SCRIPT" --test-accounts --max-crashes "$MAX")
         if [ -n "$WATCH" ]; then args+=(--watch "$WATCH"); fi
-        code=0
-        call4agents crashtest "${args[@]}" || code=$?
+        log="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/call4agents-crashtest-$$.txt"
+        set +e
+        call4agents crashtest "${args[@]}" 2>&1 | tee "$log"
+        code=${PIPESTATUS[0]}
+        set -e
         echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+        case "$code" in
+          0) verdict="No action ran twice and no unapproved call ran, at the crash points tested." ;;
+          1) verdict="An action ran twice or without approval."
+             echo "::error title=call4agents crashtest::An action ran twice or without approval in $SCRIPT. The job summary shows which one and the one-line fix." ;;
+          *) verdict="crashtest could not run the script (exit $code)." ;;
+        esac
+        if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+          {
+            echo "### call4agents crashtest: \`$SCRIPT\`"
+            echo
+            echo "$verdict"
+            echo
+            echo '```'
+            cat "$log"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+        fi
+        rm -f "$log"
         exit $code
