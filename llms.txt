@@ -13,6 +13,9 @@
 - [Idempotency keys for AI agent tool calls](https://salahmakboul.github.io/call4agents/guides/idempotency-keys-for-ai-agents/): Give an agent's API calls an idempotency key that stays the same across crashes and retries, so Stripe-style APIs drop the duplicate.
 - [My agent's tool call timed out. Did it run?](https://salahmakboul.github.io/call4agents/guides/tool-call-timeout-unknown-outcome/): A timeout or crash does not tell you whether the action happened. What we measured with real process kills, why a read-back can mislead you, and what to do instead.
 
+## Measured
+- [Crash test leaderboard](https://salahmakboul.github.io/call4agents/leaderboard/): one approved payment, one crash, a documented resume, counted in five agent frameworks; run files and a one-command rerun
+
 ## Project
 - [Source and README](https://github.com/salahmakboul/call4agents)
 - [PyPI package](https://pypi.org/project/call4agents/)

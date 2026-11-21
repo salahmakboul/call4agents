@@ -1,0 +1,30 @@
+{
+ "framework": "openai_agents",
+ "versions": {
+  "openai-agents": "0.25.0",
+  "openai": "3.55.1"
+ },
+ "python": "3.12.10",
+ "date": "2026-11-19",
+ "started_utc": "2026-11-19T00:09:09+00:00",
+ "seconds": 9.3,
+ "kind": "control",
+ "crash": false,
+ "command": "<home>\\Documents\\vioce_assistance\\c4a-rerun-1119-openai_agents-venv\\Scripts\\python.exe <home>\\Documents\\vioce_assistance\\c4a-finding\\runs_2026-11-19\\scripts\\three_frameworks.py one \"OpenAI Agents SDK\" no_crash",
+ "exit": 0,
+ "payments": 1,
+ "result": {
+  "payments": 1,
+  "paid": [
+   {
+    "amount": 10,
+    "to": "alice"
+   }
+  ],
+  "exit_codes": [
+   0,
+   0
+  ],
+  "asked_again": false
+ }
+}

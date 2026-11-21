@@ -1,0 +1,83 @@
+{
+ "framework": "google_adk",
+ "guarded": true,
+ "versions": {
+  "google-adk": "2.14.1",
+  "google-genai": "2.34.0",
+  "call4agents": "0.7.3"
+ },
+ "python": "3.12.10",
+ "date": "2026-11-19",
+ "started_utc": "2026-11-19T00:45:40+00:00",
+ "seconds": 22.9,
+ "kind": "crash",
+ "crash": true,
+ "command": "C4A_GUARDED=1 <home>\\Documents\\vioce_assistance\\c4a-rerun-1119-google_adk-venv\\Scripts\\python.exe <home>\\Documents\\vioce_assistance\\c4a-finding\\runs_2026-11-19\\scripts_guarded\\adk_confirm_crash.py --one \"crash after approved payment\"",
+ "exit": 0,
+ "payments": 1,
+ "result": {
+  "start": {
+   "asked": 1,
+   "exit": 0
+  },
+  "approve": {
+   "error": "",
+   "exit": 17
+  },
+  "resume": {
+   "asked_again": 1,
+   "texts": [],
+   "exit": 0
+  },
+  "payments": [
+   "10 alice"
+  ],
+  "call4agents": {
+   "version": "0.7.3",
+   "file": "<home>\\Documents\\vioce_assistance\\c4a-rerun-1119-google_adk-venv\\Lib\\site-packages\\call4agents\\__init__.py"
+  },
+  "guard_log": [
+   {
+    "outcome": "approve_recorded",
+    "args": {
+     "amount": 10,
+     "to": "alice"
+    },
+    "pid": 18880,
+    "phase": "approve"
+   },
+   {
+    "outcome": "EffectInDoubt",
+    "msg": "pay{\"amount\":10,\"to\":\"alice\"} may already have run (crash during the effect); pass reconcile= to check the outside world, or resolve it by hand",
+    "pid": 55912,
+    "phase": "resume"
+   },
+   {
+    "outcome": "approve_recorded",
+    "args": {
+     "amount": 10,
+     "to": "alice"
+    },
+    "pid": 55912,
+    "phase": "resume"
+   },
+   {
+    "outcome": "EffectInDoubt",
+    "msg": "pay{\"amount\":10,\"to\":\"alice\"} may already have run (crash during the effect); pass reconcile= to check the outside world, or resolve it by hand",
+    "pid": 55912,
+    "phase": "resume"
+   }
+  ],
+  "guard_calls": [
+   "EffectInDoubt",
+   "EffectInDoubt"
+  ],
+  "record_kinds": [
+   "approval",
+   "approval_used",
+   "effect_approved",
+   "tool_intent",
+   "approval"
+  ]
+ }
+}

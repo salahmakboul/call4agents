@@ -1,0 +1,18 @@
+== google_adk_guarded  versions={'google-adk': '2.14.1', 'google-genai': '2.34.0', 'call4agents': '0.7.3'}
+  control      n= 5 payments_per_run={1: 5} guard_ended={'ran': 5} paid={('10 alice',): 5} call4agents(version, from venv)={('0.7.3', True): 5}
+  crash        n=30 payments_per_run={1: 30} guard_ended={'in doubt': 30} paid={('10 alice',): 30} call4agents(version, from venv)={('0.7.3', True): 30}
+== langgraph_guarded  versions={'langgraph': '1.2.22', 'langgraph-checkpoint-sqlite': '3.1.3', 'langgraph-checkpoint': '4.3.2', 'call4agents': '0.7.3'}
+  control      n= 5 payments_per_run={1: 5} guard_ended={'ran': 5} paid={('10 alice',): 5} call4agents(version, from venv)={('0.7.3', True): 5}
+  crash        n=30 payments_per_run={1: 30} guard_ended={'in doubt': 30} paid={('10 alice',): 30} call4agents(version, from venv)={('0.7.3', True): 30}
+== microsoft_agent_framework_guarded  versions={'agent-framework': None, 'agent-framework-core': '1.26.0', 'call4agents': '0.7.3'}
+  control      n= 5 payments_per_run={1: 5} guard_ended={'ran': 5} paid={('10 alice',): 5} call4agents(version, from venv)={('0.7.3', True): 5}
+  crash        n=30 payments_per_run={1: 30} guard_ended={'in doubt': 30} paid={('10 alice',): 30} call4agents(version, from venv)={('0.7.3', True): 30}
+  crash_back1  n= 5 payments_per_run={1: 5} guard_ended={'in doubt': 5} paid={('10 alice',): 5} call4agents(version, from venv)={('0.7.3', True): 5}
+== openai_agents_guarded  versions={'openai-agents': '0.25.0', 'openai': '3.55.1', 'call4agents': '0.7.3'}
+  control      n= 5 payments_per_run={1: 5} guard_ended={'ran': 5} paid={('10 alice',): 5} call4agents(version, from venv)={('0.7.3', True): 5}
+  crash        n=30 payments_per_run={1: 30} guard_ended={'in doubt': 30} paid={('10 alice',): 30} call4agents(version, from venv)={('0.7.3', True): 30}
+== pydantic_ai_guarded  versions={'pydantic-ai': None, 'pydantic-ai-slim': '2.70.0', 'call4agents': '0.7.3'}
+  control      n= 5 payments_per_run={1: 5} guard_ended={'ran': 5} paid={('10 alice',): 5} call4agents(version, from venv)={('0.7.3', True): 5}
+  crash        n=30 payments_per_run={1: 30} guard_ended={'in doubt': 30} paid={('10 alice',): 30} call4agents(version, from venv)={('0.7.3', True): 30}
+
+every guarded run (crash and control) made exactly 1 payment: True

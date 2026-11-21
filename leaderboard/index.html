@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Crash test leaderboard: one approval, one crash | Call4Agents</title>
+<meta name="description" content="One approved payment, one crash, a documented resume: 2 payments in 110 of 110 runs in five agent frameworks; 1 with Call4Agents. All data and a one-command rerun.">
+<link rel="canonical" href="https://salahmakboul.github.io/call4agents/leaderboard/">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Call4Agents">
+<meta property="og:title" content="Crash test leaderboard: one approval, one crash">
+<meta property="og:description" content="One approved payment, one crash, a documented resume: 2 payments in 110 of 110 runs in five agent frameworks; 1 with Call4Agents. All data and a one-command rerun.">
+<meta property="og:url" content="https://salahmakboul.github.io/call4agents/leaderboard/">
+<meta property="og:image" content="https://salahmakboul.github.io/call4agents/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Call4Agents: without it, 2 emails after a crash; with it, 1.">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="https://salahmakboul.github.io/call4agents/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://salahmakboul.github.io/call4agents/assets/site.css">
+<script type="application/ld+json">[{"@context": "https://schema.org", "@type": "TechArticle", "headline": "Crash test leaderboard: one approval, one crash", "description": "One approved payment, one crash, a documented resume: 2 payments in 110 of 110 runs in five agent frameworks; 1 with Call4Agents. All data and a one-command rerun.", "url": "https://salahmakboul.github.io/call4agents/leaderboard/", "dateModified": "2026-11-21", "inLanguage": "en", "author": {"@type": "Person", "name": "Salah Eddine Makboul"}, "about": "Making AI agent tool calls safe to retry", "isPartOf": {"@type": "WebSite", "url": "https://salahmakboul.github.io/call4agents/"}}, {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "Home", "item": "https://salahmakboul.github.io/call4agents/"}, {"@type": "ListItem", "position": 2, "name": "Leaderboard", "item": "https://salahmakboul.github.io/call4agents/leaderboard/"}]}]</script>
+</head>
+<body>
+<header class="container">
+<nav>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/"><strong>Call4Agents</strong></a></li></ul>
+<ul><li><a href="https://salahmakboul.github.io/call4agents/docs/">Docs</a></li><li><a href="https://salahmakboul.github.io/call4agents/guides/">Guides</a></li><li><a href="https://github.com/salahmakboul/call4agents">GitHub</a></li><li><a href="https://pypi.org/project/call4agents/">PyPI</a></li></ul>
+</nav>
+</header>
+<main class="container">
+<nav aria-label="breadcrumb" class="crumbs"><ul><li><a href="https://salahmakboul.github.io/call4agents/">Home</a></li><li>Leaderboard</li></ul></nav>
+<article class="doc">
+<p class="tag">Measured 2026-11-19 · next rerun 1 December 2026</p>
+<h1>Crash test leaderboard: does one approved payment run twice after a crash?</h1>
+<p class="lead">A person approves one payment. The tool pays. The process is killed right after, before the
+framework saves its progress. A new process resumes the way the framework documents. We count the payments.</p>
+
+<h2>The result</h2>
+<p>With each framework's documented default resume, <strong>every crash run made 2 payments
+(110 of 110 runs)</strong> and every control run with no crash made 1
+(110 of 110). With the same agents and Call4Agents 0.7.3 on the tool, every crash run
+made 1 payment (150 of 150): the agent stopped and asked a person instead of paying
+again.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Framework</th><th>Version</th><th>Date</th><th>Crash after the approved payment, then resume</th>
+<th>Control, no crash</th><th>Same agent with Call4Agents 0.7.3, crash, then resume</th><th>How it was resumed</th></tr></thead>
+<tbody>
+<tr><td><strong>LangGraph</strong></td><td><code>langgraph==1.2.22</code><br><code>langgraph-checkpoint-sqlite==3.1.3</code><br><code>langgraph-checkpoint==4.3.2</code></td><td>2026-11-19</td><td><strong>2</strong> payments in 30 of 30 runs</td><td><strong>1</strong> payment in 30 of 30 runs</td><td><strong>1</strong> payment in 30 of 30 runs<br><small>the agent stopped and asked a person in 30 of 30</small></td><td><small>SqliteSaver; <code>graph.invoke(None, config)</code> with the same <code>thread_id</code>; <code>Command(resume="yes")</code> if it asks again (<a href="https://docs.langchain.com/oss/python/langgraph/interrupts">docs</a>)</small></td></tr><tr><td><strong>Pydantic AI</strong></td><td><code>pydantic-ai-slim==2.70.0</code></td><td>2026-11-19</td><td><strong>2</strong> payments in 30 of 30 runs</td><td><strong>1</strong> payment in 30 of 30 runs</td><td><strong>1</strong> payment in 30 of 30 runs<br><small>the agent stopped and asked a person in 30 of 30</small></td><td><small><code>run_sync(message_history=stored, deferred_tool_results=DeferredToolResults(approvals=...))</code> (<a href="https://pydantic.dev/docs/ai/tools-toolsets/deferred-tools/">docs</a>)</small></td></tr><tr><td><strong>OpenAI Agents SDK</strong></td><td><code>openai-agents==0.25.0</code><br><code>openai==3.55.1</code></td><td>2026-11-19</td><td><strong>2</strong> payments in 30 of 30 runs</td><td><strong>1</strong> payment in 30 of 30 runs</td><td><strong>1</strong> payment in 30 of 30 runs<br><small>the agent stopped and asked a person in 30 of 30</small></td><td><small><code>RunState.from_json</code>, <code>approve</code>, <code>Runner.run(agent, state)</code> (<a href="https://openai.github.io/openai-agents-python/human_in_the_loop/">docs</a>)</small></td></tr><tr><td><strong>Google ADK</strong></td><td><code>google-adk==2.14.1</code><br><code>google-genai==2.34.0</code></td><td>2026-11-19</td><td><strong>2</strong> payments in 10 of 10 runs</td><td><strong>1</strong> payment in 10 of 10 runs</td><td><strong>1</strong> payment in 30 of 30 runs<br><small>the agent stopped and asked a person in 30 of 30</small></td><td><small>resumable <code>App</code>, <code>SqliteSessionService</code>, <code>run_async(..., invocation_id=...)</code> (<a href="https://adk.dev/runtime/resume/">docs</a>)</small></td></tr><tr><td><strong>Microsoft Agent Framework</strong></td><td><code>agent-framework-core==1.26.0</code></td><td>2026-11-19</td><td><strong>2</strong> payments in 10 of 10 runs</td><td><strong>1</strong> payment in 10 of 10 runs</td><td><strong>1</strong> payment in 30 of 30 runs<br><small>the agent stopped and asked a person in 30 of 30</small></td><td><small><code>FileCheckpointStorage</code>; <code>workflow.run(checkpoint_id=...)</code> from the newest checkpoint (<a href="https://learn.microsoft.com/en-us/agent-framework/workflows/checkpoints">docs</a>)</small></td></tr>
+</tbody></table></div>
+<p><small>Controls with Call4Agents: 1 payment in 25 of 25 runs. Python
+3.12.10, Windows 10, one machine; runs started between 2026-11-18 23:55 and
+2026-11-19 00:54 UTC. 450 run files, all published below.</small></p>
+
+<h3>Notes on single rows</h3>
+<ul>
+<li><strong>LangGraph</strong> asked for the approval again in 1 of 30 crash
+runs; the test answered yes, and those runs also made 2 payments.</li>
+<li><strong>Google ADK</strong> did not ask again in any crash run (0 of 10).</li>
+<li><strong>Microsoft Agent Framework</strong>, extra case: resuming from the checkpoint saved <em>before</em> the
+yes asked the person again in 5 of 5 runs, and after that second yes made
+<strong>2</strong> payments in 5 of 5 runs. With Call4Agents: <strong>1</strong> payment in 5 of 5 runs. Installed as <code>agent-framework-core</code> (the
+<code>agent-framework</code> meta package did not install on this machine).</li>
+<li><strong>Pydantic AI</strong> was installed as <code>pydantic-ai-slim</code>.</li>
+</ul>
+
+<h2>What this means, and what it does not</h2>
+<p>This is a measured fact about the default setup, not a bug report. Doing an action and saving that it was done
+are two separate steps in any system that saves progress after doing work. If the process dies between them, a
+resume runs the action again: at-least-once execution. Several of these frameworks say so in their docs and ask that
+tools with side effects be idempotent. A tool that sends a stable idempotency key to a provider that honours it
+would also make 1 payment here, with any framework.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Framework</th><th>What its docs say about resume and side effects (read 19 Nov 2026)</th></tr></thead>
+<tbody>
+<tr><td>LangGraph</td><td>A node restarts from its beginning when resumed; side effects before <code>interrupt</code> must be
+idempotent. <a href="https://docs.langchain.com/oss/python/langgraph/interrupts">Interrupts</a></td></tr>
+<tr><td>Pydantic AI</td><td>Durable-execution integrations replay completed steps from a journal and retry the one in
+flight. <a href="https://pydantic.dev/docs/ai/tools-toolsets/deferred-tools/">Deferred tools</a>,
+<a href="https://pydantic.dev/docs/ai/integrations/durable_execution/overview/">Durable execution</a></td></tr>
+<tr><td>OpenAI Agents SDK</td><td>An approval lets a tool call run; it does not guarantee exactly-once execution, and
+resuming from an older approved state can run the tool again; it suggests a stable idempotency key per action.
+<a href="https://openai.github.io/openai-agents-python/human_in_the_loop/">Human-in-the-loop</a></td></tr>
+<tr><td>Google ADK</td><td>Tools run at least once and may run more than once when resuming; modify the tool to check
+for and prevent duplicate runs. <a href="https://adk.dev/runtime/resume/">Resume stopped agents</a></td></tr>
+<tr><td>Microsoft Agent Framework</td><td>We found no sentence on running a tool again after a restore. Corrections
+welcome. <a href="https://learn.microsoft.com/en-us/agent-framework/workflows/checkpoints">Checkpoints</a></td></tr>
+</tbody></table></div>
+<p>With Call4Agents the resumed call raised <code>EffectInDoubt</code> in every crash run: the record says the payment
+started and has no result, so it does not pay again by itself and waits for a person (or for a lookup at the
+provider, <code>reconcile=</code>, which these runs do not use). The run does not finish on its own.</p>
+
+<h2>Method</h2>
+<ol>
+<li>The agent asks to call <code>pay(amount=10, to="alice")</code>, a tool that needs approval. The run pauses and the
+framework saves its state the way its docs say.</li>
+<li>A person says yes (scripted). The tool appends one line to a local payments file and the process is killed with
+<code>os._exit</code> right after, so no cleanup code runs.</li>
+<li>A new process resumes from what was saved, the way the framework documents (last column of the table).</li>
+<li>The payments file is counted. The count comes from the file, never from what the framework reports.</li>
+</ol>
+<p>Fake models, so no API key, no network and no real money. Each phase is a separate process and each run a new
+temp folder. Each framework has its own Python environment; the exact packages are in <code>pip_freeze/</code>. The
+control run is the same with no kill. The Call4Agents runs are copies of the same scripts with the tool wrapped as
+<code>c4a.effect(pay, name="pay", approval=True)</code>, the record kept outside the framework's state, the run id
+taken from the framework's resume id; every change is in <code>scripts_guarded/DIFF.txt</code>.</p>
+
+<h2>Rerun a row: one command</h2>
+<p>Download <a href="https://salahmakboul.github.io/call4agents/leaderboard/call4agents-leaderboard-2026-11-19.zip">call4agents-leaderboard-2026-11-19.zip</a> (359 KB, SHA-256
+<code style="word-break:break-all">56c738dd2df2b42e223d092c31b767f70a95064db600fae2ec193a8d57d44340</code>): every run file, the scripts, the drivers, the pip freezes and the
+counts. Or read the files one by one, starting at
+<a href="https://salahmakboul.github.io/call4agents/leaderboard/2026-11-19/README.txt">README.txt</a> and <a href="https://salahmakboul.github.io/call4agents/leaderboard/2026-11-19/tally.txt">tally.txt</a>.</p>
+<pre><code>python -m venv .venv          # then activate it
+pip install &quot;langgraph==1.2.22&quot; &quot;langgraph-checkpoint-sqlite==3.1.3&quot; &quot;call4agents==0.7.3&quot;
+python rerun_row.py langgraph --n 30 --guarded</code></pre>
+<p>The packages for each row (leave the versions out to test the newest releases):</p>
+<pre><code>langgraph                   pip install &quot;langgraph==1.2.22&quot; &quot;langgraph-checkpoint-sqlite==3.1.3&quot;
+pydantic_ai                 pip install &quot;pydantic-ai-slim==2.70.0&quot;
+openai_agents               pip install &quot;openai-agents==0.25.0&quot;
+google_adk                  pip install &quot;google-adk==2.14.1&quot;
+microsoft_agent_framework   pip install &quot;agent-framework-core==1.26.0&quot;</code></pre>
+<p><code>rerun_row.py</code> copies the drivers into a new folder, runs the crash and control cases (and, with
+<code>--guarded</code>, the same with Call4Agents), and prints the count. A run took 4 to 28 seconds on our machine.</p>
+
+<h2>How to correct a row</h2>
+<p>If a script does not use your framework the way its docs say, or a newer release changes a result, open an
+<a href="https://github.com/salahmakboul/call4agents/issues/new">issue</a> or a pull request on <a href="https://github.com/salahmakboul/call4agents">github.com/salahmakboul/call4agents</a> with:</p>
+<ol>
+<li>the <code>my-rerun-...</code> folder that <code>rerun_row.py</code> wrote, with the run files unchanged;</li>
+<li>your <code>pip freeze</code>, Python version and operating system;</li>
+<li>one line on what you changed and why, ideally with a link to the framework's docs.</li>
+</ol>
+<p>We rerun it, reply in the thread with our files, and if they agree the row is replaced, with a link to your
+issue. A different configuration (a durability mode, a retry policy, a durable-execution add-on) is welcome as an
+extra row next to the default one; the default row stays, because that is what a new user gets.</p>
+
+<h2>Monthly rerun</h2>
+<p>We rerun every row once a month with the newest release of each framework, and add the result here with its date;
+older results stay listed. <strong>Next rerun: 1 December 2026.</strong></p>
+
+<h2>Limits</h2>
+<ul>
+<li>One Windows 10 machine, Python 3.12.10. No Linux or macOS run in this table yet.</li>
+<li>One tool, one fake model, one crash point (inside the tool, right after the payment). Other crash points, real
+models and multi-step plans are not covered.</li>
+<li>Defaults only. Durability modes, retry policies and durable-execution add-ons were not turned on.</li>
+<li>A fake payments file with no idempotency keys. A real provider that drops duplicate requests by key changes the
+result for every row.</li>
+<li>10 to 30 runs per case show that an outcome happens. They are not a rate.</li>
+<li>We maintain Call4Agents, the library in the last result column. The scripts and every run file are public so
+anyone can check or correct this page.</li>
+</ul>
+<p>More scenarios (a lost answer, two workers resuming at once, an edited approval, a "no" after a "yes") for three
+of these frameworks are in the <a href="https://salahmakboul.github.io/call4agents/benchmark/">open benchmark</a>. To run the same kind of test on your own
+agent in CI, see <code>call4agents crashtest</code> and the GitHub Action in the
+<a href="https://github.com/salahmakboul/call4agents#readme">README</a>.</p>
+</article>
+
+</main>
+<footer class="container"><hr><p><small>Call4Agents · Apache-2.0 · Copyright 2026 Salah Eddine Makboul ·
+<a href="https://github.com/salahmakboul/call4agents">Source on GitHub</a> · <a href="https://pypi.org/project/call4agents/">PyPI</a> · Site layout: Pico CSS (MIT).</small></p></footer>
+</body>
+</html>

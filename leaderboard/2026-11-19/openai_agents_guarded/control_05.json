@@ -1,0 +1,63 @@
+{
+ "framework": "openai_agents",
+ "guarded": true,
+ "versions": {
+  "openai-agents": "0.25.0",
+  "openai": "3.55.1",
+  "call4agents": "0.7.3"
+ },
+ "python": "3.12.10",
+ "date": "2026-11-19",
+ "started_utc": "2026-11-19T00:54:51+00:00",
+ "seconds": 8.1,
+ "kind": "control",
+ "crash": false,
+ "command": "C4A_GUARDED=1 <home>\\Documents\\vioce_assistance\\c4a-rerun-1119-openai_agents-venv\\Scripts\\python.exe <home>\\Documents\\vioce_assistance\\c4a-finding\\runs_2026-11-19\\scripts_guarded\\three_frameworks.py one_guarded \"OpenAI Agents SDK\" no_crash",
+ "exit": 0,
+ "payments": 1,
+ "result": {
+  "payments": 1,
+  "paid": [
+   {
+    "amount": 10,
+    "to": "alice"
+   }
+  ],
+  "exit_codes": [
+   0,
+   0
+  ],
+  "asked_again": false,
+  "call4agents": {
+   "version": "0.7.3",
+   "file": "<home>\\Documents\\vioce_assistance\\c4a-rerun-1119-openai_agents-venv\\Lib\\site-packages\\call4agents\\__init__.py"
+  },
+  "guard_log": [
+   {
+    "outcome": "approve_recorded",
+    "args": {
+     "amount": 10,
+     "to": "alice"
+    },
+    "pid": 35896,
+    "phase": "approve"
+   },
+   {
+    "outcome": "ran",
+    "result": "'paid'",
+    "pid": 35896,
+    "phase": "approve"
+   }
+  ],
+  "guard_calls": [
+   "ran"
+  ],
+  "record_kinds": [
+   "approval",
+   "approval_used",
+   "effect_approved",
+   "tool_intent",
+   "tool_done"
+  ]
+ }
+}

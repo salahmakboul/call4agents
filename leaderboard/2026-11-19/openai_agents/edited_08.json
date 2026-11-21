@@ -1,0 +1,26 @@
+{
+ "framework": "openai_agents",
+ "versions": {
+  "openai-agents": "0.25.0",
+  "openai": "3.55.1"
+ },
+ "python": "3.12.10",
+ "date": "2026-11-19",
+ "started_utc": "2026-11-19T00:13:35+00:00",
+ "seconds": 11.3,
+ "kind": "edited",
+ "crash": false,
+ "command": "<home>\\Documents\\vioce_assistance\\c4a-rerun-1119-openai_agents-venv\\Scripts\\python.exe <home>\\Documents\\vioce_assistance\\c4a-finding\\runs_2026-11-19\\scripts\\three_frameworks.py one \"OpenAI Agents SDK\" edited_after_yes",
+ "exit": 0,
+ "payments": 0,
+ "result": {
+  "payments": 0,
+  "paid": [],
+  "exit_codes": [
+   0,
+   1,
+   1
+  ],
+  "raised_in_approve": "agents.exceptions.ModelBehaviorError: Model reused a tool call ID for a different invocation. Use a unique call ID for each tool invocation."
+ }
+}

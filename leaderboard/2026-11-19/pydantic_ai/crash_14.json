@@ -1,0 +1,35 @@
+{
+ "framework": "pydantic_ai",
+ "versions": {
+  "pydantic-ai": null,
+  "pydantic-ai-slim": "2.70.0"
+ },
+ "python": "3.12.10",
+ "date": "2026-11-19",
+ "started_utc": "2026-11-18T23:58:33+00:00",
+ "seconds": 12.5,
+ "kind": "crash",
+ "crash": true,
+ "command": "<home>\\Documents\\vioce_assistance\\c4a-rerun-1119-pydantic_ai-venv\\Scripts\\python.exe <home>\\Documents\\vioce_assistance\\c4a-finding\\runs_2026-11-19\\scripts\\three_frameworks.py one \"Pydantic AI\" approve_then_crash",
+ "exit": 0,
+ "payments": 2,
+ "result": {
+  "payments": 2,
+  "paid": [
+   {
+    "amount": 10,
+    "to": "alice"
+   },
+   {
+    "amount": 10,
+    "to": "alice"
+   }
+  ],
+  "exit_codes": [
+   0,
+   17,
+   0
+  ],
+  "asked_again": false
+ }
+}

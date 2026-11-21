@@ -1,0 +1,68 @@
+{
+ "framework": "microsoft_agent_framework",
+ "guarded": true,
+ "versions": {
+  "agent-framework": null,
+  "agent-framework-core": "1.26.0",
+  "call4agents": "0.7.3"
+ },
+ "python": "3.12.10",
+ "date": "2026-11-19",
+ "started_utc": "2026-11-19T00:44:23+00:00",
+ "seconds": 7.5,
+ "kind": "crash",
+ "crash": true,
+ "command": "C4A_GUARDED=1 <home>\\Documents\\vioce_assistance\\c4a-rerun-1119-maf-venv\\Scripts\\python.exe <home>\\Documents\\vioce_assistance\\c4a-finding\\runs_2026-11-19\\scripts_guarded\\maf_approve_crash.py --one \"crash after approved payment\"",
+ "exit": 0,
+ "payments": 1,
+ "result": {
+  "start": {
+   "asked": 1,
+   "checkpoints": 2,
+   "exit": 0
+  },
+  "approve": {
+   "error": "",
+   "exit": 17
+  },
+  "resume": {
+   "checkpoints_before": 4,
+   "asked": 0,
+   "pending_args": [],
+   "exit": 0
+  },
+  "payments": [
+   "10 alice"
+  ],
+  "call4agents": {
+   "version": "0.7.3",
+   "file": "<home>\\Documents\\vioce_assistance\\c4a-rerun-1119-maf-venv\\Lib\\site-packages\\call4agents\\__init__.py"
+  },
+  "guard_log": [
+   {
+    "outcome": "approve_recorded",
+    "args": {
+     "amount": 10,
+     "to": "alice"
+    },
+    "pid": 58240,
+    "phase": "approve"
+   },
+   {
+    "outcome": "EffectInDoubt",
+    "msg": "pay{\"amount\":10,\"to\":\"alice\"} may already have run (crash during the effect); pass reconcile= to check the outside world, or resolve it by hand",
+    "pid": 56148,
+    "phase": "resume"
+   }
+  ],
+  "guard_calls": [
+   "EffectInDoubt"
+  ],
+  "record_kinds": [
+   "approval",
+   "approval_used",
+   "effect_approved",
+   "tool_intent"
+  ]
+ }
+}

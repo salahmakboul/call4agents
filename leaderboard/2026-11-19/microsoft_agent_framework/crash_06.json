@@ -1,0 +1,37 @@
+{
+ "framework": "microsoft_agent_framework",
+ "versions": {
+  "agent-framework": null,
+  "agent-framework-core": "1.26.0"
+ },
+ "python": "3.12.10",
+ "date": "2026-11-19",
+ "started_utc": "2026-11-18T23:56:36+00:00",
+ "seconds": 4.2,
+ "kind": "crash",
+ "crash": true,
+ "command": "<home>\\Documents\\vioce_assistance\\c4a-rerun-1119-maf-venv\\Scripts\\python.exe <home>\\Documents\\vioce_assistance\\c4a-finding\\runs_2026-11-19\\scripts\\maf_approve_crash.py --one \"crash after approved payment\"",
+ "exit": 0,
+ "payments": 2,
+ "result": {
+  "start": {
+   "asked": 1,
+   "checkpoints": 2,
+   "exit": 0
+  },
+  "approve": {
+   "error": "",
+   "exit": 17
+  },
+  "resume": {
+   "checkpoints_before": 4,
+   "asked": 0,
+   "pending_args": [],
+   "exit": 0
+  },
+  "payments": [
+   "10 alice",
+   "10 alice"
+  ]
+ }
+}

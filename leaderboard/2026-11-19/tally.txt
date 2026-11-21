@@ -1,0 +1,22 @@
+== google_adk  versions={'google-adk': '2.14.1', 'google-genai': '2.34.0'}
+  control            n=10 payments_per_run={1: 10} asked_again=0 paid={('10 alice',): 10}
+  crash              n=10 payments_per_run={2: 10} asked_again=0 paid={('10 alice', '10 alice'): 10}
+  edited             n= 5 payments_per_run={1: 5} asked_again=0 paid={('9999 mallory',): 5}
+== langgraph  versions={'langgraph': '1.2.22', 'langgraph-checkpoint-sqlite': '3.1.3', 'langgraph-checkpoint': '4.3.2'}
+  control            n=30 payments_per_run={1: 30} asked_again=0 paid={('10 alice',): 30}
+  crash              n=30 payments_per_run={2: 30} asked_again=1 paid={('10 alice', '10 alice'): 30}
+  edited             n=10 payments_per_run={1: 10} asked_again=0 paid={('9999 mallory',): 10}
+== microsoft_agent_framework  versions={'agent-framework': None, 'agent-framework-core': '1.26.0'}
+  control            n=10 payments_per_run={1: 10} asked_again=0 paid={('10 alice',): 10}
+  crash              n=10 payments_per_run={2: 10} asked_again=0 paid={('10 alice', '10 alice'): 10}
+  crash_back1        n= 5 payments_per_run={2: 5} asked_again=5 paid={('10 alice', '10 alice'): 5}
+  edited             n= 5 payments_per_run={2: 5} asked_again=0 paid={('10 alice', '99 mallo'): 5}
+  edited_before_yes  n= 5 payments_per_run={1: 5} asked_again=0 paid={('99 mallo',): 5}
+== openai_agents  versions={'openai-agents': '0.25.0', 'openai': '3.55.1'}
+  control            n=30 payments_per_run={1: 30} asked_again=0 paid={('10 alice',): 30}
+  crash              n=30 payments_per_run={2: 30} asked_again=0 paid={('10 alice', '10 alice'): 30}
+  edited             n=10 payments_per_run={0: 10} asked_again=0 paid={(): 10} raised={('agents.exceptions.ModelBehaviorError: Model reused a tool call ID for a different invocation. Use a unique call ID for each tool invocation.',): 10}
+== pydantic_ai  versions={'pydantic-ai': None, 'pydantic-ai-slim': '2.70.0'}
+  control            n=30 payments_per_run={1: 30} asked_again=0 paid={('10 alice',): 30}
+  crash              n=30 payments_per_run={2: 30} asked_again=0 paid={('10 alice', '10 alice'): 30}
+  edited             n=10 payments_per_run={1: 10} asked_again=0 paid={('9999 mallory',): 10}

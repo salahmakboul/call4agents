@@ -1,0 +1,37 @@
+{
+ "framework": "langgraph",
+ "versions": {
+  "langgraph": "1.2.22",
+  "langgraph-checkpoint-sqlite": "3.1.3",
+  "langgraph-checkpoint": "4.3.2"
+ },
+ "python": "3.12.10",
+ "date": "2026-11-19",
+ "started_utc": "2026-11-18T23:57:05+00:00",
+ "seconds": 15.6,
+ "kind": "crash",
+ "crash": true,
+ "command": "<home>\\Documents\\vioce_assistance\\c4a-rerun-1119-langgraph-venv\\Scripts\\python.exe <home>\\Documents\\vioce_assistance\\c4a-finding\\runs_2026-11-19\\scripts\\three_frameworks.py one LangGraph approve_then_crash",
+ "exit": 0,
+ "payments": 2,
+ "result": {
+  "payments": 2,
+  "paid": [
+   {
+    "amount": 10,
+    "to": "alice"
+   },
+   {
+    "amount": 10,
+    "to": "alice"
+   }
+  ],
+  "exit_codes": [
+   0,
+   17,
+   0,
+   0
+  ],
+  "asked_again": false
+ }
+}

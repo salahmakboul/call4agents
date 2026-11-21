@@ -1,0 +1,65 @@
+{
+ "framework": "google_adk",
+ "guarded": true,
+ "versions": {
+  "google-adk": "2.14.1",
+  "google-genai": "2.34.0",
+  "call4agents": "0.7.3"
+ },
+ "python": "3.12.10",
+ "date": "2026-11-19",
+ "started_utc": "2026-11-19T00:53:46+00:00",
+ "seconds": 6.3,
+ "kind": "control",
+ "crash": false,
+ "command": "C4A_GUARDED=1 <home>\\Documents\\vioce_assistance\\c4a-rerun-1119-google_adk-venv\\Scripts\\python.exe <home>\\Documents\\vioce_assistance\\c4a-finding\\runs_2026-11-19\\scripts_guarded\\adk_confirm_crash.py --one \"control: no crash\"",
+ "exit": 0,
+ "payments": 1,
+ "result": {
+  "start": {
+   "asked": 1,
+   "exit": 0
+  },
+  "approve": {
+   "asked_again": 0,
+   "texts": [
+    "Paid."
+   ],
+   "exit": 0
+  },
+  "payments": [
+   "10 alice"
+  ],
+  "call4agents": {
+   "version": "0.7.3",
+   "file": "<home>\\Documents\\vioce_assistance\\c4a-rerun-1119-google_adk-venv\\Lib\\site-packages\\call4agents\\__init__.py"
+  },
+  "guard_log": [
+   {
+    "outcome": "approve_recorded",
+    "args": {
+     "amount": 10,
+     "to": "alice"
+    },
+    "pid": 15328,
+    "phase": "approve"
+   },
+   {
+    "outcome": "ran",
+    "result": "{'receipt': 'paid 10 to alice'}",
+    "pid": 15328,
+    "phase": "approve"
+   }
+  ],
+  "guard_calls": [
+   "ran"
+  ],
+  "record_kinds": [
+   "approval",
+   "approval_used",
+   "effect_approved",
+   "tool_intent",
+   "tool_done"
+  ]
+ }
+}

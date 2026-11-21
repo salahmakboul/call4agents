@@ -1,0 +1,37 @@
+{
+ "framework": "google_adk",
+ "versions": {
+  "google-adk": "2.14.1",
+  "google-genai": "2.34.0"
+ },
+ "python": "3.12.10",
+ "date": "2026-11-19",
+ "started_utc": "2026-11-18T23:56:49+00:00",
+ "seconds": 16.1,
+ "kind": "crash",
+ "crash": true,
+ "command": "<home>\\Documents\\vioce_assistance\\c4a-rerun-1119-google_adk-venv\\Scripts\\python.exe <home>\\Documents\\vioce_assistance\\c4a-finding\\runs_2026-11-19\\scripts\\adk_confirm_crash.py --one \"crash after approved payment\"",
+ "exit": 0,
+ "payments": 2,
+ "result": {
+  "start": {
+   "asked": 1,
+   "exit": 0
+  },
+  "approve": {
+   "error": "",
+   "exit": 17
+  },
+  "resume": {
+   "asked_again": 0,
+   "texts": [
+    "Paid."
+   ],
+   "exit": 0
+  },
+  "payments": [
+   "10 alice",
+   "10 alice"
+  ]
+ }
+}
