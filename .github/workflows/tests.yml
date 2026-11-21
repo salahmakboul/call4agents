@@ -36,6 +36,8 @@ jobs:
       - run: python -m tests.test_undo
       - run: python -m tests.test_tickets
       - run: python -m tests.test_crashtest
+      - name: the steps of action.yml, run the way GitHub runs them (bash)
+        run: python -m tests.test_action
       - run: python -m tests.test_audit
       - run: python -m tests.test_spans
       - run: python -m tests.test_recipes

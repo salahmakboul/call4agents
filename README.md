@@ -384,7 +384,8 @@ In GitHub Actions (experimental; it installs the published 0.7.3 by default). Pi
 ```
 
 The job fails if an action ran twice or without approval. The output `exit-code` is 0, 1 (found a problem) or 2
-(the script could not run).
+(the script could not run), and the job summary shows the report with the one-line fix. A full workflow file, every
+input and how the Action itself is tested: [docs/CI_CRASHTEST.md](docs/CI_CRASHTEST.md).
 
 `call4agents scan <path>` reads Python source and runs nothing. It lists functions given to a model as tools whose
 code sends, pays, deletes or writes, with no approval or once-only guard on them. It cannot see a guard in another
@@ -610,6 +611,7 @@ next to every batch of mutations. Rerun them with `python -m tests.mutations.run
 
 ## More
 
+- [docs/CI_CRASHTEST.md](docs/CI_CRASHTEST.md): does your agent pay twice after a crash? The command and the GitHub Action for any CI
 - [docs/PRODUCTION.md](docs/PRODUCTION.md): costs, the big test, running it on call, every error message
 - [docs/IDEMPOTENCY.md](docs/IDEMPOTENCY.md): idempotency keys and the exact retry rule
 - [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md): what the approval secret protects, and what it does not

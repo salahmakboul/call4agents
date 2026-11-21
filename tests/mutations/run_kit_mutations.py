@@ -21,6 +21,7 @@ SPANS = "call4agents/spans.py"
 STORY = "call4agents/story.py"
 MULTI = "call4agents/examples/multi_step.py"
 BENCH, BENCH_ENV = "bench/run.py", "bench/subject.py"
+ACT = "action.yml"
 ADK_SUBJ, MAF_SUBJ = "bench/subjects/google_adk_agent.py", "bench/subjects/ms_agent_framework.py"
 
 # (name, file, old text, new text, suite)
@@ -244,6 +245,19 @@ MUTATIONS = [
     ("CT8 a live sign does not stop the run", CT, "live = live_signs(source, os.environ)", "live = []", "tests.test_crashtest"),
     ("CT8 the refusal shows the key", CT, 'found = [f"{name} holds a live key"', 'found = [f"{name}={value} holds a live key"',
      "tests.test_crashtest"),
+    # --- AC: the GitHub Action (action.yml), run step by step by tests/test_action.py
+    ("control (no-op, action)", ACT, "    - name: crashtest" + chr(10), "    - name: crashtest" + chr(10), "tests.test_action"),
+    ("AC a repeat does not fail the job", ACT, "        exit $code" + chr(10), "        exit 0" + chr(10), "tests.test_action"),
+    ("AC the exit status of tee is used", ACT, "code=${PIPESTATUS[0]}", "code=${PIPESTATUS[1]}", "tests.test_action"),
+    ("AC exit-code output not set", ACT, 'echo "exit-code=$code" >> "$GITHUB_OUTPUT"', "true", "tests.test_action"),
+    ("AC runs without test accounts", ACT, "if: inputs.test-accounts != 'true'", "if: inputs.test-accounts == 'never'",
+     "tests.test_action"),
+    ("AC watch input dropped", ACT, 'then args+=(--watch "$WATCH"); fi', "then :; fi", "tests.test_action"),
+    ("AC max-crashes input dropped", ACT, '--test-accounts --max-crashes "$MAX")', "--test-accounts)", "tests.test_action"),
+    ("AC no job summary", ACT, '} >> "$GITHUB_STEP_SUMMARY"', "} > /dev/null", "tests.test_action"),
+    ("AC no error annotation", ACT, 'echo "::error title=call4agents crashtest::', 'echo "title=call4agents crashtest::',
+     "tests.test_action"),
+    ("AC default install not pinned", ACT, '    default: "call4agents==', '    default: "call4agents>=', "tests.test_action"),
     ("K24 a cancel is not recorded", INIT, "result = await f(*args, **kwargs)\n                    except BaseException as exc:",
      "result = await f(*args, **kwargs)\n                    except Exception as exc:", "tests.test_c4a_kit"),
     # --- K25: reconcile can say "cannot tell yet"
@@ -601,8 +615,10 @@ def copy_tree(dst: Path) -> None:
               "test_c4a_production.py", "test_undo.py", "c4a_undo_child.py", "test_adapters.py",
               "test_shared_record.py", "test_tickets.py", "test_crashtest.py", "test_audit.py", "test_atomic_admission.py",
               "test_pytest_plugin.py", "test_spans.py", "test_recipes.py", "test_properties.py",
-              "test_formal_trace.py", "test_story.py", "test_multi_step.py"):
+              "test_formal_trace.py", "test_story.py", "test_multi_step.py", "test_action.py"):
         shutil.copy(ROOT / "tests" / f, dst / "tests" / f)
+    for f in ("action.yml", "pyproject.toml"):            # tests.test_action reads both
+        shutil.copy(ROOT / f, dst / f)
     shutil.copytree(ROOT / "bench", dst / "bench", ignore=shutil.ignore_patterns("__pycache__", "results", "*.md"))
 
 
