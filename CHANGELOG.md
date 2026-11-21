@@ -1,6 +1,20 @@
 # Changelog
 
-## Unreleased (0.8.0)
+## 0.8.0
+
+**Behaviour changes from 0.7.3 (read before upgrading)**
+- `call4agents doubt`, `status` and `archive` read one case differently. An action whose first attempt raised
+  (it may have reached the provider) and whose same-key resend (`idempotent_for=`) then got a `retry_on` error was
+  shown by 0.7.3 as "not done (may run again)". 0.8 shows it as IN DOUBT: the resend proves nothing about the first
+  attempt. So on the same record `doubt` can list more actions, `doubt --fail-if-any` can exit 3 where 0.7.3
+  exited 0, `status` counts more in doubt, and `archive` keeps such runs. Resolve them by hand
+  (`call4agents resolve <key> done|not-done`). Checked on a record written by 0.7.3 and read by both kits.
+- `call4agents resolve <key> done "note"` on a done action with a late result: 0.7.3 refused it ("already done");
+  0.8 records that a person checked the outside system (a `late_checked` row) and the action leaves `doubt`.
+- An action with no approval and no limit is now admitted in one `BEGIN IMMEDIATE` transaction (as approved and
+  limited actions already were), because it reads the run's `run_ordered` row. One more indexed read per action;
+  nothing else changes for runs that are not ordered.
+- Everything else is opt-in: `ttl=`, `version=` and `ordered=True` change nothing when not used.
 
 **The crash test in any CI ([docs/CI_CRASHTEST.md](docs/CI_CRASHTEST.md))**
 - The GitHub Action writes the crashtest report (which call ran twice, where, the one-line fix) to the job summary,
@@ -18,36 +32,59 @@
   second run.
 - The expiry time is stored in the approval row and signed with it (inside the HMAC), and read in the same
   transaction that spends the yes. Clock rule as for tickets: the approving process's `time.time()` + ttl, compared
-  with the admitting process's `time.time()` (machines sharing a record need agreeing clocks).
+  with the admitting process's `time.time()` (also with PostgreSQL: the database clock is not used). A skew of S
+  seconds between the two machines makes the yes live S seconds longer or shorter; a clock set back makes an
+  expired yes live again. No safety promise depends on the clock. See GUARANTEES G2a; K34b reproduces it.
+- `ttl` bounds the spend, not the effect: an admitted action whose first try proved nothing happened (an error in
+  `retry_on`, or `reconcile=` saying "did not happen") runs once after the expiry (K34a). Use `c4a.deny` if that
+  must not happen.
 - Without `ttl` the approval row is byte-for-byte the 0.7 row. A 0.7 kit refuses a yes with `ttl` (fails closed).
 - `call4agents story` shows a yes that expired before any action used it. Checks K30a-K30h (K30h with real process
-  kills), ST9; 6 mutations + control, and 2 for ST9.
+  kills), K34a-K34b, ST9; 7 mutations + control, and 2 for ST9.
 
 **New: a "yes" bound to the tool's version: `@c4a.effect(version="2")` (PLAN_1_0 item 2)**
 - The version is signed with the yes. A yes for version 1, or for no version, does not run version 2; a 0.7
   approval admits only tools without `version=`. A "no" covers every version. Tickets (`c4a.pause`, and the OpenAI
   Agents SDK and Pydantic AI ticket bridges) carry the version.
 - The version is not part of the action's key: a finished action is replayed, never re-run, by a new version. An
-  action in doubt under another version's yes is not continued (ApprovalRequired; resolve it by hand).
-- Without `version=` nothing changes. Checks K31a-K31i; 4 mutations + control.
+  action in doubt under another version's yes is not continued (ApprovalRequired, whose message says why). After
+  `resolve done` the new version returns the recorded result; after `resolve not-done` only the old version's code
+  can retry it (a new version's yes does not), or start it as a new action (another run id or `c4a_key=`). Resolve
+  actions in doubt before a deploy.
+- Without `version=` nothing changes. Checks K31a-K31i, K34c; 5 mutations + control.
 
 **New (opt-in): ordered runs: `with c4a.run(id, ordered=True):`**
-- A new action is refused (`EffectInDoubt` naming the earlier action; nothing runs or is recorded; its yes stays
-  unspent) while another action of the run has no final outcome: in doubt, running, or a late result nobody checked.
-  The check is in the admission transaction. The earlier action's own retry is not refused.
+- A new action is refused (`c4a.OrderRefused`, a kind of `EffectInDoubt`; nothing runs or is recorded; its yes
+  stays unspent) while another action of the run has no final outcome: in doubt, running, or a late result nobody
+  checked. The check is in the admission transaction. The earlier action's own retry is not refused.
+- On the refusal, `e.tool` / `e.call_args` name the EARLIER action (the one that may have happened, to resolve), as
+  in every `EffectInDoubt`; `e.refused_tool` / `e.refused_args` name the refused one; `e.earlier_key` is the key
+  for `call4agents resolve`. The message names both.
+- **The flag is stored in the run.** The first action an `ordered=True` caller tries (admitted or refused) writes a
+  `run_ordered` row in its admission transaction; from then on every action of the run is ordered, also from a
+  process, thread or adapter that left the flag out. `ordered=False` on such a run raises `c4a.RunIsOrdered`
+  (nothing runs or is recorded): an ordered run cannot be made unordered. Leaving the flag out follows the record.
+  Actions that callers without the flag started before the mark are not ordered against each other. Checks
+  K33a-K33g (K33e with real processes); formal model: configs `ordered_forgetful`, `ordered_forgetful_approval`
+  pass, the seeded `ordered_not_stored` (the flag per caller only) fails; 8 mutations + control.
 - `call4agents resolve <key> done "note"` on a done action with a late result now records that a person checked it
   (a new `late_checked` row): it leaves `doubt`, and an ordered run may go on. Before, `resolve` refused done actions.
-- The flag is per caller: every caller of the run must pass `ordered=True` (it is not stored in the record).
 - An action is final only when it is done, every attempt proved it did not happen, or a person resolved it. Found by
   the formal model (TLC, 22 states): an attempt closed by a same-key resend is no proof. `call4agents doubt` and
   `story` now use the same rule: an action whose first attempt raised and whose same-key resend got a `retry_on`
   error is IN DOUBT (it was shown as "not done").
-- Runs without the flag behave as before. `examples/multi_step.py` has a mode `guard_ordered`: the loop that carries
+- Runs in which no caller passed `ordered=True` behave as before. `examples/multi_step.py` has a mode `guard_ordered`: the loop that carries
   on past an uncertain step runs no later step (0 charges, 0 emails). Checks K32a-K32g, MS5; 13 mutations + control, and 1 for MS5.
 
 **Record format:** still format 1. New optional fields `exp` and `version` in approval rows (signed; absent when not
-used), and a new entry kind `late_checked`. Older kits read the record; they ignore `late_checked` and do not accept
-a yes that carries `exp` or `version`.
+used), and new entry kinds `late_checked` and `run_ordered`. Older kits read the record; they ignore `late_checked`
+and `run_ordered` (a 0.7 caller of an ordered run is not ordered) and do not accept a yes that carries `exp` or
+`version`.
+
+**Tests:** K29e (two processes resume after a kill) repeats a run, at most twice, only when the killed process's pid
+was taken by a live process before the resumers looked (then "may still be running" is the right, safe answer: 0
+charges), and shows the resumers' answers when it fails. Not reproduced as a flake: 30 of 30 runs gave 1 charge with
+16 busy processes on 8 cores.
 
 **New (experimental): `call4agents story <record> [--run id]`**
 - What happened in a run, in plain words, for a person who did not write the code: each action in time order, who

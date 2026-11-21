@@ -9,6 +9,8 @@ Every module reads and writes the same entries:
   denial        a "no" for exact arguments; cancels earlier approvals for them
   approval_used one approval spent by one effect (unique: a "yes" is used once)
   late_checked  a person checked a late result (`call4agents resolve ... done`); read by ordered runs (0.8)
+  run_ordered   this run is ordered from now on (key = run id): written by the first admission of a caller that
+                passed ordered=True, read by every admission of the run (0.8)
   limit_reserved / limit_released   a shared limit's cost, held by one effect / given back (experimental)
 Entries are never updated or deleted.
 """
@@ -127,6 +129,20 @@ class Unsettled(Exception):
     def __init__(self, key: str, tool: Any, args: Any) -> None:
         super().__init__(f"{tool}{canonical(args)} ({key[:12]}) has no final outcome yet")
         self.key, self.tool, self.call_args = key, tool, args
+
+
+class RunIsOrdered(ValueError):
+    """Ordered runs (0.8): a caller passed ordered=False for a run that the record says is ordered (an earlier
+    caller opened it with ordered=True). Nothing ran and nothing was recorded: an ordered run cannot be made
+    unordered. Remove ordered=False (leaving the flag out follows the record)."""
+
+    def __init__(self, run_id: str, seq: Optional[int]) -> None:
+        where = (f"record row {seq}: a caller opened it with ordered=True" if seq is not None
+                 else "an enclosing `with c4a.run(..., ordered=True)`")
+        super().__init__(f"run {run_id!r} is ordered ({where}), but "
+                         "this caller passed ordered=False. Nothing ran and nothing was recorded. An ordered run "
+                         "cannot be made unordered: remove ordered=False, or pass ordered=True")
+        self.run_id, self.seq = run_id, seq
 
 
 # The approval fields signed together with (tool, arguments) since 0.8. A "yes" without them is signed exactly as in
@@ -300,16 +316,31 @@ class Ledger:
                            (run_id, kind, key, None if payload is None else canonical(payload), time.time()))
         return cur.lastrowid
 
-    def claim(self, run_id: str, key: str, payload: Any = None, ordered: bool = False) -> bool:
+    def claim(self, run_id: str, key: str, payload: Any = None, ordered: Optional[bool] = None) -> bool:
         """Atomically record an intent. True = this caller owns the effect; False = someone already does.
-        ordered=True: Unsettled if another action of the run has no final outcome (checked in the same transaction)."""
-        if ordered:
-            return self.claim_limited(run_id, key.rsplit("#", 1)[0], key, payload, [], ordered=True)
-        try:
-            self.append(run_id, "tool_intent", key, payload)
+        ordered (0.8): None follows the record (ordered if the run is marked ordered); True marks the run ordered;
+        False raises RunIsOrdered on a marked run. Ordered: Unsettled if another action of the run has no final
+        outcome. The mark is read (and written) in the same transaction as the intent."""
+        effect = key.rsplit("#", 1)[0]
+
+        def once() -> bool:
+            blocked = None
+            try:
+                with self._lock, self._conn() as conn:
+                    self._begin_admission(conn)
+                    if self._ordered_in(conn, run_id, ordered, effect):
+                        if (self._latest_in(conn, "tool_done", effect) is not None
+                                or self._latest_in(conn, "tool_intent", key) is not None):
+                            return False
+                        blocked = self._unsettled_new_in(conn, run_id, effect)
+                    if blocked is None:
+                        self._insert(conn, run_id, "tool_intent", key, payload)
+            except self._DUPLICATE:
+                return False
+            if blocked is not None:             # after the commit: a run_ordered mark written above is kept
+                raise blocked
             return True
-        except self._DUPLICATE:
-            return False
+        return self._when_free(once)
 
     def _begin_admission(self, conn: Any) -> None:
         # Lock before reading: a deferred read-to-write upgrade can fail under contention.
@@ -318,21 +349,33 @@ class Ledger:
     def claim_approved(self, run_id: str, tool: str, args: Dict[str, Any], effect: str,
                        key: str, payload: Any = None,
                        limit: Optional[Any] = None, version: Optional[str] = None,
-                       ordered: bool = False) -> Optional[bool]:
+                       ordered: Optional[bool] = None) -> Optional[bool]:
         """One transaction for a live yes and its intent: True owns it, False already claimed,
         None needs approval. No application code runs until the transaction has committed.
         Old records with effect_approved but no intent remain resumable under the same rules.
         version: only a yes signed for this tool version counts (None: a yes with no version, as in 0.7).
         Expiry (0.8) is read here, in the same transaction that spends the yes, and only when a yes is SPENT: an
         action already admitted keeps its yes after it expires (its resume replays, stays in doubt, or reconciles).
+        ordered: as in claim(); Unsettled is raised after the transaction committed (only a run_ordered mark).
         """
+        owned = self._claim_approved(run_id, tool, args, effect, key, payload, limit, version, ordered)
+        if isinstance(owned, Unsettled):
+            raise owned
+        return owned
+
+    def _claim_approved(self, run_id: str, tool: str, args: Dict[str, Any], effect: str, key: str, payload: Any,
+                        limit: Optional[Any], version: Optional[str], ordered: Optional[bool]) -> Any:
         try:
             with self._lock, self._conn() as conn:
                 self._begin_admission(conn)
+                order = self._ordered_in(conn, run_id, ordered, effect)
                 if self._latest_in(conn, "tool_done", effect) is not None:
                     return False
-                if ordered:              # before the yes is spent: a refused action leaves it unspent
-                    self._refuse_unsettled_in(conn, run_id, effect)
+                # before the yes is spent: a refused action leaves it unspent (only a run_ordered mark is kept)
+                if order:
+                    blocked = self._unsettled_new_in(conn, run_id, effect)
+                    if blocked is not None:
+                        return blocked
                 spent = self._latest_in(conn, "effect_approved", effect)
                 denied = max(self._matching_in(conn, run_id, tool, args, "denial"), default=0)
                 expires = self._approvals_in(conn, run_id, tool, args, version)
@@ -396,24 +439,29 @@ class Ledger:
         self._insert(conn, run_id, "limit_reserved", name, {"effect": effect, "cost": cost})
 
     def claim_limited(self, run_id: str, effect: str, key: str, payload: Any,
-                      limit: Any, ordered: bool = False) -> bool:
+                      limit: Any, ordered: Optional[bool] = None) -> bool:
         """One transaction for the limit check, the reservation and the intent. True owns it, False already
-        claimed; LimitReached when it would go over (nothing written). ordered=True: see claim()."""
+        claimed; LimitReached when it would go over (nothing written). ordered: see claim()."""
+        blocked = None
         try:
             # the same lock as claim_approved: two workers can never both take the last unit
             with self._lock, self._conn() as conn:
                 self._begin_admission(conn)
+                order = self._ordered_in(conn, run_id, ordered, effect)
                 if self._latest_in(conn, "tool_done", effect) is not None:
                     return False
                 if self._latest_in(conn, "tool_intent", key) is not None:
                     return False
-                if ordered:
-                    self._refuse_unsettled_in(conn, run_id, effect)
-                self._reserve_in(conn, run_id, effect, limit)
-                self._insert(conn, run_id, "tool_intent", key, payload=payload)   # same transaction as the reservation
-                return True
+                if order:
+                    blocked = self._unsettled_new_in(conn, run_id, effect)
+                if blocked is None:
+                    self._reserve_in(conn, run_id, effect, limit)
+                    self._insert(conn, run_id, "tool_intent", key, payload=payload)   # same transaction as the reservation
         except self._DUPLICATE:
             return False
+        if blocked is not None:                 # after the commit: a run_ordered mark written above is kept
+            raise blocked
+        return True
 
     # ------------------------------------------------------------ ordered runs (0.8)
     _OUTCOMES = ("tool_intent", "tool_done", "tool_abandoned", "late_result", "late_checked")
@@ -454,13 +502,31 @@ class Ledger:
                 return {"key": a["key"], "tool": a["tool"], "args": a["args"]}
         return None
 
-    def _refuse_unsettled_in(self, conn: Any, run_id: str, effect: str) -> None:
+    def _ordered_in(self, conn: Any, run_id: str, ordered: Optional[bool], effect: str) -> bool:
+        """Inside the admission transaction: is this admission ordered? The run_ordered mark makes a run ordered for
+        EVERY later caller, also one that forgot the flag (None). True writes the mark if it is missing (it is kept
+        even when the admission is then refused). False on a marked run raises RunIsOrdered (nothing is written)."""
+        mark = self._latest_in(conn, "run_ordered", run_id)
+        if mark is not None:
+            if ordered is False:
+                raise RunIsOrdered(run_id, mark["seq"])
+            return True
+        if ordered:
+            self._insert(conn, run_id, "run_ordered", run_id, {"effect": effect})
+            return True
+        return False
+
+    def is_ordered(self, run_id: str) -> bool:
+        """True when the record marks this run as ordered (a caller opened it with ordered=True)."""
+        with self._conn() as conn:
+            return self._latest_in(conn, "run_ordered", run_id) is not None
+
+    def _unsettled_new_in(self, conn: Any, run_id: str, effect: str) -> Optional[Unsettled]:
         """Only a NEW action is refused: a retry or resume of one already started goes on under the usual rules."""
         if self._latest_in(conn, "tool_intent", intent_key(effect, 1)) is not None:
-            return
+            return None
         found = self._unsettled_in(conn, run_id)
-        if found is not None:
-            raise Unsettled(found["key"], found["tool"], found["args"])
+        return None if found is None else Unsettled(found["key"], found["tool"], found["args"])
 
     def release_limit(self, run_id: str, effect: str, name: str) -> None:
         """Give back this effect's reservation: only when the kit has proved the effect did not happen."""

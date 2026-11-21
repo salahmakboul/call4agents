@@ -112,12 +112,23 @@ admitted action run a second time.
 
 **Conditions:**
 
-- The clock rule is the one tickets (`c4a.pause(ttl=)`) use: the expiry time is the approving process's
-  `time.time()` plus `ttl`, and the admitting process compares it with its own `time.time()`. The yes is live
-  while `now <= exp` (at `exp` exactly it is still live; the formal model uses `now < exp`, which makes no
-  difference to any safety property). When several
-  machines share a record, their clocks must agree to well within `ttl`; a skew of S seconds moves the expiry
-  by S. A clock set back makes a yes live longer; a clock set forward makes it expire sooner.
+- **Whose clock decides.** Two clocks take part, both wall clocks (`time.time()`, not a monotonic clock):
+  - the APPROVING process's clock sets the expiry: `exp = its time.time() + ttl`, stored and signed in the row;
+  - the ADMITTING process's clock (the one that would spend the yes, inside the admission transaction) is
+    compared with it. The yes is live while `now <= exp` (at `exp` exactly it is still live; the formal model
+    uses `now < exp`, which makes no difference to any safety property).
+  - With PostgreSQL the database server's clock is NOT used; the clocks of the two Python processes are.
+  - The rule is the same as for tickets (`c4a.pause(ttl=)`).
+- **What skew does.** If the approving machine's clock is S seconds behind the admitting machine's, the yes lives
+  S seconds less (if S >= ttl it is expired at once); if it is S seconds ahead, the yes lives S seconds longer.
+  A clock set back on the admitting machine (an NTP step, a manual change) makes an expired yes live again until
+  the clock passes `exp` once more; a clock set forward makes it expire sooner. K34b reproduces all three.
+- **What skew does NOT do.** No safety promise depends on the clock: whatever the clocks say, a yes is spent at
+  most once, an action runs only after a matching yes was spent, and an admitted action never runs twice.
+  A wrong clock only changes how LONG a yes can be spent.
+- So: when several machines share a record, keep their clocks synchronized (NTP) to well within `ttl`, and do
+  not use a `ttl` close to the skew you can have. A `ttl` of seconds across machines without synchronized clocks
+  is not a time limit you can rely on.
 - The other conditions of G2.
 
 **Checks:**
@@ -132,8 +143,12 @@ admitted action run a second time.
   `reconcile=` the resume returns the payment (1 charge); killed before the bank, reconcile proves it did not
   happen and the admitted action runs once (1 charge).
 - ST9: `call4agents story` shows a yes that expired before any action used it, and that nothing ran under it.
+- K34a: an admitted action whose first try proved nothing happened (an error in `retry_on`) runs once after its
+  yes expired (the "spend, not effect" rule above, reproduced).
+- K34b: simulated skew: an approver 30 s behind gives a 10 s yes that is expired at once; one 30 s ahead gives a
+  1 s yes still live 2 s later; an admitter whose clock is set back makes an expired yes live again.
 - Mutations: the expiry never checked, also checked on an admitted action, kept outside the MAC, not stored,
-  dropped by `approve`, `ttl` not validated.
+  dropped by `approve`, `ttl` not validated, the admitting process's clock not read.
 
 **Not covered:**
 
@@ -156,11 +171,17 @@ another version, or for no version, does not, and a 0.7 approval row admits only
 - The version is not part of the action's key: a finished version-1 action returns its recorded result to
   version-2 code and does not run again (G1 is unchanged).
 - An action admitted under a version-1 yes and still in doubt is not continued by version-2 code: it raises
-  `ApprovalRequired`, and a new yes does not change that. Resolve it by hand.
+  `ApprovalRequired` (the message says it was started under another version), and a new version-2 yes does not
+  change that. What you can do:
+  - it happened: `call4agents resolve <key> done`; version-2 code then returns the recorded result;
+  - it did not happen: `call4agents resolve <key> not-done` lets version-1 code retry it, but version-2 code still
+    refuses it, also with a new version-2 yes. To run it with version-2 code, start it as a new action (another
+    run id, or `c4a_key=`). Plan deploys so that version-1 actions in doubt are resolved before the switch.
 - Without `version=` nothing changes.
 
-**Checks:** K31a-K31i, and the mutations: the version not compared, ignored by `approve`, ignored by the
-admission, dropped by a ticket.
+**Checks:** K31a-K31i, K34c (after `resolve not-done` and a new version-2 yes, version-2 code still refuses and
+says why; after `resolve done` it returns the recorded result), and the mutations: the version not compared,
+ignored by `approve`, ignored by the admission, dropped by a ticket, the refusal not explained.
 
 **Not covered:**
 
@@ -169,9 +190,21 @@ admission, dropped by a ticket.
 
 ## G2c. An ordered run starts nothing new while an earlier action is uncertain (0.8, opt-in)
 
-**The promise.** Inside `with c4a.run(run_id, ordered=True):`, a NEW action (one with no intent in the record yet)
-is refused with `EffectInDoubt`, naming the earlier action, while any other action of the same run has no final
-outcome. Nothing runs, nothing is recorded for the refused action, and a yes it would have spent stays unspent.
+**The promise.** Once a caller has entered `with c4a.run(run_id, ordered=True):` and tried an action, the run is
+ordered for every caller: a NEW action (one with no intent in the record yet) is refused with `OrderRefused` (a kind
+of `EffectInDoubt`) while any other action of the same run has no final outcome. Nothing runs, nothing is recorded
+for the refused action, and a yes it would have spent stays unspent.
+
+- `e.tool` and `e.call_args` name the EARLIER action, the one that may have happened and must be resolved (as in
+  every `EffectInDoubt`); `e.refused_tool` and `e.refused_args` name the action that was refused, and
+  `e.earlier_key` is the key to give `call4agents resolve`. The message names both.
+- **The flag is stored in the run.** The first action an `ordered=True` caller tries (admitted or refused) writes a
+  `run_ordered` row for the run, in the same transaction as its admission. Every later admission of the run reads
+  it in its own transaction: a caller that left the flag out (another process, a thread that did not copy the
+  context, an adapter) is ordered too.
+- `ordered=False` on a run the record marks as ordered raises `RunIsOrdered`: nothing runs, nothing is recorded.
+  An ordered run cannot be made unordered. Leaving the flag out follows the record. `with c4a.run(id,
+  ordered=False)` inside `with c4a.run(id, ordered=True)` raises `RunIsOrdered` at once.
 
 - Final means: done (with no late result left unchecked), or EVERY attempt proved not to have happened (each has
   its own "did not happen": an error in `retry_on`, or `reconcile=` returning `None`), or a person resolved it
@@ -186,26 +219,37 @@ outcome. Nothing runs, nothing is recorded for the refused action, and a yes it 
   ordered run at once give 1 run and 7 refusals.
 - The retry or resume of an action already started is not refused; it follows the usual rules.
 - A nested `with c4a.run(same id):` (the adapters do this) keeps the run ordered.
-- Runs without `ordered=True` behave exactly as before.
+- Runs in which no caller ever passed `ordered=True` behave exactly as before (one extra indexed read per
+  admission).
 
-**Conditions:** every caller of the run passes `ordered=True`. The flag lives in the caller's context, not in
-the record: another process, a thread that did not copy the context, or an adapter that enters the same run id
-without the flag is not refused. Use one worker per ordered run, or pass the flag in each of them.
+**Conditions:** the run becomes ordered at the first action an `ordered=True` caller tries. Actions that callers
+without the flag started BEFORE that are not ordered against each other (they are still checked: an ordered
+caller's new action is refused while any of them is uncertain). So the caller that starts the run should pass
+`ordered=True` before its first action; the other callers then need nothing.
 
 **Checks:** K32a-K32g (K32g: attempt 1 raised after reaching the provider and the same-key resend got a `retry_on`
 error; the action stays uncertain, the next step is refused, and `doubt` and `story` show it as uncertain), and
 MS5 (real kills): the loop that carries on past an uncertain reserve runs no charge and
-no email in an ordered run (0 and 0), against 1 and 1 without it (MS4). Mutations: the check removed in each
-admission path, the flag dropped by `run()` or by a nested run, a retry refused, a late result ignored or never
-cleared, only the newest attempt read (by the order check, and by `doubt`), "not done" counted as uncertain, a
-person's "not done" ignored, `resolve` unable to clear a late result.
+no email in an ordered run (0 and 0), against 1 and 1 without it (MS4). K33a-K33g (the stored flag): a caller in
+another thread without the flag is refused once the run is marked (control: no mark, it runs); `ordered=False` on
+a marked run raises `RunIsOrdered` on the plain, limit, approval and rules paths with nothing written; the mark is
+kept when the ordered caller's own first action is refused; every admission path reads the mark; real processes
+(one killed inside an ordered action, a new process without the flag is refused; control: it runs); the refusal
+names both actions; a nested run keeps the flag. Formal model: configs `ordered_forgetful` and
+`ordered_forgetful_approval` (a worker without the flag) pass; the seeded `ordered_not_stored` (the flag per caller
+only, as on main before 21 Nov) fails in 9 states. Mutations: the check removed in each admission path, the flag
+dropped by `run()` or by a nested run, a retry refused, a late result ignored or never cleared, only the newest
+attempt read (by the order check, and by `doubt`), "not done" counted as uncertain, a person's "not done" ignored,
+`resolve` unable to clear a late result; the mark never written, never read, lost when the admission is refused,
+`ordered=False` accepted, a nested run turning the order off, the refused action not named.
 
 **Not covered:**
 
 - Other runs: the order is per run id. Two runs that touch the same account are not ordered against each other.
 - A late result that arrives after a later action was admitted. It blocks the actions after it, but it cannot
   undo what already ran.
-- A caller that enters the run without `ordered=True` (see conditions).
+- Actions started by callers without the flag before the run was marked (see conditions).
+- A kit older than 0.8 does not know the `run_ordered` row: a 0.7 caller of the same record is not ordered.
 
 ## G3. A "no" wins
 

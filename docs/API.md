@@ -25,19 +25,23 @@ same secret on every machine).
 ### `run`
 
 ```python
-run(run_id: str, *, ordered: bool = False)
+run(run_id: str, *, ordered: Optional[bool] = None)
 ```
 
 `with c4a.run("thread-42"):` - every action and approval inside belongs to this run. Use the id your
 framework resumes with (a thread, conversation or session id), so a resumed run finds its record.
 New threads do not inherit it: enter c4a.run there, or use contextvars.copy_context().run.
 
-ordered=True: a NEW action of this run is refused (EffectInDoubt naming the earlier action, nothing runs, nothing
-is recorded) while another action of the run has no final outcome: running, in doubt, or a late result nobody
+ordered=True: a NEW action of this run is refused (OrderRefused, an EffectInDoubt naming the earlier action as
+e.tool and the refused one as e.refused_tool; nothing runs, nothing is recorded) while another action of the run has no final outcome: running, in doubt, or a late result nobody
 checked. Final: done, every attempt proved not to have happened, or resolved by a person. The earlier action's
 own retry is not refused, so reconcile= or `call4agents resolve` unblocks it. The check is in the same
-transaction as the new action's intent. The flag is per caller, not stored in the record: EVERY caller of the
-run must pass ordered=True (a nested `with c4a.run(same id)` keeps it).
+transaction as the new action's intent (OrderRefused, a kind of EffectInDoubt).
+The flag is stored in the record: the first action an ordered=True caller tries (admitted or refused) marks
+the run as ordered, in the same transaction, and from then on EVERY action of the run is ordered, also from a
+caller (process, worker, adapter) that left the flag out. ordered=False on a run the record marks as ordered
+raises RunIsOrdered (nothing runs, nothing is recorded): an ordered run cannot be made unordered. Leaving the
+flag out (None) follows the record. A nested `with c4a.run(same id)` keeps the outer flag.
 
 ### `effect`
 
@@ -112,6 +116,12 @@ when the yes is SPENT, not when the action happens: an action it already admitte
 or resume after the expiry (a resume returns the recorded result, stays in doubt, or reconciles, as without ttl),
 and the expiry never makes it run twice. The expiry time is signed with the yes and read in the transaction that
 spends it, by the admitting process's clock (live while now <= expiry). A tool declared with @c4a.effect(version=...) gets a yes for that version only.
+
+Clocks: the expiry is THIS process's time.time() + ttl; the process that spends the yes compares it with ITS
+time.time() (with PostgreSQL too: the database clock is not used). If the two machines' clocks differ by S
+seconds, the yes lives S seconds longer or shorter; a clock set back makes an expired yes live again. No safety
+promise depends on the clock (a yes is still spent once, nothing runs twice). Keep clocks synchronized to well
+within ttl (docs/GUARANTEES.md, G2a).
 
 ### `deny`
 
@@ -256,6 +266,27 @@ class RuleRefused(tool: 'str', args: 'Dict[str, Any]', rule: 'str', why: 'str') 
 ```
 
 A rule refused this call. Nothing ran and no intent was recorded.
+
+### `OrderRefused`
+
+```python
+class OrderRefused(tool: str, args: Dict[str, Any], why: str, refused_tool: str, refused_args: Dict[str, Any], earlier_key: str) -> None
+```
+
+Ordered runs (0.8): a NEW action was refused because an EARLIER action of the run has no final outcome.
+Nothing ran and nothing was recorded for the refused action. Like every EffectInDoubt, e.tool and e.call_args
+name the action that may have happened: the EARLIER one, the one to resolve. e.refused_tool and
+e.refused_args name the action that was refused; e.earlier_key is the earlier action's key (for resolve).
+
+### `RunIsOrdered`
+
+```python
+class RunIsOrdered(run_id: str, seq: Optional[int]) -> None
+```
+
+Ordered runs (0.8): a caller passed ordered=False for a run that the record says is ordered (an earlier
+caller opened it with ordered=True). Nothing ran and nothing was recorded: an ordered run cannot be made
+unordered. Remove ordered=False (leaving the flag out follows the record).
 
 ## Testing and inspection tools
 

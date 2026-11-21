@@ -101,9 +101,11 @@ those arguments.
 ## Ordered runs (0.8, opt-in)
 
 `with c4a.run("order-A-1", ordered=True):` starts no new action while an earlier action of the same run is
-uncertain (in doubt, still running, or a late result nobody checked). The new action raises `EffectInDoubt`
-naming the earlier one, and nothing runs. Resolving the earlier action (`call4agents resolve`, or `reconcile=` on
-its retry) lets the run go on. This is for a loop that might swallow `EffectInDoubt` and carry on
+uncertain (in doubt, still running, or a late result nobody checked). The new action raises `OrderRefused` (an
+`EffectInDoubt` whose `tool` is the earlier action and whose `refused_tool` is the new one), and nothing runs.
+Resolving the earlier action (`call4agents resolve`, or `reconcile=` on its retry) lets the run go on. The flag is
+stored in the run: once an ordered caller has tried an action, every other caller of the run (another process,
+worker or adapter) is ordered too, even without the flag, and `ordered=False` on that run raises `RunIsOrdered`. This is for a loop that might swallow `EffectInDoubt` and carry on
 (see [MULTI_STEP.md](MULTI_STEP.md)).
 
 ## Waiting for a person (tickets, experimental)

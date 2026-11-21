@@ -34,7 +34,7 @@ BASE = {
     "NW": 2, "ARG3": '"b"', "MAX_CALLS": 2, "MAX_CALLS3": 1, "MAX_YES": 1, "MAX_NO": 1,
     "APPROVAL": "TRUE", "MODE": '"plain"', "RETRY_ON": "TRUE", "CRASHES": "TRUE", "EFFECT_FAILS": "TRUE",
     "OWNER": '"processes"', "START_EARLY": "FALSE",
-    "TTL": 0, "MAX_TIME": 0, "RESUME": '"reuse"', "ORDERED": "FALSE", "VERSIONS": 1, "BUGS": "{}",
+    "TTL": 0, "MAX_TIME": 0, "RESUME": '"reuse"', "ORDERED": "FALSE", "FORGET": "{}", "VERSIONS": 1, "BUGS": "{}",
 }
 # 0.8 (approve ttl=, effect version=, run ordered=): a ttl of 1 tick and a clock that goes 0..2
 EXPIRY = {"TTL": 1, "MAX_TIME": 2}
@@ -96,6 +96,12 @@ CONFIGS = [
     cfg("ordered_idem", "pass", {"NW": 3, "ORDERED": "TRUE", "APPROVAL": "FALSE", "MODE": '"idem"'},
         SAFETY + ["NoLateResult"], ["AppendOnly", "OrderedNoLaterWhileDoubt"],
         note="ordered=True with idempotent_for= (same-key resends)"),
+    cfg("ordered_forgetful", "pass", {"NW": 3, "ORDERED": "TRUE", "FORGET": "{2}", "APPROVAL": "FALSE"},
+        SAFETY + ["DoneOnce", "NoLateResult"], ["AppendOnly", "OrderedNoLaterWhileDoubt"],
+        note="0.8 stored order: worker 2 enters the run WITHOUT ordered=True and follows the run_ordered mark"),
+    cfg("ordered_forgetful_approval", "pass", {"NW": 3, "ORDERED": "TRUE", "FORGET": "{2}", "MAX_YES": 2},
+        SAFETY + ["DoneOnce", "NoLateResult"], ["AppendOnly", "OrderedNoLaterWhileDoubt"],
+        note="0.8 stored order with approval: worker 2 has no flag"),
     cfg("all_0_8", "pass", dict(EXPIRY, NW=3, ORDERED="TRUE", VERSIONS=2, MAX_CALLS=1),
         SAFETY + ["ExpiredNotSpent", "NoSecondEffect", "DoneOnce"], ["AppendOnly", "OrderedNoLaterWhileDoubt"],
         note="ttl, version and ordered together (1 call per worker)"),
@@ -165,6 +171,10 @@ CONFIGS = [
                                                     "BUGS": bugs("ordered_same_key_resolves")}, [],
         ["OrderedNoLaterWhileDoubt"], expect="OrderedNoLaterWhileDoubt",
         note="tool_retry_same_key taken as 'did not happen'"),
+    cfg("bug_ordered_not_stored", "seeded", {"NW": 3, "ORDERED": "TRUE", "FORGET": "{2}", "APPROVAL": "FALSE",
+                                             "BUGS": bugs("ordered_not_stored")}, [],
+        ["OrderedNoLaterWhileDoubt"], expect="OrderedNoLaterWhileDoubt",
+        note="the flag per caller only (main before 21 Nov): a worker without it starts a new action"),
 ]
 
 
